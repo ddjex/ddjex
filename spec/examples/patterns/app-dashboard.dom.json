@@ -1,0 +1,532 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-dashboard",
+  "target": "dom",
+
+  "state": {
+    "stats": {
+      "type": "object",
+      "initial": {
+        "totalRevenue": 45231,
+        "revenueChange": 12.5,
+        "totalUsers": 2350,
+        "usersChange": 8.2,
+        "totalOrders": 1234,
+        "ordersChange": -3.1,
+        "conversionRate": 3.2,
+        "conversionChange": 0.4
+      }
+    },
+    "recentOrders": {
+      "type": "array",
+      "initial": [
+        { "id": "ORD-001", "customer": "Alice Johnson", "amount": 125.00, "status": "completed", "date": "2024-01-15" },
+        { "id": "ORD-002", "customer": "Bob Smith", "amount": 89.99, "status": "pending", "date": "2024-01-15" },
+        { "id": "ORD-003", "customer": "Carol White", "amount": 245.50, "status": "completed", "date": "2024-01-14" },
+        { "id": "ORD-004", "customer": "David Brown", "amount": 67.00, "status": "cancelled", "date": "2024-01-14" },
+        { "id": "ORD-005", "customer": "Eve Davis", "amount": 189.00, "status": "processing", "date": "2024-01-13" }
+      ]
+    },
+    "chartData": {
+      "type": "array",
+      "initial": [
+        { "month": "Jan", "revenue": 4000, "orders": 120 },
+        { "month": "Feb", "revenue": 3000, "orders": 98 },
+        { "month": "Mar", "revenue": 5000, "orders": 156 },
+        { "month": "Apr", "revenue": 4500, "orders": 145 },
+        { "month": "May", "revenue": 6000, "orders": 189 },
+        { "month": "Jun", "revenue": 5500, "orders": 170 }
+      ]
+    },
+    "selectedPeriod": { "type": "string", "initial": "7d" },
+    "sidebarCollapsed": { "type": "boolean", "initial": false },
+    "activePage": { "type": "string", "initial": "dashboard" }
+  },
+
+  "computed": {
+    "recentOrderCount": {
+      "deps": ["recentOrders"],
+      "fn": { "op": "length", "args": [{ "ref": "recentOrders" }] }
+    },
+    "pendingOrders": {
+      "deps": ["recentOrders"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "recentOrders" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "pending"] }] }
+        ]
+      }
+    },
+    "maxRevenue": {
+      "deps": ["chartData"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "chartData" },
+          { "op": "max", "args": [{ "ref": "$acc" }, { "op": "get", "args": [{ "ref": "$item" }, "revenue"] }] },
+          0
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setPeriod": {
+      "params": ["period"],
+      "mutations": [{ "target": "selectedPeriod", "op": "set", "value": { "param": "period" } }]
+    },
+    "toggleSidebar": {
+      "mutations": [
+        { "target": "sidebarCollapsed", "op": "set", "value": { "op": "not", "args": [{ "ref": "sidebarCollapsed" }] } }
+      ]
+    },
+    "setActivePage": {
+      "params": ["page"],
+      "mutations": [{ "target": "activePage", "op": "set", "value": { "param": "page" } }]
+    },
+    "updateOrderStatus": {
+      "params": ["id", "status"],
+      "mutations": [
+        {
+          "target": "recentOrders",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "recentOrders" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": { "param": "status" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100 flex" },
+    "children": [
+      {
+        "type": "aside",
+        "props": {
+          "className": {
+            "op": "if",
+            "args": [
+              { "ref": "sidebarCollapsed" },
+              "w-16 bg-gray-900 text-white transition-all",
+              "w-64 bg-gray-900 text-white transition-all"
+            ]
+          }
+        },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "p-4 border-b border-gray-800" },
+            "children": [
+              {
+                "if": { "op": "not", "args": [{ "ref": "sidebarCollapsed" }] },
+                "then": { "type": "h1", "props": { "className": "text-xl font-bold" }, "children": [{ "text": "Dashboard" }] },
+                "else": { "type": "span", "props": { "className": "text-xl" }, "children": [{ "text": "📊" }] }
+              }
+            ]
+          },
+          {
+            "type": "nav",
+            "props": { "className": "p-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activePage" }, "dashboard"] },
+                      "w-full flex items-center gap-3 px-3 py-2 rounded bg-blue-600",
+                      "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-800"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActivePage", "args": ["dashboard"] } },
+                "children": [
+                  { "type": "span", "children": [{ "text": "📈" }] },
+                  { "if": { "op": "not", "args": [{ "ref": "sidebarCollapsed" }] }, "then": { "type": "span", "children": [{ "text": "Dashboard" }] } }
+                ]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activePage" }, "orders"] },
+                      "w-full flex items-center gap-3 px-3 py-2 rounded bg-blue-600",
+                      "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-800"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActivePage", "args": ["orders"] } },
+                "children": [
+                  { "type": "span", "children": [{ "text": "📦" }] },
+                  { "if": { "op": "not", "args": [{ "ref": "sidebarCollapsed" }] }, "then": { "type": "span", "children": [{ "text": "Orders" }] } }
+                ]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activePage" }, "customers"] },
+                      "w-full flex items-center gap-3 px-3 py-2 rounded bg-blue-600",
+                      "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-800"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActivePage", "args": ["customers"] } },
+                "children": [
+                  { "type": "span", "children": [{ "text": "👥" }] },
+                  { "if": { "op": "not", "args": [{ "ref": "sidebarCollapsed" }] }, "then": { "type": "span", "children": [{ "text": "Customers" }] } }
+                ]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activePage" }, "settings"] },
+                      "w-full flex items-center gap-3 px-3 py-2 rounded bg-blue-600",
+                      "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-800"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActivePage", "args": ["settings"] } },
+                "children": [
+                  { "type": "span", "children": [{ "text": "⚙️" }] },
+                  { "if": { "op": "not", "args": [{ "ref": "sidebarCollapsed" }] }, "then": { "type": "span", "children": [{ "text": "Settings" }] } }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "main",
+        "props": { "className": "flex-1 p-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex justify-between items-center mb-6" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex items-center gap-4" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "className": "p-2 hover:bg-gray-200 rounded" },
+                    "events": { "click": { "action": "toggleSidebar" } },
+                    "children": [{ "text": "☰" }]
+                  },
+                  { "type": "h2", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "Overview" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "flex gap-2" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "eq", "args": [{ "ref": "selectedPeriod" }, "7d"] },
+                          "px-3 py-1 bg-blue-500 text-white rounded text-sm",
+                          "px-3 py-1 bg-white border rounded text-sm hover:bg-gray-50"
+                        ]
+                      }
+                    },
+                    "events": { "click": { "action": "setPeriod", "args": ["7d"] } },
+                    "children": [{ "text": "7 days" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "eq", "args": [{ "ref": "selectedPeriod" }, "30d"] },
+                          "px-3 py-1 bg-blue-500 text-white rounded text-sm",
+                          "px-3 py-1 bg-white border rounded text-sm hover:bg-gray-50"
+                        ]
+                      }
+                    },
+                    "events": { "click": { "action": "setPeriod", "args": ["30d"] } },
+                    "children": [{ "text": "30 days" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "eq", "args": [{ "ref": "selectedPeriod" }, "90d"] },
+                          "px-3 py-1 bg-blue-500 text-white rounded text-sm",
+                          "px-3 py-1 bg-white border rounded text-sm hover:bg-gray-50"
+                        ]
+                      }
+                    },
+                    "events": { "click": { "action": "setPeriod", "args": ["90d"] } },
+                    "children": [{ "text": "90 days" }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "bg-white p-6 rounded-lg shadow" },
+                "children": [
+                  { "type": "p", "props": { "className": "text-gray-500 text-sm" }, "children": [{ "text": "Total Revenue" }] },
+                  {
+                    "type": "p",
+                    "props": { "className": "text-2xl font-bold" },
+                    "children": [{ "text": "$" }, { "bind": "stats.totalRevenue" }]
+                  },
+                  {
+                    "type": "p",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "gt", "args": [{ "op": "get", "args": [{ "ref": "stats" }, "revenueChange"] }, 0] },
+                          "text-green-600 text-sm",
+                          "text-red-600 text-sm"
+                        ]
+                      }
+                    },
+                    "children": [
+                      { "op": "if", "args": [{ "op": "gt", "args": [{ "op": "get", "args": [{ "ref": "stats" }, "revenueChange"] }, 0] }, "↑ +", "↓ "] },
+                      { "bind": "stats.revenueChange" },
+                      { "text": "%" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "bg-white p-6 rounded-lg shadow" },
+                "children": [
+                  { "type": "p", "props": { "className": "text-gray-500 text-sm" }, "children": [{ "text": "Total Users" }] },
+                  { "type": "p", "props": { "className": "text-2xl font-bold" }, "children": [{ "bind": "stats.totalUsers" }] },
+                  {
+                    "type": "p",
+                    "props": { "className": "text-green-600 text-sm" },
+                    "children": [{ "text": "↑ +" }, { "bind": "stats.usersChange" }, { "text": "%" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "bg-white p-6 rounded-lg shadow" },
+                "children": [
+                  { "type": "p", "props": { "className": "text-gray-500 text-sm" }, "children": [{ "text": "Total Orders" }] },
+                  { "type": "p", "props": { "className": "text-2xl font-bold" }, "children": [{ "bind": "stats.totalOrders" }] },
+                  {
+                    "type": "p",
+                    "props": { "className": "text-red-600 text-sm" },
+                    "children": [{ "text": "↓ " }, { "bind": "stats.ordersChange" }, { "text": "%" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "bg-white p-6 rounded-lg shadow" },
+                "children": [
+                  { "type": "p", "props": { "className": "text-gray-500 text-sm" }, "children": [{ "text": "Conversion Rate" }] },
+                  { "type": "p", "props": { "className": "text-2xl font-bold" }, "children": [{ "bind": "stats.conversionRate" }, { "text": "%" }] },
+                  {
+                    "type": "p",
+                    "props": { "className": "text-green-600 text-sm" },
+                    "children": [{ "text": "↑ +" }, { "bind": "stats.conversionChange" }, { "text": "%" }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "grid grid-cols-1 lg:grid-cols-3 gap-6" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "lg:col-span-2 bg-white p-6 rounded-lg shadow" },
+                "children": [
+                  { "type": "h3", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Revenue Overview" }] },
+                  {
+                    "type": "div",
+                    "props": { "className": "flex items-end gap-2 h-48" },
+                    "each": { "items": "chartData", "as": "data" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "flex-1 flex flex-col items-center" },
+                        "children": [
+                          {
+                            "type": "div",
+                            "props": {
+                              "className": "w-full bg-blue-500 rounded-t",
+                              "style": {
+                                "height": {
+                                  "op": "concat",
+                                  "args": [
+                                    { "op": "multiply", "args": [{ "op": "divide", "args": [{ "op": "get", "args": [{ "ref": "data" }, "revenue"] }, { "ref": "maxRevenue" }] }, 100] },
+                                    "%"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          { "type": "p", "props": { "className": "text-xs text-gray-500 mt-2" }, "children": [{ "bind": "data.month" }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "bg-white p-6 rounded-lg shadow" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "flex justify-between items-center mb-4" },
+                    "children": [
+                      { "type": "h3", "props": { "className": "text-lg font-semibold" }, "children": [{ "text": "Recent Orders" }] },
+                      {
+                        "type": "span",
+                        "props": { "className": "text-sm text-gray-500" },
+                        "children": [{ "bind": "pendingOrders" }, { "text": " pending" }]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "space-y-3" },
+                    "each": { "items": "recentOrders", "as": "order", "key": { "op": "get", "args": [{ "ref": "order" }, "id"] } },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "flex justify-between items-center p-2 hover:bg-gray-50 rounded" },
+                        "children": [
+                          {
+                            "type": "div",
+                            "children": [
+                              { "type": "p", "props": { "className": "font-medium text-sm" }, "children": [{ "bind": "order.customer" }] },
+                              { "type": "p", "props": { "className": "text-xs text-gray-500" }, "children": [{ "bind": "order.id" }] }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "props": { "className": "text-right" },
+                            "children": [
+                              { "type": "p", "props": { "className": "font-medium text-sm" }, "children": [{ "text": "$" }, { "bind": "order.amount" }] },
+                              {
+                                "type": "span",
+                                "props": {
+                                  "className": {
+                                    "op": "switch",
+                                    "args": [
+                                      { "op": "get", "args": [{ "ref": "order" }, "status"] },
+                                      {
+                                        "completed": "text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full",
+                                        "pending": "text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full",
+                                        "processing": "text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full",
+                                        "cancelled": "text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full"
+                                      },
+                                      "text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full"
+                                    ]
+                                  }
+                                },
+                                "children": [{ "bind": "order.status" }]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Has initial stats and orders",
+      "steps": [
+        { "assert": { "ref": "recentOrderCount", "eq": 5 } },
+        { "assert": { "ref": "selectedPeriod", "eq": "7d" } }
+      ]
+    },
+    {
+      "id": "test-period-change",
+      "name": "Can change time period",
+      "steps": [
+        { "dispatch": "setPeriod", "args": ["30d"] },
+        { "assert": { "ref": "selectedPeriod", "eq": "30d" } }
+      ]
+    },
+    {
+      "id": "test-sidebar-toggle",
+      "name": "Can toggle sidebar",
+      "steps": [
+        { "assert": { "ref": "sidebarCollapsed", "eq": false } },
+        { "dispatch": "toggleSidebar" },
+        { "assert": { "ref": "sidebarCollapsed", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-page-navigation",
+      "name": "Can navigate between pages",
+      "steps": [
+        { "dispatch": "setActivePage", "args": ["orders"] },
+        { "assert": { "ref": "activePage", "eq": "orders" } },
+        { "dispatch": "setActivePage", "args": ["customers"] },
+        { "assert": { "ref": "activePage", "eq": "customers" } }
+      ]
+    },
+    {
+      "id": "test-pending-count",
+      "name": "Calculates pending orders",
+      "steps": [
+        { "assert": { "ref": "pendingOrders", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-update-order",
+      "name": "Can update order status",
+      "steps": [
+        { "dispatch": "updateOrderStatus", "args": ["ORD-002", "completed"] },
+        { "assert": { "ref": "pendingOrders", "eq": 0 } }
+      ]
+    }
+  ]
+}

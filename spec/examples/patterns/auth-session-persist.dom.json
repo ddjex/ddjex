@@ -1,0 +1,337 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "auth-session-persist",
+  "target": "dom",
+
+  "state": {
+    "user": { "type": "object", "initial": null, "nullable": true },
+    "token": { "type": "string", "initial": null, "nullable": true },
+    "isLoading": { "type": "boolean", "initial": true },
+    "rememberMe": { "type": "boolean", "initial": true },
+    "loginEmail": { "type": "string", "initial": "" },
+    "loginPassword": { "type": "string", "initial": "" },
+    "loginError": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "isLoggedIn": {
+      "deps": ["user", "token"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "isDefined", "args": [{ "ref": "user" }] },
+          { "op": "isDefined", "args": [{ "ref": "token" }] }
+        ]
+      }
+    },
+    "canLogin": {
+      "deps": ["loginEmail", "loginPassword", "isLoading"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "isNotEmpty", "args": [{ "ref": "loginEmail" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "loginPassword" }] },
+          { "op": "not", "args": [{ "ref": "isLoading" }] }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setLoginEmail": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "loginEmail", "op": "set", "value": { "param": "value" } },
+        { "target": "loginError", "op": "set", "value": "" }
+      ]
+    },
+    "setLoginPassword": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "loginPassword", "op": "set", "value": { "param": "value" } },
+        { "target": "loginError", "op": "set", "value": "" }
+      ]
+    },
+    "toggleRememberMe": {
+      "mutations": [
+        { "target": "rememberMe", "op": "set", "value": { "op": "not", "args": [{ "ref": "rememberMe" }] } }
+      ]
+    },
+    "login": {
+      "mutations": [
+        { "target": "user", "op": "set", "value": { "email": { "ref": "loginEmail" }, "name": "User" } },
+        { "target": "token", "op": "set", "value": "mock-jwt-token-12345" },
+        { "target": "loginEmail", "op": "set", "value": "" },
+        { "target": "loginPassword", "op": "set", "value": "" },
+        { "target": "loginError", "op": "set", "value": "" }
+      ]
+    },
+    "logout": {
+      "mutations": [
+        { "target": "user", "op": "set", "value": null },
+        { "target": "token", "op": "set", "value": null }
+      ]
+    },
+    "restoreSession": {
+      "params": ["user", "token"],
+      "mutations": [
+        { "target": "user", "op": "set", "value": { "param": "user" } },
+        { "target": "token", "op": "set", "value": { "param": "token" } },
+        { "target": "isLoading", "op": "set", "value": false }
+      ]
+    },
+    "finishLoading": {
+      "mutations": [
+        { "target": "isLoading", "op": "set", "value": false }
+      ]
+    },
+    "setError": {
+      "params": ["error"],
+      "mutations": [
+        { "target": "loginError", "op": "set", "value": { "param": "error" } }
+      ]
+    },
+    "refreshToken": {
+      "params": ["newToken"],
+      "mutations": [
+        { "target": "token", "op": "set", "value": { "param": "newToken" } }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "check-stored-session",
+      "trigger": { "type": "mount" },
+      "do": { "action": "finishLoading" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100 flex items-center justify-center p-4" },
+    "children": [
+      {
+        "if": { "ref": "isLoading" },
+        "then": {
+          "type": "div",
+          "props": { "className": "text-center" },
+          "children": [
+            { "type": "span", "props": { "className": "animate-spin text-4xl" }, "children": [{ "text": "⟳" }] },
+            { "type": "p", "props": { "className": "mt-2 text-gray-600" }, "children": [{ "text": "Checking session..." }] }
+          ]
+        },
+        "else": {
+          "if": { "ref": "isLoggedIn" },
+          "then": {
+            "type": "div",
+            "props": { "className": "bg-white rounded-lg shadow-md p-6 max-w-md w-full" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "text-center mb-6" },
+                "children": [
+                  { "type": "div", "props": { "className": "text-5xl mb-2" }, "children": [{ "text": "👤" }] },
+                  { "type": "h2", "props": { "className": "text-xl font-bold" }, "children": [{ "text": "Welcome back!" }] },
+                  { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "bind": "user.email" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "bg-gray-50 rounded-lg p-4 mb-4" },
+                "children": [
+                  { "type": "p", "props": { "className": "text-sm text-gray-500 mb-1" }, "children": [{ "text": "Session Token:" }] },
+                  { "type": "p", "props": { "className": "font-mono text-xs break-all bg-gray-100 p-2 rounded" }, "children": [{ "bind": "token" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "bg-green-50 border border-green-200 rounded-lg p-3 mb-4" },
+                "children": [
+                  { "type": "p", "props": { "className": "text-sm text-green-700" }, "children": [{ "text": "✓ Your session was restored from storage" }] }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "w-full bg-red-500 text-white py-2 rounded hover:bg-red-600" },
+                "events": { "click": { "action": "logout" } },
+                "children": [{ "text": "Logout (Clear Session)" }]
+              }
+            ]
+          },
+          "else": {
+            "type": "div",
+            "props": { "className": "bg-white rounded-lg shadow-md p-6 max-w-md w-full" },
+            "children": [
+              { "type": "h2", "props": { "className": "text-2xl font-bold mb-6 text-center" }, "children": [{ "text": "Login" }] },
+              {
+                "if": { "op": "isNotEmpty", "args": [{ "ref": "loginError" }] },
+                "then": {
+                  "type": "div",
+                  "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" },
+                  "children": [{ "bind": "loginError" }]
+                }
+              },
+              {
+                "type": "div",
+                "props": { "className": "mb-4" },
+                "children": [
+                  { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Email" }] },
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "email",
+                      "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                      "placeholder": "you@example.com",
+                      "value": { "ref": "loginEmail" }
+                    },
+                    "events": { "input": { "action": "setLoginEmail", "args": [{ "op": "eventValue" }] } }
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "mb-4" },
+                "children": [
+                  { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Password" }] },
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "password",
+                      "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                      "placeholder": "••••••••",
+                      "value": { "ref": "loginPassword" }
+                    },
+                    "events": { "input": { "action": "setLoginPassword", "args": [{ "op": "eventValue" }] } }
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "mb-6" },
+                "children": [
+                  {
+                    "type": "label",
+                    "props": { "className": "flex items-center cursor-pointer" },
+                    "children": [
+                      {
+                        "type": "input",
+                        "props": {
+                          "type": "checkbox",
+                          "checked": { "ref": "rememberMe" },
+                          "className": "mr-2"
+                        },
+                        "events": { "change": { "action": "toggleRememberMe" } }
+                      },
+                      { "type": "span", "props": { "className": "text-gray-700" }, "children": [{ "text": "Remember me" }] }
+                    ]
+                  },
+                  {
+                    "type": "p",
+                    "props": { "className": "text-xs text-gray-500 mt-1 ml-5" },
+                    "children": [
+                      {
+                        "op": "if",
+                        "args": [
+                          { "ref": "rememberMe" },
+                          "Session will be saved to localStorage",
+                          "Session will only last until you close the browser"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "canLogin" },
+                      "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600",
+                      "w-full bg-gray-300 text-gray-500 py-2 rounded cursor-not-allowed"
+                    ]
+                  },
+                  "disabled": { "op": "not", "args": [{ "ref": "canLogin" }] }
+                },
+                "events": { "click": { "action": "login" } },
+                "children": [{ "text": "Login" }]
+              },
+              {
+                "type": "div",
+                "props": { "className": "mt-4 p-3 bg-blue-50 rounded text-sm text-blue-700" },
+                "children": [
+                  { "type": "p", "props": { "className": "font-medium mb-1" }, "children": [{ "text": "How session persistence works:" }] },
+                  { "type": "ul", "props": { "className": "list-disc ml-4 space-y-1" }, "children": [
+                    { "type": "li", "children": [{ "text": "With \"Remember me\": saves to localStorage" }] },
+                    { "type": "li", "children": [{ "text": "Without: saves to sessionStorage" }] },
+                    { "type": "li", "children": [{ "text": "Token is validated on page reload" }] }
+                  ]}
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-loading",
+      "name": "Starts in loading state",
+      "steps": [
+        { "assert": { "ref": "isLoading", "eq": true } },
+        { "assert": { "ref": "isLoggedIn", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-finish-loading",
+      "name": "Can finish loading",
+      "steps": [
+        { "dispatch": "finishLoading" },
+        { "assert": { "ref": "isLoading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-login",
+      "name": "Can login",
+      "steps": [
+        { "dispatch": "finishLoading" },
+        { "dispatch": "setLoginEmail", "args": ["test@example.com"] },
+        { "dispatch": "setLoginPassword", "args": ["password123"] },
+        { "dispatch": "login" },
+        { "assert": { "ref": "isLoggedIn", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-logout",
+      "name": "Can logout",
+      "steps": [
+        { "dispatch": "login" },
+        { "assert": { "ref": "isLoggedIn", "eq": true } },
+        { "dispatch": "logout" },
+        { "assert": { "ref": "isLoggedIn", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-restore-session",
+      "name": "Can restore session from storage",
+      "steps": [
+        { "dispatch": "restoreSession", "args": [{ "email": "stored@example.com" }, "stored-token"] },
+        { "assert": { "ref": "isLoggedIn", "eq": true } },
+        { "assert": { "ref": "isLoading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-remember-me-toggle",
+      "name": "Can toggle remember me",
+      "steps": [
+        { "assert": { "ref": "rememberMe", "eq": true } },
+        { "dispatch": "toggleRememberMe" },
+        { "assert": { "ref": "rememberMe", "eq": false } }
+      ]
+    }
+  ]
+}

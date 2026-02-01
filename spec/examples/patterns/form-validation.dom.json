@@ -1,0 +1,413 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-validation",
+  "target": "dom",
+
+  "state": {
+    "name": { "type": "string", "initial": "" },
+    "email": { "type": "string", "initial": "" },
+    "password": { "type": "string", "initial": "" },
+    "confirmPassword": { "type": "string", "initial": "" },
+    "age": { "type": "string", "initial": "" },
+    "website": { "type": "string", "initial": "" },
+    "touched": {
+      "type": "object",
+      "initial": { "name": false, "email": false, "password": false, "confirmPassword": false, "age": false, "website": false }
+    },
+    "submitted": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "errors": {
+      "deps": ["name", "email", "password", "confirmPassword", "age", "website"],
+      "fn": {
+        "op": "merge",
+        "args": [
+          {},
+          {
+            "name": {
+              "op": "if",
+              "args": [
+                { "op": "hasMinLength", "args": [{ "ref": "name" }, 2] },
+                null,
+                "Name must be at least 2 characters"
+              ]
+            }
+          },
+          {
+            "email": {
+              "op": "if",
+              "args": [
+                { "op": "isEmail", "args": [{ "ref": "email" }] },
+                null,
+                "Please enter a valid email"
+              ]
+            }
+          },
+          {
+            "password": {
+              "op": "if",
+              "args": [
+                { "op": "hasMinLength", "args": [{ "ref": "password" }, 8] },
+                null,
+                "Password must be at least 8 characters"
+              ]
+            }
+          },
+          {
+            "confirmPassword": {
+              "op": "if",
+              "args": [
+                { "op": "eq", "args": [{ "ref": "password" }, { "ref": "confirmPassword" }] },
+                null,
+                "Passwords do not match"
+              ]
+            }
+          },
+          {
+            "age": {
+              "op": "if",
+              "args": [
+                { "op": "or", "args": [
+                  { "op": "isEmpty", "args": [{ "ref": "age" }] },
+                  { "op": "and", "args": [
+                    { "op": "isNumeric", "args": [{ "ref": "age" }] },
+                    { "op": "gte", "args": [{ "op": "toNumber", "args": [{ "ref": "age" }] }, 18] },
+                    { "op": "lte", "args": [{ "op": "toNumber", "args": [{ "ref": "age" }] }, 120] }
+                  ]}
+                ]},
+                null,
+                "Age must be between 18 and 120"
+              ]
+            }
+          },
+          {
+            "website": {
+              "op": "if",
+              "args": [
+                { "op": "or", "args": [
+                  { "op": "isEmpty", "args": [{ "ref": "website" }] },
+                  { "op": "isUrl", "args": [{ "ref": "website" }] }
+                ]},
+                null,
+                "Please enter a valid URL"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "isValid": {
+      "deps": ["errors", "name", "email", "password", "confirmPassword"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "isNotEmpty", "args": [{ "ref": "name" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "email" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "password" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "confirmPassword" }] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "errors" }, "name"] }] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "errors" }, "email"] }] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "errors" }, "password"] }] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "errors" }, "confirmPassword"] }] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "errors" }, "age"] }] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "errors" }, "website"] }] }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setField": {
+      "params": ["field", "value"],
+      "mutations": [
+        { "target": { "param": "field" }, "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "touchField": {
+      "params": ["field"],
+      "mutations": [
+        { "target": "touched", "op": "merge", "value": { "{param:field}": true } }
+      ]
+    },
+    "setName": {
+      "params": ["value"],
+      "mutations": [{ "target": "name", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEmail": {
+      "params": ["value"],
+      "mutations": [{ "target": "email", "op": "set", "value": { "param": "value" } }]
+    },
+    "setPassword": {
+      "params": ["value"],
+      "mutations": [{ "target": "password", "op": "set", "value": { "param": "value" } }]
+    },
+    "setConfirmPassword": {
+      "params": ["value"],
+      "mutations": [{ "target": "confirmPassword", "op": "set", "value": { "param": "value" } }]
+    },
+    "setAge": {
+      "params": ["value"],
+      "mutations": [{ "target": "age", "op": "set", "value": { "param": "value" } }]
+    },
+    "setWebsite": {
+      "params": ["value"],
+      "mutations": [{ "target": "website", "op": "set", "value": { "param": "value" } }]
+    },
+    "submit": {
+      "mutations": [{ "target": "submitted", "op": "set", "value": true }]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "name", "op": "set", "value": "" },
+        { "target": "email", "op": "set", "value": "" },
+        { "target": "password", "op": "set", "value": "" },
+        { "target": "confirmPassword", "op": "set", "value": "" },
+        { "target": "age", "op": "set", "value": "" },
+        { "target": "website", "op": "set", "value": "" },
+        { "target": "submitted", "op": "set", "value": false }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100 py-8" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "max-w-md mx-auto bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Registration Form" }] },
+          {
+            "if": { "ref": "submitted" },
+            "then": {
+              "type": "div",
+              "props": { "className": "text-center py-8" },
+              "children": [
+                { "type": "div", "props": { "className": "text-green-500 text-5xl mb-4" }, "children": [{ "text": "✓" }] },
+                { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "Success!" }] },
+                { "type": "p", "props": { "className": "text-gray-600 mb-4" }, "children": [{ "text": "Registration complete for: " }, { "bind": "email" }] },
+                {
+                  "type": "button",
+                  "props": { "className": "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" },
+                  "events": { "click": { "action": "reset" } },
+                  "children": [{ "text": "Register Another" }]
+                }
+              ]
+            },
+            "else": {
+              "fragment": [
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-1" }, "children": [{ "text": "Name *" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "text",
+                        "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        "value": { "ref": "name" }
+                      },
+                      "events": { "input": { "action": "setName", "args": [{ "op": "eventValue" }] } }
+                    },
+                    {
+                      "if": { "op": "get", "args": [{ "ref": "errors" }, "name"] },
+                      "then": {
+                        "type": "p",
+                        "props": { "className": "text-red-500 text-sm mt-1" },
+                        "children": [{ "op": "get", "args": [{ "ref": "errors" }, "name"] }]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-1" }, "children": [{ "text": "Email *" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "email",
+                        "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        "value": { "ref": "email" }
+                      },
+                      "events": { "input": { "action": "setEmail", "args": [{ "op": "eventValue" }] } }
+                    },
+                    {
+                      "if": { "op": "get", "args": [{ "ref": "errors" }, "email"] },
+                      "then": {
+                        "type": "p",
+                        "props": { "className": "text-red-500 text-sm mt-1" },
+                        "children": [{ "op": "get", "args": [{ "ref": "errors" }, "email"] }]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-1" }, "children": [{ "text": "Password *" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "password",
+                        "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        "value": { "ref": "password" }
+                      },
+                      "events": { "input": { "action": "setPassword", "args": [{ "op": "eventValue" }] } }
+                    },
+                    {
+                      "if": { "op": "get", "args": [{ "ref": "errors" }, "password"] },
+                      "then": {
+                        "type": "p",
+                        "props": { "className": "text-red-500 text-sm mt-1" },
+                        "children": [{ "op": "get", "args": [{ "ref": "errors" }, "password"] }]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-1" }, "children": [{ "text": "Confirm Password *" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "password",
+                        "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        "value": { "ref": "confirmPassword" }
+                      },
+                      "events": { "input": { "action": "setConfirmPassword", "args": [{ "op": "eventValue" }] } }
+                    },
+                    {
+                      "if": { "op": "get", "args": [{ "ref": "errors" }, "confirmPassword"] },
+                      "then": {
+                        "type": "p",
+                        "props": { "className": "text-red-500 text-sm mt-1" },
+                        "children": [{ "op": "get", "args": [{ "ref": "errors" }, "confirmPassword"] }]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-1" }, "children": [{ "text": "Age (optional)" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "number",
+                        "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        "value": { "ref": "age" }
+                      },
+                      "events": { "input": { "action": "setAge", "args": [{ "op": "eventValue" }] } }
+                    },
+                    {
+                      "if": { "op": "get", "args": [{ "ref": "errors" }, "age"] },
+                      "then": {
+                        "type": "p",
+                        "props": { "className": "text-red-500 text-sm mt-1" },
+                        "children": [{ "op": "get", "args": [{ "ref": "errors" }, "age"] }]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-6" },
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-1" }, "children": [{ "text": "Website (optional)" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "url",
+                        "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        "placeholder": "https://example.com",
+                        "value": { "ref": "website" }
+                      },
+                      "events": { "input": { "action": "setWebsite", "args": [{ "op": "eventValue" }] } }
+                    },
+                    {
+                      "if": { "op": "get", "args": [{ "ref": "errors" }, "website"] },
+                      "then": {
+                        "type": "p",
+                        "props": { "className": "text-red-500 text-sm mt-1" },
+                        "children": [{ "op": "get", "args": [{ "ref": "errors" }, "website"] }]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "props": {
+                    "className": {
+                      "op": "if",
+                      "args": [
+                        { "ref": "isValid" },
+                        "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 font-medium",
+                        "w-full bg-gray-300 text-gray-500 py-2 rounded cursor-not-allowed font-medium"
+                      ]
+                    },
+                    "disabled": { "op": "not", "args": [{ "ref": "isValid" }] }
+                  },
+                  "events": { "click": { "action": "submit" } },
+                  "children": [{ "text": "Register" }]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-invalid",
+      "name": "Form starts invalid",
+      "steps": [
+        { "assert": { "ref": "isValid", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-validation-rules",
+      "name": "Validation rules work",
+      "steps": [
+        { "dispatch": "setName", "args": ["A"] },
+        { "assert": { "value": { "op": "get", "args": [{ "ref": "errors" }, "name"] }, "truthy": true } },
+        { "dispatch": "setName", "args": ["John"] },
+        { "assert": { "value": { "op": "get", "args": [{ "ref": "errors" }, "name"] }, "falsy": true } }
+      ]
+    },
+    {
+      "id": "test-password-match",
+      "name": "Passwords must match",
+      "steps": [
+        { "dispatch": "setPassword", "args": ["password123"] },
+        { "dispatch": "setConfirmPassword", "args": ["different"] },
+        { "assert": { "value": { "op": "get", "args": [{ "ref": "errors" }, "confirmPassword"] }, "truthy": true } },
+        { "dispatch": "setConfirmPassword", "args": ["password123"] },
+        { "assert": { "value": { "op": "get", "args": [{ "ref": "errors" }, "confirmPassword"] }, "falsy": true } }
+      ]
+    },
+    {
+      "id": "test-valid-form",
+      "name": "Valid form can be submitted",
+      "steps": [
+        { "dispatch": "setName", "args": ["John Doe"] },
+        { "dispatch": "setEmail", "args": ["john@example.com"] },
+        { "dispatch": "setPassword", "args": ["securepass123"] },
+        { "dispatch": "setConfirmPassword", "args": ["securepass123"] },
+        { "assert": { "ref": "isValid", "eq": true } },
+        { "dispatch": "submit" },
+        { "assert": { "ref": "submitted", "eq": true } }
+      ]
+    }
+  ]
+}

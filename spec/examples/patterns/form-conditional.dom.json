@@ -1,0 +1,609 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-conditional",
+  "target": "dom",
+
+  "state": {
+    "accountType": { "type": "string", "initial": "personal" },
+    "personalName": { "type": "string", "initial": "" },
+    "companyName": { "type": "string", "initial": "" },
+    "companySize": { "type": "string", "initial": "" },
+    "taxId": { "type": "string", "initial": "" },
+    "paymentMethod": { "type": "string", "initial": "card" },
+    "cardNumber": { "type": "string", "initial": "" },
+    "cardExpiry": { "type": "string", "initial": "" },
+    "cardCvv": { "type": "string", "initial": "" },
+    "bankAccount": { "type": "string", "initial": "" },
+    "bankRouting": { "type": "string", "initial": "" },
+    "paypalEmail": { "type": "string", "initial": "" },
+    "hasPromoCode": { "type": "boolean", "initial": false },
+    "promoCode": { "type": "string", "initial": "" },
+    "subscribeNewsletter": { "type": "boolean", "initial": false },
+    "newsletterFrequency": { "type": "string", "initial": "weekly" }
+  },
+
+  "computed": {
+    "isPersonal": {
+      "deps": ["accountType"],
+      "fn": { "op": "eq", "args": [{ "ref": "accountType" }, "personal"] }
+    },
+    "isBusiness": {
+      "deps": ["accountType"],
+      "fn": { "op": "eq", "args": [{ "ref": "accountType" }, "business"] }
+    },
+    "isCard": {
+      "deps": ["paymentMethod"],
+      "fn": { "op": "eq", "args": [{ "ref": "paymentMethod" }, "card"] }
+    },
+    "isBank": {
+      "deps": ["paymentMethod"],
+      "fn": { "op": "eq", "args": [{ "ref": "paymentMethod" }, "bank"] }
+    },
+    "isPaypal": {
+      "deps": ["paymentMethod"],
+      "fn": { "op": "eq", "args": [{ "ref": "paymentMethod" }, "paypal"] }
+    },
+    "accountInfoValid": {
+      "deps": ["isPersonal", "personalName", "companyName", "companySize"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "isPersonal" },
+          { "op": "isNotEmpty", "args": [{ "ref": "personalName" }] },
+          {
+            "op": "and",
+            "args": [
+              { "op": "isNotEmpty", "args": [{ "ref": "companyName" }] },
+              { "op": "isNotEmpty", "args": [{ "ref": "companySize" }] }
+            ]
+          }
+        ]
+      }
+    },
+    "paymentInfoValid": {
+      "deps": ["isCard", "isBank", "isPaypal", "cardNumber", "cardExpiry", "cardCvv", "bankAccount", "bankRouting", "paypalEmail"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "isCard" },
+          {
+            "op": "and",
+            "args": [
+              { "op": "isNotEmpty", "args": [{ "ref": "cardNumber" }] },
+              { "op": "isNotEmpty", "args": [{ "ref": "cardExpiry" }] },
+              { "op": "isNotEmpty", "args": [{ "ref": "cardCvv" }] }
+            ]
+          },
+          {
+            "op": "if",
+            "args": [
+              { "ref": "isBank" },
+              {
+                "op": "and",
+                "args": [
+                  { "op": "isNotEmpty", "args": [{ "ref": "bankAccount" }] },
+                  { "op": "isNotEmpty", "args": [{ "ref": "bankRouting" }] }
+                ]
+              },
+              { "op": "isEmail", "args": [{ "ref": "paypalEmail" }] }
+            ]
+          }
+        ]
+      }
+    },
+    "isFormValid": {
+      "deps": ["accountInfoValid", "paymentInfoValid"],
+      "fn": { "op": "and", "args": [{ "ref": "accountInfoValid" }, { "ref": "paymentInfoValid" }] }
+    }
+  },
+
+  "actions": {
+    "setAccountType": {
+      "params": ["type"],
+      "mutations": [
+        { "target": "accountType", "op": "set", "value": { "param": "type" } }
+      ]
+    },
+    "setPersonalName": {
+      "params": ["value"],
+      "mutations": [{ "target": "personalName", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCompanyName": {
+      "params": ["value"],
+      "mutations": [{ "target": "companyName", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCompanySize": {
+      "params": ["value"],
+      "mutations": [{ "target": "companySize", "op": "set", "value": { "param": "value" } }]
+    },
+    "setTaxId": {
+      "params": ["value"],
+      "mutations": [{ "target": "taxId", "op": "set", "value": { "param": "value" } }]
+    },
+    "setPaymentMethod": {
+      "params": ["method"],
+      "mutations": [
+        { "target": "paymentMethod", "op": "set", "value": { "param": "method" } }
+      ]
+    },
+    "setCardNumber": {
+      "params": ["value"],
+      "mutations": [{ "target": "cardNumber", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCardExpiry": {
+      "params": ["value"],
+      "mutations": [{ "target": "cardExpiry", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCardCvv": {
+      "params": ["value"],
+      "mutations": [{ "target": "cardCvv", "op": "set", "value": { "param": "value" } }]
+    },
+    "setBankAccount": {
+      "params": ["value"],
+      "mutations": [{ "target": "bankAccount", "op": "set", "value": { "param": "value" } }]
+    },
+    "setBankRouting": {
+      "params": ["value"],
+      "mutations": [{ "target": "bankRouting", "op": "set", "value": { "param": "value" } }]
+    },
+    "setPaypalEmail": {
+      "params": ["value"],
+      "mutations": [{ "target": "paypalEmail", "op": "set", "value": { "param": "value" } }]
+    },
+    "togglePromoCode": {
+      "mutations": [
+        { "target": "hasPromoCode", "op": "set", "value": { "op": "not", "args": [{ "ref": "hasPromoCode" }] } }
+      ]
+    },
+    "setPromoCode": {
+      "params": ["value"],
+      "mutations": [{ "target": "promoCode", "op": "set", "value": { "param": "value" } }]
+    },
+    "toggleNewsletter": {
+      "mutations": [
+        { "target": "subscribeNewsletter", "op": "set", "value": { "op": "not", "args": [{ "ref": "subscribeNewsletter" }] } }
+      ]
+    },
+    "setNewsletterFrequency": {
+      "params": ["value"],
+      "mutations": [{ "target": "newsletterFrequency", "op": "set", "value": { "param": "value" } }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-lg mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Conditional Form" }] },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Account Type" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-4 mb-4" },
+            "children": [
+              {
+                "type": "label",
+                "props": { "className": "flex items-center gap-2 cursor-pointer" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": { "type": "radio", "name": "accountType", "checked": { "ref": "isPersonal" } },
+                    "events": { "change": { "action": "setAccountType", "args": ["personal"] } }
+                  },
+                  { "text": "Personal" }
+                ]
+              },
+              {
+                "type": "label",
+                "props": { "className": "flex items-center gap-2 cursor-pointer" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": { "type": "radio", "name": "accountType", "checked": { "ref": "isBusiness" } },
+                    "events": { "change": { "action": "setAccountType", "args": ["business"] } }
+                  },
+                  { "text": "Business" }
+                ]
+              }
+            ]
+          },
+          {
+            "if": { "ref": "isPersonal" },
+            "then": {
+              "type": "div",
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Full Name" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "text",
+                    "className": "w-full px-3 py-2 border rounded",
+                    "placeholder": "John Doe",
+                    "value": { "ref": "personalName" }
+                  },
+                  "events": { "input": { "action": "setPersonalName", "args": [{ "op": "eventValue" }] } }
+                }
+              ]
+            },
+            "else": {
+              "type": "div",
+              "props": { "className": "space-y-4" },
+              "children": [
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Company Name" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "text",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "placeholder": "Acme Inc.",
+                        "value": { "ref": "companyName" }
+                      },
+                      "events": { "input": { "action": "setCompanyName", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Company Size" }] },
+                    {
+                      "type": "select",
+                      "props": {
+                        "className": "w-full px-3 py-2 border rounded",
+                        "value": { "ref": "companySize" }
+                      },
+                      "events": { "change": { "action": "setCompanySize", "args": [{ "op": "eventValue" }] } },
+                      "children": [
+                        { "type": "option", "props": { "value": "" }, "children": [{ "text": "Select size..." }] },
+                        { "type": "option", "props": { "value": "1-10" }, "children": [{ "text": "1-10 employees" }] },
+                        { "type": "option", "props": { "value": "11-50" }, "children": [{ "text": "11-50 employees" }] },
+                        { "type": "option", "props": { "value": "51-200" }, "children": [{ "text": "51-200 employees" }] },
+                        { "type": "option", "props": { "value": "200+" }, "children": [{ "text": "200+ employees" }] }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Tax ID (optional)" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "text",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "placeholder": "XX-XXXXXXX",
+                        "value": { "ref": "taxId" }
+                      },
+                      "events": { "input": { "action": "setTaxId", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Payment Method" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 mb-4" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "isCard" },
+                      "flex-1 py-2 bg-blue-500 text-white rounded",
+                      "flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setPaymentMethod", "args": ["card"] } },
+                "children": [{ "text": "💳 Card" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "isBank" },
+                      "flex-1 py-2 bg-blue-500 text-white rounded",
+                      "flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setPaymentMethod", "args": ["bank"] } },
+                "children": [{ "text": "🏦 Bank" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "isPaypal" },
+                      "flex-1 py-2 bg-blue-500 text-white rounded",
+                      "flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setPaymentMethod", "args": ["paypal"] } },
+                "children": [{ "text": "🅿️ PayPal" }]
+              }
+            ]
+          },
+          {
+            "if": { "ref": "isCard" },
+            "then": {
+              "type": "div",
+              "props": { "className": "space-y-4" },
+              "children": [
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Card Number" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "text",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "placeholder": "1234 5678 9012 3456",
+                        "value": { "ref": "cardNumber" }
+                      },
+                      "events": { "input": { "action": "setCardNumber", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "grid grid-cols-2 gap-4" },
+                  "children": [
+                    {
+                      "type": "div",
+                      "children": [
+                        { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Expiry" }] },
+                        {
+                          "type": "input",
+                          "props": {
+                            "type": "text",
+                            "className": "w-full px-3 py-2 border rounded",
+                            "placeholder": "MM/YY",
+                            "value": { "ref": "cardExpiry" }
+                          },
+                          "events": { "input": { "action": "setCardExpiry", "args": [{ "op": "eventValue" }] } }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "children": [
+                        { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "CVV" }] },
+                        {
+                          "type": "input",
+                          "props": {
+                            "type": "text",
+                            "className": "w-full px-3 py-2 border rounded",
+                            "placeholder": "123",
+                            "value": { "ref": "cardCvv" }
+                          },
+                          "events": { "input": { "action": "setCardCvv", "args": [{ "op": "eventValue" }] } }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "if": { "ref": "isBank" },
+            "then": {
+              "type": "div",
+              "props": { "className": "space-y-4" },
+              "children": [
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Account Number" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "text",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "value": { "ref": "bankAccount" }
+                      },
+                      "events": { "input": { "action": "setBankAccount", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Routing Number" }] },
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "text",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "value": { "ref": "bankRouting" }
+                      },
+                      "events": { "input": { "action": "setBankRouting", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "if": { "ref": "isPaypal" },
+            "then": {
+              "type": "div",
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "PayPal Email" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "email",
+                    "className": "w-full px-3 py-2 border rounded",
+                    "placeholder": "you@example.com",
+                    "value": { "ref": "paypalEmail" }
+                  },
+                  "events": { "input": { "action": "setPaypalEmail", "args": [{ "op": "eventValue" }] } }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Optional" }] },
+          {
+            "type": "label",
+            "props": { "className": "flex items-center gap-2 cursor-pointer mb-3" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "checkbox", "checked": { "ref": "hasPromoCode" } },
+                "events": { "change": { "action": "togglePromoCode" } }
+              },
+              { "text": "I have a promo code" }
+            ]
+          },
+          {
+            "if": { "ref": "hasPromoCode" },
+            "then": {
+              "type": "input",
+              "props": {
+                "type": "text",
+                "className": "w-full px-3 py-2 border rounded mb-3",
+                "placeholder": "Enter promo code",
+                "value": { "ref": "promoCode" }
+              },
+              "events": { "input": { "action": "setPromoCode", "args": [{ "op": "eventValue" }] } }
+            }
+          },
+          {
+            "type": "label",
+            "props": { "className": "flex items-center gap-2 cursor-pointer mb-3" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "checkbox", "checked": { "ref": "subscribeNewsletter" } },
+                "events": { "change": { "action": "toggleNewsletter" } }
+              },
+              { "text": "Subscribe to newsletter" }
+            ]
+          },
+          {
+            "if": { "ref": "subscribeNewsletter" },
+            "then": {
+              "type": "select",
+              "props": {
+                "className": "w-full px-3 py-2 border rounded",
+                "value": { "ref": "newsletterFrequency" }
+              },
+              "events": { "change": { "action": "setNewsletterFrequency", "args": [{ "op": "eventValue" }] } },
+              "children": [
+                { "type": "option", "props": { "value": "daily" }, "children": [{ "text": "Daily" }] },
+                { "type": "option", "props": { "value": "weekly" }, "children": [{ "text": "Weekly" }] },
+                { "type": "option", "props": { "value": "monthly" }, "children": [{ "text": "Monthly" }] }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "button",
+        "props": {
+          "className": {
+            "op": "if",
+            "args": [
+              { "ref": "isFormValid" },
+              "w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600",
+              "w-full bg-gray-300 text-gray-500 py-3 rounded-lg cursor-not-allowed"
+            ]
+          },
+          "disabled": { "op": "not", "args": [{ "ref": "isFormValid" }] }
+        },
+        "children": [{ "text": "Submit" }]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-personal",
+      "name": "Starts as personal account",
+      "steps": [
+        { "assert": { "ref": "isPersonal", "eq": true } },
+        { "assert": { "ref": "isBusiness", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-switch-to-business",
+      "name": "Can switch to business account",
+      "steps": [
+        { "dispatch": "setAccountType", "args": ["business"] },
+        { "assert": { "ref": "isBusiness", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-payment-methods",
+      "name": "Can switch payment methods",
+      "steps": [
+        { "assert": { "ref": "isCard", "eq": true } },
+        { "dispatch": "setPaymentMethod", "args": ["bank"] },
+        { "assert": { "ref": "isBank", "eq": true } },
+        { "dispatch": "setPaymentMethod", "args": ["paypal"] },
+        { "assert": { "ref": "isPaypal", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-personal-validation",
+      "name": "Personal form validates name",
+      "steps": [
+        { "assert": { "ref": "accountInfoValid", "eq": false } },
+        { "dispatch": "setPersonalName", "args": ["John Doe"] },
+        { "assert": { "ref": "accountInfoValid", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-business-validation",
+      "name": "Business form validates company info",
+      "steps": [
+        { "dispatch": "setAccountType", "args": ["business"] },
+        { "assert": { "ref": "accountInfoValid", "eq": false } },
+        { "dispatch": "setCompanyName", "args": ["Acme"] },
+        { "assert": { "ref": "accountInfoValid", "eq": false } },
+        { "dispatch": "setCompanySize", "args": ["1-10"] },
+        { "assert": { "ref": "accountInfoValid", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-promo-toggle",
+      "name": "Can toggle promo code field",
+      "steps": [
+        { "assert": { "ref": "hasPromoCode", "eq": false } },
+        { "dispatch": "togglePromoCode" },
+        { "assert": { "ref": "hasPromoCode", "eq": true } }
+      ]
+    }
+  ]
+}

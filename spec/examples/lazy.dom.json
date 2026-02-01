@@ -1,0 +1,134 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "lazy_demo",
+  "target": "dom",
+
+  "state": {
+    "showDashboard": { "type": "boolean", "initial": false }
+  },
+
+  "actions": {
+    "toggleDashboard": {
+      "mutations": [{ "target": "showDashboard", "op": "toggle" }]
+    }
+  },
+
+  "components": {
+    "LoadingSpinner": {
+      "render": {
+        "type": "div",
+        "props": { "className": "loading-spinner" },
+        "children": [{ "text": "Loading..." }]
+      }
+    },
+    "ErrorMessage": {
+      "props": {
+        "message": { "type": "string", "default": "Failed to load component" }
+      },
+      "render": {
+        "type": "div",
+        "props": { "className": "error-message" },
+        "children": [
+          { "type": "span", "props": { "className": "error-icon" }, "children": [{ "text": "⚠️ " }] },
+          { "bind": "message" }
+        ]
+      }
+    }
+  },
+
+  "router": {
+    "mode": "hash",
+    "routes": [
+      {
+        "path": "/",
+        "name": "home",
+        "render": {
+          "type": "div",
+          "children": [
+            { "type": "h2", "children": [{ "text": "Home" }] },
+            { "type": "p", "children": [{ "text": "Welcome! Click Dashboard to load it lazily." }] }
+          ]
+        }
+      },
+      {
+        "path": "/dashboard",
+        "name": "dashboard",
+        "lazy": {
+          "src": "./dashboard.ddjex.json",
+          "component": "Dashboard",
+          "fallback": {
+            "type": "div",
+            "props": { "className": "loading" },
+            "children": [{ "text": "Loading dashboard..." }]
+          },
+          "errorFallback": {
+            "type": "div",
+            "props": { "className": "error" },
+            "children": [{ "text": "Failed to load dashboard" }]
+          }
+        }
+      },
+      {
+        "path": "/settings",
+        "name": "settings",
+        "lazy": {
+          "src": "./settings.ddjex.json",
+          "fallback": { "component": "LoadingSpinner" }
+        }
+      }
+    ]
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "lazy-demo" },
+    "children": [
+      { "type": "h1", "children": [{ "text": "Lazy Loading Demo" }] },
+      {
+        "type": "nav",
+        "children": [
+          { "routerLink": { "to": "/", "children": [{ "text": "Home" }] } },
+          { "text": " | " },
+          { "routerLink": { "to": "/dashboard", "children": [{ "text": "Dashboard (lazy)" }] } },
+          { "text": " | " },
+          { "routerLink": { "to": "/settings", "children": [{ "text": "Settings (lazy)" }] } }
+        ]
+      },
+      { "type": "hr" },
+      {
+        "type": "section",
+        "children": [
+          { "type": "h3", "children": [{ "text": "Inline Lazy Component" }] },
+          { "type": "p", "children": [{ "text": "Toggle to lazy-load a component inline:" }] },
+          {
+            "type": "button",
+            "events": { "click": { "action": "toggleDashboard" } },
+            "children": [
+              {
+                "if": { "op": "eq", "args": [{ "ref": "showDashboard" }, true] },
+                "then": { "text": "Hide Dashboard" },
+                "else": { "text": "Show Dashboard" }
+              }
+            ]
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "showDashboard" }, true] },
+            "then": {
+              "lazy": {
+                "src": "./dashboard.ddjex.json",
+                "component": "Dashboard",
+                "props": { "title": "Inline Dashboard" },
+                "fallback": { "type": "div", "children": [{ "text": "Loading inline dashboard..." }] }
+              }
+            }
+          }
+        ]
+      },
+      { "type": "hr" },
+      {
+        "type": "main",
+        "children": [{ "routerOutlet": {} }]
+      }
+    ]
+  }
+}

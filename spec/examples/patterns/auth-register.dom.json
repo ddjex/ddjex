@@ -1,0 +1,379 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "auth-register",
+  "target": "dom",
+
+  "state": {
+    "email": { "type": "string", "initial": "" },
+    "password": { "type": "string", "initial": "" },
+    "confirmPassword": { "type": "string", "initial": "" },
+    "name": { "type": "string", "initial": "" },
+    "agreeToTerms": { "type": "boolean", "initial": false },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "success": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "emailValid": {
+      "deps": ["email"],
+      "fn": { "op": "isEmail", "args": [{ "ref": "email" }] }
+    },
+    "passwordValid": {
+      "deps": ["password"],
+      "fn": { "op": "hasMinLength", "args": [{ "ref": "password" }, 8] }
+    },
+    "passwordHasUppercase": {
+      "deps": ["password"],
+      "fn": { "op": "matches", "args": [{ "ref": "password" }, "[A-Z]"] }
+    },
+    "passwordHasNumber": {
+      "deps": ["password"],
+      "fn": { "op": "matches", "args": [{ "ref": "password" }, "[0-9]"] }
+    },
+    "passwordsMatch": {
+      "deps": ["password", "confirmPassword"],
+      "fn": { "op": "eq", "args": [{ "ref": "password" }, { "ref": "confirmPassword" }] }
+    },
+    "passwordStrength": {
+      "deps": ["password", "passwordHasUppercase", "passwordHasNumber"],
+      "fn": {
+        "op": "add",
+        "args": [
+          { "op": "if", "args": [{ "op": "hasMinLength", "args": [{ "ref": "password" }, 8] }, 1, 0] },
+          { "op": "if", "args": [{ "ref": "passwordHasUppercase" }, 1, 0] },
+          { "op": "if", "args": [{ "ref": "passwordHasNumber" }, 1, 0] },
+          { "op": "if", "args": [{ "op": "hasMinLength", "args": [{ "ref": "password" }, 12] }, 1, 0] }
+        ]
+      }
+    },
+    "isFormValid": {
+      "deps": ["emailValid", "passwordValid", "passwordsMatch", "name", "agreeToTerms"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "ref": "emailValid" },
+          { "ref": "passwordValid" },
+          { "ref": "passwordsMatch" },
+          { "op": "hasMinLength", "args": [{ "ref": "name" }, 1] },
+          { "ref": "agreeToTerms" }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setEmail": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "email", "op": "set", "value": { "param": "value" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setPassword": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "password", "op": "set", "value": { "param": "value" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setConfirmPassword": {
+      "params": ["value"],
+      "mutations": [{ "target": "confirmPassword", "op": "set", "value": { "param": "value" } }]
+    },
+    "setName": {
+      "params": ["value"],
+      "mutations": [{ "target": "name", "op": "set", "value": { "param": "value" } }]
+    },
+    "toggleTerms": {
+      "mutations": [{ "target": "agreeToTerms", "op": "set", "value": { "op": "not", "args": [{ "ref": "agreeToTerms" }] } }]
+    },
+    "register": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true }
+      ]
+    },
+    "registrationSuccess": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "success", "op": "set", "value": true }
+      ]
+    },
+    "registrationError": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": { "param": "message" } }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen flex items-center justify-center bg-gray-100 p-4" },
+    "children": [
+      {
+        "if": { "ref": "success" },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-white p-8 rounded-lg shadow-md text-center max-w-md w-full" },
+          "children": [
+            { "type": "div", "props": { "className": "text-green-500 text-5xl mb-4" }, "children": [{ "text": "✓" }] },
+            { "type": "h2", "props": { "className": "text-2xl font-bold mb-2" }, "children": [{ "text": "Registration Successful!" }] },
+            { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "text": "Please check your email to verify your account." }] }
+          ]
+        },
+        "else": {
+          "type": "div",
+          "props": { "className": "bg-white p-8 rounded-lg shadow-md w-full max-w-md" },
+          "children": [
+            { "type": "h2", "props": { "className": "text-2xl font-bold mb-6 text-center" }, "children": [{ "text": "Create Account" }] },
+            {
+              "if": { "op": "isNotEmpty", "args": [{ "ref": "error" }] },
+              "then": {
+                "type": "div",
+                "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" },
+                "children": [{ "bind": "error" }]
+              }
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-4" },
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Full Name" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "text",
+                    "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "John Doe",
+                    "value": { "ref": "name" }
+                  },
+                  "events": { "input": { "action": "setName", "args": [{ "op": "eventValue" }] } }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-4" },
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Email" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "email",
+                    "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "you@example.com",
+                    "value": { "ref": "email" }
+                  },
+                  "events": { "input": { "action": "setEmail", "args": [{ "op": "eventValue" }] } }
+                },
+                {
+                  "if": { "op": "and", "args": [{ "op": "isNotEmpty", "args": [{ "ref": "email" }] }, { "op": "not", "args": [{ "ref": "emailValid" }] }] },
+                  "then": {
+                    "type": "p",
+                    "props": { "className": "text-red-500 text-sm mt-1" },
+                    "children": [{ "text": "Please enter a valid email address" }]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-4" },
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Password" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "password",
+                    "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "At least 8 characters",
+                    "value": { "ref": "password" }
+                  },
+                  "events": { "input": { "action": "setPassword", "args": [{ "op": "eventValue" }] } }
+                },
+                {
+                  "if": { "op": "isNotEmpty", "args": [{ "ref": "password" }] },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "mt-2" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "flex gap-1 mb-1" },
+                        "children": [
+                          { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "passwordStrength" }, 1] }, "h-1 flex-1 bg-red-500 rounded", "h-1 flex-1 bg-gray-200 rounded"] } } },
+                          { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "passwordStrength" }, 2] }, "h-1 flex-1 bg-yellow-500 rounded", "h-1 flex-1 bg-gray-200 rounded"] } } },
+                          { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "passwordStrength" }, 3] }, "h-1 flex-1 bg-green-400 rounded", "h-1 flex-1 bg-gray-200 rounded"] } } },
+                          { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "passwordStrength" }, 4] }, "h-1 flex-1 bg-green-600 rounded", "h-1 flex-1 bg-gray-200 rounded"] } } }
+                        ]
+                      },
+                      {
+                        "type": "ul",
+                        "props": { "className": "text-xs text-gray-500 space-y-1" },
+                        "children": [
+                          { "type": "li", "props": { "className": { "op": "if", "args": [{ "ref": "passwordValid" }, "text-green-600", "text-gray-500"] } }, "children": [{ "text": "• At least 8 characters" }] },
+                          { "type": "li", "props": { "className": { "op": "if", "args": [{ "ref": "passwordHasUppercase" }, "text-green-600", "text-gray-500"] } }, "children": [{ "text": "• One uppercase letter" }] },
+                          { "type": "li", "props": { "className": { "op": "if", "args": [{ "ref": "passwordHasNumber" }, "text-green-600", "text-gray-500"] } }, "children": [{ "text": "• One number" }] }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-4" },
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Confirm Password" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "password",
+                    "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "Repeat your password",
+                    "value": { "ref": "confirmPassword" }
+                  },
+                  "events": { "input": { "action": "setConfirmPassword", "args": [{ "op": "eventValue" }] } }
+                },
+                {
+                  "if": { "op": "and", "args": [{ "op": "isNotEmpty", "args": [{ "ref": "confirmPassword" }] }, { "op": "not", "args": [{ "ref": "passwordsMatch" }] }] },
+                  "then": {
+                    "type": "p",
+                    "props": { "className": "text-red-500 text-sm mt-1" },
+                    "children": [{ "text": "Passwords do not match" }]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-6" },
+              "children": [
+                {
+                  "type": "label",
+                  "props": { "className": "flex items-center cursor-pointer" },
+                  "children": [
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "checkbox",
+                        "className": "mr-2",
+                        "checked": { "ref": "agreeToTerms" }
+                      },
+                      "events": { "change": { "action": "toggleTerms" } }
+                    },
+                    {
+                      "type": "span",
+                      "props": { "className": "text-sm text-gray-600" },
+                      "children": [
+                        { "text": "I agree to the " },
+                        { "type": "a", "props": { "href": "#", "className": "text-blue-500 hover:underline" }, "children": [{ "text": "Terms of Service" }] },
+                        { "text": " and " },
+                        { "type": "a", "props": { "href": "#", "className": "text-blue-500 hover:underline" }, "children": [{ "text": "Privacy Policy" }] }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "button",
+              "props": {
+                "className": {
+                  "op": "if",
+                  "args": [
+                    { "op": "and", "args": [{ "ref": "isFormValid" }, { "op": "not", "args": [{ "ref": "loading" }] }] },
+                    "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600",
+                    "w-full bg-gray-300 text-gray-500 py-2 rounded cursor-not-allowed"
+                  ]
+                },
+                "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "isFormValid" }] }, { "ref": "loading" }] }
+              },
+              "events": { "click": { "action": "register" } },
+              "children": [
+                {
+                  "if": { "ref": "loading" },
+                  "then": { "type": "span", "children": [{ "text": "Creating account..." }] },
+                  "else": { "type": "span", "children": [{ "text": "Create Account" }] }
+                }
+              ]
+            },
+            {
+              "type": "p",
+              "props": { "className": "text-center text-sm text-gray-600 mt-4" },
+              "children": [
+                { "text": "Already have an account? " },
+                { "type": "a", "props": { "href": "#", "className": "text-blue-500 hover:underline" }, "children": [{ "text": "Sign in" }] }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Form starts empty and invalid",
+      "steps": [
+        { "assert": { "ref": "email", "eq": "" } },
+        { "assert": { "ref": "password", "eq": "" } },
+        { "assert": { "ref": "isFormValid", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-email-validation",
+      "name": "Email validation works",
+      "steps": [
+        { "dispatch": "setEmail", "args": ["invalid"] },
+        { "assert": { "ref": "emailValid", "eq": false } },
+        { "dispatch": "setEmail", "args": ["test@example.com"] },
+        { "assert": { "ref": "emailValid", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-password-strength",
+      "name": "Password strength calculated correctly",
+      "steps": [
+        { "dispatch": "setPassword", "args": ["short"] },
+        { "assert": { "ref": "passwordStrength", "eq": 0 } },
+        { "dispatch": "setPassword", "args": ["longenough"] },
+        { "assert": { "ref": "passwordStrength", "eq": 1 } },
+        { "dispatch": "setPassword", "args": ["Longenough"] },
+        { "assert": { "ref": "passwordStrength", "eq": 2 } },
+        { "dispatch": "setPassword", "args": ["Longenough1"] },
+        { "assert": { "ref": "passwordStrength", "eq": 3 } },
+        { "dispatch": "setPassword", "args": ["Longenough123"] },
+        { "assert": { "ref": "passwordStrength", "eq": 4 } }
+      ]
+    },
+    {
+      "id": "test-password-match",
+      "name": "Password confirmation works",
+      "steps": [
+        { "dispatch": "setPassword", "args": ["Password123"] },
+        { "dispatch": "setConfirmPassword", "args": ["Password124"] },
+        { "assert": { "ref": "passwordsMatch", "eq": false } },
+        { "dispatch": "setConfirmPassword", "args": ["Password123"] },
+        { "assert": { "ref": "passwordsMatch", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-form-valid",
+      "name": "Form valid when all fields correct",
+      "steps": [
+        { "dispatch": "setName", "args": ["John Doe"] },
+        { "dispatch": "setEmail", "args": ["john@example.com"] },
+        { "dispatch": "setPassword", "args": ["Password123"] },
+        { "dispatch": "setConfirmPassword", "args": ["Password123"] },
+        { "assert": { "ref": "isFormValid", "eq": false } },
+        { "dispatch": "toggleTerms" },
+        { "assert": { "ref": "isFormValid", "eq": true } }
+      ]
+    }
+  ]
+}

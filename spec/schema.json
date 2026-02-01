@@ -1,0 +1,995 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ddjex.com/schema/0.4.0",
+  "title": "ddjex Program Schema",
+  "description": "JSON Schema for Declarative Deterministic JSON Execution",
+
+  "definitions": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+    },
+
+    "target": {
+      "type": "string",
+      "enum": ["dom", "server", "cli"]
+    },
+
+    "primitiveType": {
+      "type": "string",
+      "enum": ["string", "number", "boolean", "null"]
+    },
+
+    "complexType": {
+      "type": "string",
+      "enum": ["array", "object"]
+    },
+
+    "typeDefinition": {
+      "oneOf": [
+        { "$ref": "#/definitions/primitiveType" },
+        { "$ref": "#/definitions/complexType" },
+        {
+          "type": "object",
+          "properties": {
+            "union": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/typeDefinition" },
+              "minItems": 2
+            }
+          },
+          "required": ["union"],
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "ref": {
+      "type": "object",
+      "properties": {
+        "ref": { "$ref": "#/definitions/identifier" }
+      },
+      "required": ["ref"],
+      "additionalProperties": false
+    },
+
+    "param": {
+      "type": "object",
+      "properties": {
+        "param": { "$ref": "#/definitions/identifier" }
+      },
+      "required": ["param"],
+      "additionalProperties": false
+    },
+
+    "literal": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array" },
+        { "type": "object", "not": { "anyOf": [
+          { "required": ["ref"] },
+          { "required": ["param"] },
+          { "required": ["op"] },
+          { "required": ["bind"] },
+          { "required": ["text"] }
+        ]}}
+      ]
+    },
+
+    "expression": {
+      "oneOf": [
+        { "$ref": "#/definitions/literal" },
+        { "$ref": "#/definitions/ref" },
+        { "$ref": "#/definitions/param" },
+        { "$ref": "#/definitions/operation" },
+        { "$ref": "#/definitions/contextRef" }
+      ]
+    },
+
+    "operation": {
+      "type": "object",
+      "properties": {
+        "op": { "type": "string" },
+        "args": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/expression" }
+        }
+      },
+      "required": ["op"],
+      "additionalProperties": false
+    },
+
+    "stateConstraints": {
+      "type": "object",
+      "properties": {
+        "min": { "type": "number", "description": "Minimum value (numbers)" },
+        "max": { "type": "number", "description": "Maximum value (numbers)" },
+        "minLength": { "type": "number", "description": "Minimum length (strings/arrays)" },
+        "maxLength": { "type": "number", "description": "Maximum length (strings/arrays)" },
+        "pattern": { "type": "string", "description": "Regex pattern (strings)" },
+        "unique": { "type": "boolean", "description": "All items must be unique (arrays)" },
+        "enum": {
+          "type": "array",
+          "items": {},
+          "description": "Allowed values"
+        },
+        "required": { "type": "boolean", "description": "Cannot be null/undefined" },
+        "custom": { "$ref": "#/definitions/operation", "description": "Custom validation operation" },
+        "message": { "type": "string", "description": "Error message on violation" }
+      },
+      "additionalProperties": false
+    },
+
+    "stateDefinition": {
+      "type": "object",
+      "properties": {
+        "type": { "$ref": "#/definitions/typeDefinition" },
+        "initial": {},
+        "nullable": { "type": "boolean", "default": false },
+        "itemType": { "$ref": "#/definitions/typeDefinition" },
+        "constraints": { "$ref": "#/definitions/stateConstraints" }
+      },
+      "required": ["type", "initial"],
+      "additionalProperties": false
+    },
+
+    "computedDefinition": {
+      "type": "object",
+      "properties": {
+        "deps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/identifier" },
+          "minItems": 1
+        },
+        "fn": { "$ref": "#/definitions/operation" }
+      },
+      "required": ["deps", "fn"],
+      "additionalProperties": false
+    },
+
+    "mutation": {
+      "type": "object",
+      "properties": {
+        "target": { "$ref": "#/definitions/identifier" },
+        "op": {
+          "type": "string",
+          "enum": ["set", "add", "subtract", "multiply", "divide", "push", "pop", "shift", "unshift", "merge", "toggle"]
+        },
+        "value": { "$ref": "#/definitions/expression" }
+      },
+      "required": ["target", "op"],
+      "additionalProperties": false
+    },
+
+    "effectDefinition": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/definitions/identifier" },
+        "trigger": {
+          "type": "string",
+          "enum": ["watch", "mount", "interval", "timeout"],
+          "default": "watch"
+        },
+        "watch": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/identifier" }
+        },
+        "interval": { "type": "number" },
+        "timeout": { "type": "number" },
+        "do": { "$ref": "#/definitions/operation" },
+        "condition": { "$ref": "#/definitions/operation" },
+        "onStart": { "$ref": "#/definitions/operation" },
+        "onSuccess": { "$ref": "#/definitions/operation" },
+        "onError": { "$ref": "#/definitions/operation" },
+        "cleanup": { "$ref": "#/definitions/operation" },
+        "debounce": { "type": "number" },
+        "throttle": { "type": "number" }
+      },
+      "required": ["id", "do"],
+      "additionalProperties": false
+    },
+
+    "actionDefinition": {
+      "type": "object",
+      "properties": {
+        "params": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/identifier" }
+        },
+        "mutations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/mutation" },
+          "minItems": 1
+        },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/operation" }
+        }
+      },
+      "required": ["mutations"],
+      "additionalProperties": false
+    },
+
+    "textNode": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "required": ["text"],
+      "additionalProperties": false
+    },
+
+    "bindNode": {
+      "type": "object",
+      "properties": {
+        "bind": { "$ref": "#/definitions/identifier" },
+        "format": { "$ref": "#/definitions/operation" }
+      },
+      "required": ["bind"],
+      "additionalProperties": false
+    },
+
+    "conditionalNode": {
+      "type": "object",
+      "properties": {
+        "if": { "$ref": "#/definitions/operation" },
+        "then": { "$ref": "#/definitions/elementNode" },
+        "else": { "$ref": "#/definitions/elementNode" }
+      },
+      "required": ["if", "then"],
+      "additionalProperties": false
+    },
+
+    "errorBoundaryNode": {
+      "type": "object",
+      "properties": {
+        "errorBoundary": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/identifier" },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            },
+            "fallback": { "$ref": "#/definitions/node" },
+            "onError": { "$ref": "#/definitions/operation" }
+          },
+          "required": ["children", "fallback"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["errorBoundary"],
+      "additionalProperties": false
+    },
+
+    "loopNode": {
+      "type": "object",
+      "properties": {
+        "each": {
+          "type": "object",
+          "properties": {
+            "items": { "$ref": "#/definitions/identifier" },
+            "as": { "$ref": "#/definitions/identifier" },
+            "index": { "$ref": "#/definitions/identifier" },
+            "key": { "$ref": "#/definitions/expression" }
+          },
+          "required": ["items", "as"],
+          "additionalProperties": false
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        }
+      },
+      "required": ["each", "children"]
+    },
+
+    "eventHandler": {
+      "type": "object",
+      "properties": {
+        "action": { "$ref": "#/definitions/identifier" },
+        "args": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/expression" }
+        }
+      },
+      "required": ["action"],
+      "additionalProperties": false
+    },
+
+    "elementNode": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "ref": { "$ref": "#/definitions/identifier" },
+        "props": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/expression" }
+        },
+        "events": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/eventHandler" }
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        },
+        "each": { "$ref": "#/definitions/loopNode/properties/each" },
+        "if": { "$ref": "#/definitions/operation" }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+
+    "componentRef": {
+      "type": "object",
+      "properties": {
+        "component": { "$ref": "#/definitions/identifier" },
+        "props": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/expression" }
+        }
+      },
+      "required": ["component"],
+      "additionalProperties": false
+    },
+
+    "portalNode": {
+      "type": "object",
+      "properties": {
+        "portal": {
+          "type": "object",
+          "properties": {
+            "target": { "type": "string" },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            }
+          },
+          "required": ["target", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["portal"],
+      "additionalProperties": false
+    },
+
+    "fragmentNode": {
+      "type": "object",
+      "properties": {
+        "fragment": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" },
+          "minItems": 1
+        }
+      },
+      "required": ["fragment"],
+      "additionalProperties": false
+    },
+
+    "lazyNode": {
+      "type": "object",
+      "properties": {
+        "lazy": {
+          "type": "object",
+          "properties": {
+            "src": { "type": "string" },
+            "component": { "$ref": "#/definitions/identifier" },
+            "props": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/expression" }
+            },
+            "fallback": { "$ref": "#/definitions/node" },
+            "errorFallback": { "$ref": "#/definitions/node" }
+          },
+          "required": ["src"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["lazy"],
+      "additionalProperties": false
+    },
+
+    "node": {
+      "oneOf": [
+        { "$ref": "#/definitions/textNode" },
+        { "$ref": "#/definitions/bindNode" },
+        { "$ref": "#/definitions/elementNode" },
+        { "$ref": "#/definitions/conditionalNode" },
+        { "$ref": "#/definitions/errorBoundaryNode" },
+        { "$ref": "#/definitions/componentRef" },
+        { "$ref": "#/definitions/portalNode" },
+        { "$ref": "#/definitions/fragmentNode" },
+        { "$ref": "#/definitions/contextProviderNode" },
+        { "$ref": "#/definitions/routerOutletNode" },
+        { "$ref": "#/definitions/routerLinkNode" },
+        { "$ref": "#/definitions/lazyNode" },
+        { "$ref": "#/definitions/transitionNode" },
+        { "$ref": "#/definitions/animatedNode" },
+        { "$ref": "#/definitions/transitionGroupNode" }
+      ]
+    },
+
+    "componentDefinition": {
+      "type": "object",
+      "properties": {
+        "props": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": { "$ref": "#/definitions/typeDefinition" },
+              "required": { "type": "boolean", "default": false },
+              "default": {}
+            },
+            "required": ["type"],
+            "additionalProperties": false
+          }
+        },
+        "refs": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/identifier" }
+        },
+        "state": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/stateDefinition" }
+        },
+        "computed": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/computedDefinition" }
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/actionDefinition" }
+        },
+        "render": { "$ref": "#/definitions/node" },
+        "onMount": { "$ref": "#/definitions/operation" },
+        "onUnmount": { "$ref": "#/definitions/operation" },
+        "onUpdate": { "$ref": "#/definitions/operation" }
+      },
+      "required": ["render"],
+      "additionalProperties": false
+    },
+
+    "serverRoute": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]
+        },
+        "path": { "type": "string" },
+        "params": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/identifier" }
+        },
+        "handler": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/operation" }
+        },
+        "response": { "$ref": "#/definitions/expression" }
+      },
+      "required": ["method", "path", "handler"],
+      "additionalProperties": false
+    },
+
+    "cliCommand": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "$ref": "#/definitions/identifier" },
+              "type": { "$ref": "#/definitions/primitiveType" },
+              "required": { "type": "boolean" },
+              "default": {}
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          }
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "$ref": "#/definitions/identifier" },
+              "short": { "type": "string", "maxLength": 1 },
+              "type": { "$ref": "#/definitions/primitiveType" },
+              "default": {}
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          }
+        },
+        "handler": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/operation" }
+        }
+      },
+      "required": ["name", "handler"],
+      "additionalProperties": false
+    },
+
+    "websocketDefinition": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/definitions/identifier" },
+        "url": { "type": "string" },
+        "autoConnect": { "type": "boolean", "default": true },
+        "reconnect": { "type": "boolean", "default": true },
+        "reconnectInterval": { "type": "number", "default": 1000 },
+        "onOpen": { "$ref": "#/definitions/operation" },
+        "onClose": { "$ref": "#/definitions/operation" },
+        "onMessage": { "$ref": "#/definitions/operation" },
+        "onError": { "$ref": "#/definitions/operation" }
+      },
+      "required": ["id", "url"],
+      "additionalProperties": false
+    },
+
+    "contextDefinition": {
+      "type": "object",
+      "properties": {
+        "type": { "$ref": "#/definitions/typeDefinition" },
+        "initial": {},
+        "nullable": { "type": "boolean", "default": false }
+      },
+      "required": ["type", "initial"],
+      "additionalProperties": false
+    },
+
+    "contextRef": {
+      "type": "object",
+      "properties": {
+        "context": { "type": "string" }
+      },
+      "required": ["context"],
+      "additionalProperties": false
+    },
+
+    "contextProviderNode": {
+      "type": "object",
+      "properties": {
+        "provide": {
+          "type": "object",
+          "properties": {
+            "context": { "$ref": "#/definitions/identifier" },
+            "value": { "$ref": "#/definitions/expression" },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            }
+          },
+          "required": ["context", "value", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["provide"],
+      "additionalProperties": false
+    },
+
+    "routeDefinition": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "name": { "$ref": "#/definitions/identifier" },
+        "component": { "$ref": "#/definitions/identifier" },
+        "render": { "$ref": "#/definitions/node" },
+        "redirect": { "type": "string" },
+        "lazy": {
+          "type": "object",
+          "properties": {
+            "src": { "type": "string" },
+            "component": { "$ref": "#/definitions/identifier" },
+            "fallback": { "$ref": "#/definitions/node" },
+            "errorFallback": { "$ref": "#/definitions/node" }
+          },
+          "required": ["src"],
+          "additionalProperties": false
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/routeDefinition" }
+        },
+        "guard": { "$ref": "#/definitions/operation" },
+        "meta": { "type": "object" }
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    },
+
+    "routerConfig": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["history", "hash"],
+          "default": "history"
+        },
+        "base": { "type": "string", "default": "/" },
+        "routes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/routeDefinition" },
+          "minItems": 1
+        },
+        "notFound": { "$ref": "#/definitions/node" }
+      },
+      "required": ["routes"],
+      "additionalProperties": false
+    },
+
+    "routerOutletNode": {
+      "type": "object",
+      "properties": {
+        "routerOutlet": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "default": "default" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["routerOutlet"],
+      "additionalProperties": false
+    },
+
+    "routerLinkNode": {
+      "type": "object",
+      "properties": {
+        "routerLink": {
+          "type": "object",
+          "properties": {
+            "to": { "$ref": "#/definitions/expression" },
+            "params": { "type": "object" },
+            "activeClass": { "type": "string", "default": "active" },
+            "exactActiveClass": { "type": "string", "default": "exact-active" },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            }
+          },
+          "required": ["to", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["routerLink"],
+      "additionalProperties": false
+    },
+
+    "easingType": {
+      "type": "string",
+      "enum": ["linear", "ease", "ease-in", "ease-out", "ease-in-out", "spring"]
+    },
+
+    "springConfig": {
+      "type": "object",
+      "properties": {
+        "stiffness": { "type": "number", "default": 100 },
+        "damping": { "type": "number", "default": 10 },
+        "mass": { "type": "number", "default": 1 },
+        "velocity": { "type": "number", "default": 0 }
+      },
+      "additionalProperties": false
+    },
+
+    "animationKeyframe": {
+      "type": "object",
+      "properties": {
+        "offset": { "type": "number", "minimum": 0, "maximum": 1 },
+        "style": { "type": "object" },
+        "easing": { "$ref": "#/definitions/easingType" }
+      },
+      "required": ["style"],
+      "additionalProperties": false
+    },
+
+    "animationDefinition": {
+      "type": "object",
+      "properties": {
+        "duration": { "type": "number", "default": 300 },
+        "delay": { "type": "number", "default": 0 },
+        "easing": { "$ref": "#/definitions/easingType" },
+        "spring": { "$ref": "#/definitions/springConfig" },
+        "from": { "type": "object" },
+        "to": { "type": "object" },
+        "keyframes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/animationKeyframe" },
+          "minItems": 2
+        },
+        "fill": {
+          "type": "string",
+          "enum": ["none", "forwards", "backwards", "both"],
+          "default": "forwards"
+        },
+        "iterations": { "type": "number", "default": 1 },
+        "direction": {
+          "type": "string",
+          "enum": ["normal", "reverse", "alternate", "alternate-reverse"],
+          "default": "normal"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "transitionNode": {
+      "type": "object",
+      "properties": {
+        "transition": {
+          "type": "object",
+          "properties": {
+            "show": { "$ref": "#/definitions/expression" },
+            "enter": { "$ref": "#/definitions/animationDefinition" },
+            "exit": { "$ref": "#/definitions/animationDefinition" },
+            "mode": {
+              "type": "string",
+              "enum": ["in-out", "out-in", "simultaneous"],
+              "default": "simultaneous"
+            },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            },
+            "onEnterStart": { "$ref": "#/definitions/operation" },
+            "onEnterEnd": { "$ref": "#/definitions/operation" },
+            "onExitStart": { "$ref": "#/definitions/operation" },
+            "onExitEnd": { "$ref": "#/definitions/operation" }
+          },
+          "required": ["show", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["transition"],
+      "additionalProperties": false
+    },
+
+    "animatedNode": {
+      "type": "object",
+      "properties": {
+        "animated": {
+          "type": "object",
+          "properties": {
+            "value": { "$ref": "#/definitions/expression" },
+            "style": { "type": "object" },
+            "config": { "$ref": "#/definitions/animationDefinition" },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            },
+            "onStart": { "$ref": "#/definitions/operation" },
+            "onComplete": { "$ref": "#/definitions/operation" }
+          },
+          "required": ["value", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["animated"],
+      "additionalProperties": false
+    },
+
+    "transitionGroupNode": {
+      "type": "object",
+      "properties": {
+        "transitionGroup": {
+          "type": "object",
+          "properties": {
+            "items": { "$ref": "#/definitions/identifier" },
+            "as": { "$ref": "#/definitions/identifier" },
+            "key": { "$ref": "#/definitions/expression" },
+            "enter": { "$ref": "#/definitions/animationDefinition" },
+            "exit": { "$ref": "#/definitions/animationDefinition" },
+            "move": { "$ref": "#/definitions/animationDefinition" },
+            "children": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/node" },
+              "minItems": 1
+            }
+          },
+          "required": ["items", "as", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["transitionGroup"],
+      "additionalProperties": false
+    },
+
+    "invariantDefinition": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/definitions/identifier" },
+        "check": { "$ref": "#/definitions/operation" },
+        "message": { "type": "string" },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning"],
+          "default": "error"
+        }
+      },
+      "required": ["id", "check", "message"],
+      "additionalProperties": false
+    },
+
+    "testAssertion": {
+      "type": "object",
+      "properties": {
+        "ref": { "type": "string", "description": "Reference to state/computed value" },
+        "context": { "type": "string", "description": "Reference to context value" },
+        "value": { "$ref": "#/definitions/expression", "description": "Direct value to assert" },
+        "eq": { "$ref": "#/definitions/expression" },
+        "neq": { "$ref": "#/definitions/expression" },
+        "gt": { "type": "number" },
+        "gte": { "type": "number" },
+        "lt": { "type": "number" },
+        "lte": { "type": "number" },
+        "contains": { "$ref": "#/definitions/expression" },
+        "length": { "type": "number" },
+        "matches": { "type": "string", "description": "Regex pattern" },
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "array", "object", "null", "undefined"]
+        },
+        "deepEquals": { "$ref": "#/definitions/expression" },
+        "truthy": { "type": "boolean" },
+        "falsy": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+
+    "testStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "assert": { "$ref": "#/definitions/testAssertion" },
+            "message": { "type": "string" }
+          },
+          "required": ["assert"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "dispatch": { "$ref": "#/definitions/identifier" },
+            "args": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/expression" }
+            }
+          },
+          "required": ["dispatch"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait": { "type": "number", "description": "Milliseconds to wait" }
+          },
+          "required": ["wait"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "setState": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/expression" }
+            }
+          },
+          "required": ["setState"],
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "testDefinition": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/definitions/identifier" },
+        "name": { "type": "string" },
+        "skip": { "type": "boolean", "default": false },
+        "only": { "type": "boolean", "default": false },
+        "timeout": { "type": "number", "default": 5000 },
+        "setup": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/expression" },
+          "description": "Initial state overrides"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/testStep" },
+          "minItems": 1
+        }
+      },
+      "required": ["id", "steps"],
+      "additionalProperties": false
+    }
+  },
+
+  "type": "object",
+  "properties": {
+    "$ddjex": { "$ref": "#/definitions/version" },
+    "id": { "$ref": "#/definitions/identifier" },
+    "target": { "$ref": "#/definitions/target" },
+
+    "state": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/stateDefinition" }
+    },
+
+    "computed": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/computedDefinition" }
+    },
+
+    "effects": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/effectDefinition" }
+    },
+
+    "actions": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/actionDefinition" }
+    },
+
+    "components": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/componentDefinition" }
+    },
+
+    "root": { "$ref": "#/definitions/node" },
+
+    "routes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/serverRoute" }
+    },
+
+    "commands": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/cliCommand" }
+    },
+
+    "websockets": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/websocketDefinition" }
+    },
+
+    "contexts": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/contextDefinition" }
+    },
+
+    "router": { "$ref": "#/definitions/routerConfig" },
+
+    "tests": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/testDefinition" },
+      "description": "Inline tests for self-verification"
+    },
+
+    "invariants": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/invariantDefinition" },
+      "description": "Runtime invariants checked after every state mutation"
+    }
+  },
+
+  "required": ["$ddjex", "id", "target"],
+  "additionalProperties": false
+}

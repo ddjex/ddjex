@@ -1,0 +1,216 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "async_effects_demo",
+  "target": "dom",
+
+  "state": {
+    "userId": { "type": "number", "initial": 1 },
+    "user": { "type": "object", "initial": null, "nullable": true },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "ticker": { "type": "number", "initial": 0 },
+    "searchQuery": { "type": "string", "initial": "" },
+    "searchResults": { "type": "array", "initial": [] }
+  },
+
+  "effects": [
+    {
+      "id": "fetchUserOnMount",
+      "trigger": "mount",
+      "do": { "op": "fetch", "args": ["https://jsonplaceholder.typicode.com/users/1"] },
+      "onStart": { "action": "setLoading", "args": [true] },
+      "onSuccess": { "action": "setUser", "args": [{ "param": "result" }] },
+      "onError": { "action": "setError", "args": [{ "param": "error" }] }
+    },
+    {
+      "id": "fetchUserOnChange",
+      "trigger": "watch",
+      "watch": ["userId"],
+      "do": { "op": "fetch", "args": [{ "op": "concat", "args": ["https://jsonplaceholder.typicode.com/users/", { "ref": "userId" }] }] },
+      "onStart": { "action": "setLoading", "args": [true] },
+      "onSuccess": { "action": "setUser", "args": [{ "param": "result" }] },
+      "onError": { "action": "setError", "args": [{ "param": "error" }] },
+      "debounce": 300
+    },
+    {
+      "id": "tickEverySecond",
+      "trigger": "interval",
+      "interval": 1000,
+      "do": { "action": "incrementTicker" }
+    },
+    {
+      "id": "debouncedSearch",
+      "trigger": "watch",
+      "watch": ["searchQuery"],
+      "do": { "op": "log", "args": ["Searching for:", { "ref": "searchQuery" }] },
+      "debounce": 500
+    }
+  ],
+
+  "actions": {
+    "setLoading": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "loading", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "setUser": {
+      "params": ["userData"],
+      "mutations": [
+        { "target": "user", "op": "set", "value": { "param": "userData" } },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setError": {
+      "params": ["err"],
+      "mutations": [
+        { "target": "error", "op": "set", "value": { "op": "get", "args": [{ "param": "err" }, "message"] } },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "user", "op": "set", "value": null }
+      ]
+    },
+    "changeUser": {
+      "params": ["id"],
+      "mutations": [
+        { "target": "userId", "op": "set", "value": { "param": "id" } }
+      ]
+    },
+    "incrementTicker": {
+      "mutations": [
+        { "target": "ticker", "op": "add", "value": 1 }
+      ]
+    },
+    "setSearchQuery": {
+      "params": ["query"],
+      "mutations": [
+        { "target": "searchQuery", "op": "set", "value": { "param": "query" } }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "async-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Async Effects Demo" }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "ticker" },
+        "children": [
+          { "text": "Uptime: " },
+          { "bind": "ticker" },
+          { "text": " seconds" }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "user-selector" },
+        "children": [
+          { "text": "Select User: " },
+          {
+            "type": "button",
+            "events": { "click": { "action": "changeUser", "args": [1] } },
+            "children": [{ "text": "User 1" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "changeUser", "args": [2] } },
+            "children": [{ "text": "User 2" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "changeUser", "args": [3] } },
+            "children": [{ "text": "User 3" }]
+          }
+        ]
+      },
+      {
+        "if": { "op": "eq", "args": [{ "ref": "loading" }, true] },
+        "then": {
+          "type": "div",
+          "props": { "className": "loading" },
+          "children": [{ "text": "Loading..." }]
+        },
+        "else": {
+          "type": "div",
+          "children": [
+            {
+              "if": { "op": "neq", "args": [{ "ref": "error" }, ""] },
+              "then": {
+                "type": "div",
+                "props": { "className": "error" },
+                "children": [
+                  { "text": "Error: " },
+                  { "bind": "error" }
+                ]
+              },
+              "else": {
+                "type": "div",
+                "props": { "className": "user-info" },
+                "children": [
+                  {
+                    "if": { "op": "neq", "args": [{ "ref": "user" }, null] },
+                    "then": {
+                      "type": "div",
+                      "children": [
+                        {
+                          "type": "h2",
+                          "children": [{ "bind": "user.name" }]
+                        },
+                        {
+                          "type": "p",
+                          "children": [
+                            { "text": "Email: " },
+                            { "bind": "user.email" }
+                          ]
+                        },
+                        {
+                          "type": "p",
+                          "children": [
+                            { "text": "Phone: " },
+                            { "bind": "user.phone" }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "div",
+        "props": { "className": "search-section" },
+        "children": [
+          {
+            "type": "h3",
+            "children": [{ "text": "Debounced Search" }]
+          },
+          {
+            "type": "input",
+            "props": {
+              "type": "text",
+              "placeholder": "Type to search (debounced 500ms)..."
+            },
+            "events": {
+              "input": { "action": "setSearchQuery", "args": [{ "op": "eventValue" }] }
+            }
+          },
+          {
+            "type": "p",
+            "children": [
+              { "text": "Current query: " },
+              { "bind": "searchQuery" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

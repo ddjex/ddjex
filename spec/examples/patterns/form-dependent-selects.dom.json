@@ -1,0 +1,444 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-dependent-selects-pattern",
+  "target": "dom",
+  "description": "Cascading dropdowns where options depend on previous selections",
+
+  "state": {
+    "country": { "type": "string", "initial": "" },
+    "region": { "type": "string", "initial": "" },
+    "city": { "type": "string", "initial": "" },
+    "countries": {
+      "type": "array",
+      "initial": [
+        { "code": "US", "name": "United States" },
+        { "code": "CA", "name": "Canada" },
+        { "code": "UK", "name": "United Kingdom" }
+      ],
+      "itemType": "object"
+    },
+    "regionsByCountry": {
+      "type": "object",
+      "initial": {
+        "US": [
+          { "code": "CA", "name": "California" },
+          { "code": "NY", "name": "New York" },
+          { "code": "TX", "name": "Texas" }
+        ],
+        "CA": [
+          { "code": "ON", "name": "Ontario" },
+          { "code": "QC", "name": "Quebec" },
+          { "code": "BC", "name": "British Columbia" }
+        ],
+        "UK": [
+          { "code": "ENG", "name": "England" },
+          { "code": "SCT", "name": "Scotland" },
+          { "code": "WLS", "name": "Wales" }
+        ]
+      }
+    },
+    "citiesByRegion": {
+      "type": "object",
+      "initial": {
+        "CA": ["Los Angeles", "San Francisco", "San Diego"],
+        "NY": ["New York City", "Buffalo", "Albany"],
+        "TX": ["Houston", "Austin", "Dallas"],
+        "ON": ["Toronto", "Ottawa", "Mississauga"],
+        "QC": ["Montreal", "Quebec City", "Laval"],
+        "BC": ["Vancouver", "Victoria", "Burnaby"],
+        "ENG": ["London", "Manchester", "Birmingham"],
+        "SCT": ["Edinburgh", "Glasgow", "Aberdeen"],
+        "WLS": ["Cardiff", "Swansea", "Newport"]
+      }
+    },
+    "loadingRegions": { "type": "boolean", "initial": false },
+    "loadingCities": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "availableRegions": {
+      "deps": ["country", "regionsByCountry"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "country" }, ""] },
+          [],
+          { "op": "get", "args": [{ "ref": "regionsByCountry" }, { "ref": "country" }] }
+        ]
+      }
+    },
+    "availableCities": {
+      "deps": ["region", "citiesByRegion"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "region" }, ""] },
+          [],
+          { "op": "get", "args": [{ "ref": "citiesByRegion" }, { "ref": "region" }] }
+        ]
+      }
+    },
+    "hasCountry": {
+      "deps": ["country"],
+      "fn": { "op": "neq", "args": [{ "ref": "country" }, ""] }
+    },
+    "hasRegion": {
+      "deps": ["region"],
+      "fn": { "op": "neq", "args": [{ "ref": "region" }, ""] }
+    },
+    "hasCity": {
+      "deps": ["city"],
+      "fn": { "op": "neq", "args": [{ "ref": "city" }, ""] }
+    },
+    "isComplete": {
+      "deps": ["hasCountry", "hasRegion", "hasCity"],
+      "fn": {
+        "op": "and",
+        "args": [{ "ref": "hasCountry" }, { "ref": "hasRegion" }, { "ref": "hasCity" }]
+      }
+    },
+    "selectedCountryName": {
+      "deps": ["country", "countries"],
+      "fn": {
+        "op": "get",
+        "args": [
+          { "op": "find", "args": [{ "ref": "countries" }, { "op": "eq", "args": [{ "op": "get", "args": ["$item", "code"] }, { "ref": "country" }] }] },
+          "name"
+        ]
+      }
+    },
+    "selectedRegionName": {
+      "deps": ["region", "availableRegions"],
+      "fn": {
+        "op": "get",
+        "args": [
+          { "op": "find", "args": [{ "ref": "availableRegions" }, { "op": "eq", "args": [{ "op": "get", "args": ["$item", "code"] }, { "ref": "region" }] }] },
+          "name"
+        ]
+      }
+    },
+    "summary": {
+      "deps": ["city", "selectedRegionName", "selectedCountryName", "isComplete"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "isComplete" },
+          { "op": "concat", "args": [{ "ref": "city" }, ", ", { "ref": "selectedRegionName" }, ", ", { "ref": "selectedCountryName" }] },
+          ""
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setCountry": {
+      "params": ["code"],
+      "mutations": [
+        { "target": "country", "op": "set", "value": { "param": "code" } },
+        { "target": "region", "op": "set", "value": "" },
+        { "target": "city", "op": "set", "value": "" }
+      ]
+    },
+    "setRegion": {
+      "params": ["code"],
+      "mutations": [
+        { "target": "region", "op": "set", "value": { "param": "code" } },
+        { "target": "city", "op": "set", "value": "" }
+      ]
+    },
+    "setCity": {
+      "params": ["name"],
+      "mutations": [
+        { "target": "city", "op": "set", "value": { "param": "name" } }
+      ]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "country", "op": "set", "value": "" },
+        { "target": "region", "op": "set", "value": "" },
+        { "target": "city", "op": "set", "value": "" }
+      ]
+    },
+    "setLoadingRegions": {
+      "params": ["loading"],
+      "mutations": [
+        { "target": "loadingRegions", "op": "set", "value": { "param": "loading" } }
+      ]
+    },
+    "setLoadingCities": {
+      "params": ["loading"],
+      "mutations": [
+        { "target": "loadingCities", "op": "set", "value": { "param": "loading" } }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "dependent-selects-form" },
+    "children": [
+      { "type": "h2", "children": [{ "text": "Location Selector" }] },
+      {
+        "type": "div",
+        "props": { "className": "form-group" },
+        "children": [
+          { "type": "label", "children": [{ "text": "Country" }] },
+          {
+            "type": "select",
+            "props": {
+              "className": "select-field",
+              "value": { "ref": "country" }
+            },
+            "events": {
+              "change": { "action": "setCountry", "params": { "code": "$event.target.value" } }
+            },
+            "children": [
+              { "type": "option", "props": { "value": "" }, "children": [{ "text": "Select a country..." }] },
+              {
+                "type": "fragment",
+                "each": { "items": "countries", "as": "c" },
+                "children": [
+                  {
+                    "type": "option",
+                    "props": { "value": { "op": "get", "args": [{ "ref": "c" }, "code"] } },
+                    "children": [{ "op": "get", "args": [{ "ref": "c" }, "name"] }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "form-group" },
+        "children": [
+          { "type": "label", "children": [{ "text": "State/Region" }] },
+          {
+            "type": "select",
+            "props": {
+              "className": "select-field",
+              "value": { "ref": "region" },
+              "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "hasCountry" }] }, { "ref": "loadingRegions" }] }
+            },
+            "events": {
+              "change": { "action": "setRegion", "params": { "code": "$event.target.value" } }
+            },
+            "children": [
+              {
+                "type": "option",
+                "props": { "value": "" },
+                "children": [
+                  {
+                    "op": "if",
+                    "args": [
+                      { "ref": "loadingRegions" },
+                      "Loading...",
+                      { "op": "if", "args": [{ "ref": "hasCountry" }, "Select a region...", "Select a country first"] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "fragment",
+                "each": { "items": "availableRegions", "as": "r" },
+                "children": [
+                  {
+                    "type": "option",
+                    "props": { "value": { "op": "get", "args": [{ "ref": "r" }, "code"] } },
+                    "children": [{ "op": "get", "args": [{ "ref": "r" }, "name"] }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "form-group" },
+        "children": [
+          { "type": "label", "children": [{ "text": "City" }] },
+          {
+            "type": "select",
+            "props": {
+              "className": "select-field",
+              "value": { "ref": "city" },
+              "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "hasRegion" }] }, { "ref": "loadingCities" }] }
+            },
+            "events": {
+              "change": { "action": "setCity", "params": { "name": "$event.target.value" } }
+            },
+            "children": [
+              {
+                "type": "option",
+                "props": { "value": "" },
+                "children": [
+                  {
+                    "op": "if",
+                    "args": [
+                      { "ref": "loadingCities" },
+                      "Loading...",
+                      { "op": "if", "args": [{ "ref": "hasRegion" }, "Select a city...", "Select a region first"] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "fragment",
+                "each": { "items": "availableCities", "as": "cityName" },
+                "children": [
+                  {
+                    "type": "option",
+                    "props": { "value": { "ref": "cityName" } },
+                    "children": [{ "bind": "cityName" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "isComplete" },
+        "props": { "className": "selection-summary" },
+        "children": [
+          { "type": "h4", "children": [{ "text": "Selected Location:" }] },
+          { "type": "p", "props": { "className": "summary-text" }, "children": [{ "bind": "summary" }] }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "form-actions" },
+        "children": [
+          {
+            "type": "button",
+            "props": {
+              "className": "btn-reset",
+              "disabled": { "op": "not", "args": [{ "ref": "hasCountry" }] }
+            },
+            "events": { "click": { "action": "reset" } },
+            "children": [{ "text": "Reset" }]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": "btn-submit",
+              "disabled": { "op": "not", "args": [{ "ref": "isComplete" }] }
+            },
+            "children": [{ "text": "Confirm Location" }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "debug-info" },
+        "children": [
+          {
+            "type": "small",
+            "children": [
+              { "text": "Country: " },
+              { "op": "if", "args": [{ "ref": "hasCountry" }, { "ref": "country" }, "(none)"] },
+              { "text": " | Region: " },
+              { "op": "if", "args": [{ "ref": "hasRegion" }, { "ref": "region" }, "(none)"] },
+              { "text": " | City: " },
+              { "op": "if", "args": [{ "ref": "hasCity" }, { "ref": "city" }, "(none)"] }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with no selection",
+      "steps": [
+        { "assert": { "ref": "country", "eq": "" } },
+        { "assert": { "ref": "region", "eq": "" } },
+        { "assert": { "ref": "city", "eq": "" } },
+        { "assert": { "ref": "isComplete", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-set-country",
+      "name": "setCountry enables region select",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "US" } },
+        { "assert": { "ref": "country", "eq": "US" } },
+        { "assert": { "ref": "hasCountry", "eq": true } },
+        { "assert": { "ref": "region", "eq": "" } },
+        { "assert": { "ref": "city", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-set-region",
+      "name": "setRegion enables city select",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "US" } },
+        { "dispatch": "setRegion", "params": { "code": "CA" } },
+        { "assert": { "ref": "region", "eq": "CA" } },
+        { "assert": { "ref": "hasRegion", "eq": true } },
+        { "assert": { "ref": "city", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-set-city",
+      "name": "setCity completes selection",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "US" } },
+        { "dispatch": "setRegion", "params": { "code": "CA" } },
+        { "dispatch": "setCity", "params": { "name": "Los Angeles" } },
+        { "assert": { "ref": "city", "eq": "Los Angeles" } },
+        { "assert": { "ref": "isComplete", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-country-change-resets",
+      "name": "changing country resets region and city",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "US" } },
+        { "dispatch": "setRegion", "params": { "code": "CA" } },
+        { "dispatch": "setCity", "params": { "name": "Los Angeles" } },
+        { "dispatch": "setCountry", "params": { "code": "CA" } },
+        { "assert": { "ref": "country", "eq": "CA" } },
+        { "assert": { "ref": "region", "eq": "" } },
+        { "assert": { "ref": "city", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-region-change-resets-city",
+      "name": "changing region resets city",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "US" } },
+        { "dispatch": "setRegion", "params": { "code": "CA" } },
+        { "dispatch": "setCity", "params": { "name": "Los Angeles" } },
+        { "dispatch": "setRegion", "params": { "code": "NY" } },
+        { "assert": { "ref": "region", "eq": "NY" } },
+        { "assert": { "ref": "city", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-reset",
+      "name": "reset clears all selections",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "US" } },
+        { "dispatch": "setRegion", "params": { "code": "CA" } },
+        { "dispatch": "setCity", "params": { "name": "Los Angeles" } },
+        { "dispatch": "reset" },
+        { "assert": { "ref": "country", "eq": "" } },
+        { "assert": { "ref": "region", "eq": "" } },
+        { "assert": { "ref": "city", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-available-regions",
+      "name": "availableRegions computed correctly",
+      "steps": [
+        { "dispatch": "setCountry", "params": { "code": "UK" } }
+      ]
+    }
+  ]
+}

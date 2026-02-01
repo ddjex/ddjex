@@ -1,0 +1,223 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "todo_app",
+  "target": "dom",
+
+  "state": {
+    "todos": { "type": "array", "initial": [], "itemType": "object" },
+    "inputText": { "type": "string", "initial": "" },
+    "filter": { "type": "string", "initial": "all" }
+  },
+
+  "computed": {
+    "filteredTodos": {
+      "deps": ["todos", "filter"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "filter" },
+          {
+            "all": { "ref": "todos" },
+            "active": { "op": "filter", "args": [{ "ref": "todos" }, { "op": "not", "args": [{ "op": "get", "args": [{ "param": "item" }, "completed"] }] }] },
+            "completed": { "op": "filter", "args": [{ "ref": "todos" }, { "op": "get", "args": [{ "param": "item" }, "completed"] }] }
+          }
+        ]
+      }
+    },
+    "activeCount": {
+      "deps": ["todos"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "todos" }, { "op": "not", "args": [{ "op": "get", "args": [{ "param": "item" }, "completed"] }] }] }
+        ]
+      }
+    },
+    "hasCompleted": {
+      "deps": ["todos"],
+      "fn": {
+        "op": "gt",
+        "args": [
+          { "op": "length", "args": [{ "op": "filter", "args": [{ "ref": "todos" }, { "op": "get", "args": [{ "param": "item" }, "completed"] }] }] },
+          0
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setInput": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "inputText", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "addTodo": {
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "push",
+          "value": {
+            "id": { "op": "now" },
+            "text": { "ref": "inputText" },
+            "completed": false
+          }
+        },
+        { "target": "inputText", "op": "set", "value": "" }
+      ]
+    },
+    "toggleTodo": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "map",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "param": "id" }] },
+              { "op": "merge", "args": [{ "param": "item" }, { "completed": { "op": "not", "args": [{ "op": "get", "args": [{ "param": "item" }, "completed"] }] } }] },
+              { "param": "item" }
+            ]
+          }
+        }
+      ]
+    },
+    "deleteTodo": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "filter",
+          "value": { "op": "neq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "param": "id" }] }
+        }
+      ]
+    },
+    "setFilter": {
+      "params": ["filter"],
+      "mutations": [
+        { "target": "filter", "op": "set", "value": { "param": "filter" } }
+      ]
+    },
+    "clearCompleted": {
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "filter",
+          "value": { "op": "not", "args": [{ "op": "get", "args": [{ "param": "item" }, "completed"] }] }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "todo-app" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "ddjex Todos" }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "input-section" },
+        "children": [
+          {
+            "type": "input",
+            "props": {
+              "type": "text",
+              "placeholder": "What needs to be done?",
+              "value": { "ref": "inputText" }
+            },
+            "events": {
+              "input": { "action": "setInput", "args": [{ "op": "eventValue" }] },
+              "keydown": { "action": "addTodo", "args": [] }
+            }
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "addTodo" } },
+            "children": [{ "text": "Add" }]
+          }
+        ]
+      },
+      {
+        "type": "ul",
+        "props": { "className": "todo-list" },
+        "each": { "items": "filteredTodos", "as": "todo", "index": "i" },
+        "children": [
+          {
+            "type": "li",
+            "props": {
+              "className": {
+                "op": "if",
+                "args": [
+                  { "op": "get", "args": [{ "ref": "todo" }, "completed"] },
+                  "completed",
+                  ""
+                ]
+              }
+            },
+            "children": [
+              {
+                "type": "input",
+                "props": {
+                  "type": "checkbox",
+                  "checked": { "op": "get", "args": [{ "ref": "todo" }, "completed"] }
+                },
+                "events": {
+                  "change": { "action": "toggleTodo", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "id"] }] }
+                }
+              },
+              {
+                "type": "span",
+                "children": [{ "bind": "todo.text" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "delete" },
+                "events": {
+                  "click": { "action": "deleteTodo", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "id"] }] }
+                },
+                "children": [{ "text": "x" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "filters" },
+        "children": [
+          {
+            "type": "span",
+            "children": [{ "bind": "activeCount" }, { "text": " items left" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "setFilter", "args": ["all"] } },
+            "children": [{ "text": "All" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "setFilter", "args": ["active"] } },
+            "children": [{ "text": "Active" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "setFilter", "args": ["completed"] } },
+            "children": [{ "text": "Completed" }]
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "hasCompleted" }, true] },
+            "then": {
+              "type": "button",
+              "events": { "click": { "action": "clearCompleted" } },
+              "children": [{ "text": "Clear completed" }]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

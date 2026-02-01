@@ -1,0 +1,400 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-polling-pattern",
+  "target": "dom",
+  "description": "Periodic data refresh with configurable interval and pause/resume",
+
+  "state": {
+    "data": { "type": "array", "initial": [], "itemType": "object" },
+    "lastUpdated": { "type": "number", "initial": 0 },
+    "isPolling": { "type": "boolean", "initial": true },
+    "pollInterval": { "type": "number", "initial": 5000, "constraints": { "min": 1000, "max": 60000 } },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "pollCount": { "type": "number", "initial": 0 },
+    "autoRefresh": { "type": "boolean", "initial": true }
+  },
+
+  "computed": {
+    "hasData": {
+      "deps": ["data"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "data" }] }, 0] }
+    },
+    "dataCount": {
+      "deps": ["data"],
+      "fn": { "op": "length", "args": [{ "ref": "data" }] }
+    },
+    "lastUpdatedFormatted": {
+      "deps": ["lastUpdated"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "lastUpdated" }, 0] },
+          "Never",
+          { "op": "formatDate", "args": [{ "ref": "lastUpdated" }, "HH:mm:ss"] }
+        ]
+      }
+    },
+    "intervalSeconds": {
+      "deps": ["pollInterval"],
+      "fn": { "op": "divide", "args": [{ "ref": "pollInterval" }, 1000] }
+    },
+    "statusText": {
+      "deps": ["isPolling", "loading", "autoRefresh"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "loading" },
+          "Refreshing...",
+          {
+            "op": "if",
+            "args": [
+              { "op": "and", "args": [{ "ref": "isPolling" }, { "ref": "autoRefresh" }] },
+              "Auto-refresh active",
+              "Paused"
+            ]
+          }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "fetchData": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "fetchSuccess": {
+      "params": ["result"],
+      "mutations": [
+        { "target": "data", "op": "set", "value": { "param": "result" } },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "lastUpdated", "op": "set", "value": { "op": "now" } },
+        { "target": "pollCount", "op": "add", "value": 1 }
+      ]
+    },
+    "fetchError": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": { "param": "message" } }
+      ]
+    },
+    "togglePolling": {
+      "mutations": [
+        { "target": "isPolling", "op": "not" }
+      ]
+    },
+    "startPolling": {
+      "mutations": [
+        { "target": "isPolling", "op": "set", "value": true }
+      ]
+    },
+    "stopPolling": {
+      "mutations": [
+        { "target": "isPolling", "op": "set", "value": false }
+      ]
+    },
+    "setInterval": {
+      "params": ["interval"],
+      "mutations": [
+        { "target": "pollInterval", "op": "set", "value": { "param": "interval" } }
+      ]
+    },
+    "toggleAutoRefresh": {
+      "mutations": [
+        { "target": "autoRefresh", "op": "not" }
+      ]
+    },
+    "manualRefresh": {
+      "guard": { "op": "not", "args": [{ "ref": "loading" }] },
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "initial-fetch",
+      "trigger": { "type": "mount" },
+      "do": { "action": "fetchData" }
+    },
+    {
+      "id": "poll-data",
+      "trigger": { "type": "interval", "interval": { "ref": "pollInterval" } },
+      "condition": {
+        "op": "and",
+        "args": [
+          { "ref": "isPolling" },
+          { "ref": "autoRefresh" },
+          { "op": "not", "args": [{ "ref": "loading" }] }
+        ]
+      },
+      "do": { "action": "fetchData" }
+    },
+    {
+      "id": "perform-fetch",
+      "watch": ["loading"],
+      "condition": { "ref": "loading" },
+      "do": {
+        "op": "fetch",
+        "url": "/api/data",
+        "method": "GET"
+      },
+      "onSuccess": { "action": "fetchSuccess", "params": { "result": "$result" } },
+      "onError": { "action": "fetchError", "params": { "message": "Failed to fetch data" } }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "polling-container" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "polling-header" },
+        "children": [
+          { "type": "h2", "children": [{ "text": "Live Data" }] },
+          {
+            "type": "div",
+            "props": { "className": "polling-status" },
+            "children": [
+              {
+                "type": "span",
+                "props": {
+                  "className": {
+                    "op": "concat",
+                    "args": [
+                      "status-indicator",
+                      { "op": "if", "args": [{ "op": "and", "args": [{ "ref": "isPolling" }, { "ref": "autoRefresh" }] }, " active", " paused"] }
+                    ]
+                  }
+                }
+              },
+              { "bind": "statusText" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "polling-controls" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "interval-control" },
+            "children": [
+              { "type": "label", "children": [{ "text": "Refresh every:" }] },
+              {
+                "type": "select",
+                "props": { "value": { "ref": "pollInterval" } },
+                "events": { "change": { "action": "setInterval", "params": { "interval": "$event.target.valueAsNumber" } } },
+                "children": [
+                  { "type": "option", "props": { "value": 1000 }, "children": [{ "text": "1 second" }] },
+                  { "type": "option", "props": { "value": 5000 }, "children": [{ "text": "5 seconds" }] },
+                  { "type": "option", "props": { "value": 10000 }, "children": [{ "text": "10 seconds" }] },
+                  { "type": "option", "props": { "value": 30000 }, "children": [{ "text": "30 seconds" }] },
+                  { "type": "option", "props": { "value": 60000 }, "children": [{ "text": "1 minute" }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "label",
+            "props": { "className": "auto-refresh-toggle" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "checkbox", "checked": { "ref": "autoRefresh" } },
+                "events": { "change": { "action": "toggleAutoRefresh" } }
+              },
+              { "text": "Auto-refresh" }
+            ]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": "btn-refresh",
+              "disabled": { "ref": "loading" }
+            },
+            "events": { "click": { "action": "manualRefresh" } },
+            "children": [{ "op": "if", "args": [{ "ref": "loading" }, "Refreshing...", "Refresh Now"] }]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": { "op": "if", "args": [{ "ref": "isPolling" }, "btn-pause", "btn-resume"] }
+            },
+            "events": { "click": { "action": "togglePolling" } },
+            "children": [{ "op": "if", "args": [{ "ref": "isPolling" }, "Pause", "Resume"] }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "polling-info" },
+        "children": [
+          {
+            "type": "span",
+            "children": [
+              { "text": "Last updated: " },
+              { "bind": "lastUpdatedFormatted" }
+            ]
+          },
+          {
+            "type": "span",
+            "children": [
+              { "text": "Total refreshes: " },
+              { "bind": "pollCount" }
+            ]
+          },
+          {
+            "type": "span",
+            "children": [
+              { "text": "Items: " },
+              { "bind": "dataCount" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "neq", "args": [{ "ref": "error" }, ""] },
+        "props": { "className": "error-message" },
+        "children": [
+          { "bind": "error" },
+          {
+            "type": "button",
+            "events": { "click": { "action": "manualRefresh" } },
+            "children": [{ "text": "Retry" }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "hasData" }] }, { "op": "not", "args": [{ "ref": "loading" }] }] },
+        "props": { "className": "empty-state" },
+        "children": [{ "text": "No data available" }]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "loading" },
+        "props": { "className": "loading-overlay" },
+        "children": [
+          { "type": "div", "props": { "className": "spinner" } }
+        ]
+      },
+      {
+        "type": "ul",
+        "props": { "className": "data-list" },
+        "each": { "items": "data", "as": "item" },
+        "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+        "children": [
+          {
+            "type": "li",
+            "props": { "className": "data-item" },
+            "children": [
+              {
+                "type": "span",
+                "props": { "className": "item-id" },
+                "children": [{ "text": "#" }, { "op": "get", "args": [{ "ref": "item" }, "id"] }]
+              },
+              {
+                "type": "span",
+                "props": { "className": "item-name" },
+                "children": [{ "op": "get", "args": [{ "ref": "item" }, "name"] }]
+              },
+              {
+                "type": "span",
+                "props": { "className": "item-value" },
+                "children": [{ "op": "get", "args": [{ "ref": "item" }, "value"] }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with polling enabled",
+      "steps": [
+        { "assert": { "ref": "isPolling", "eq": true } },
+        { "assert": { "ref": "autoRefresh", "eq": true } },
+        { "assert": { "ref": "pollInterval", "eq": 5000 } },
+        { "assert": { "ref": "pollCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-fetch-data",
+      "name": "fetchData sets loading",
+      "steps": [
+        { "dispatch": "fetchData" },
+        { "assert": { "ref": "loading", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-fetch-success",
+      "name": "fetchSuccess updates data",
+      "steps": [
+        { "dispatch": "fetchSuccess", "params": { "result": [{ "id": 1, "name": "Test" }] } },
+        { "assert": { "ref": "hasData", "eq": true } },
+        { "assert": { "ref": "dataCount", "eq": 1 } },
+        { "assert": { "ref": "pollCount", "eq": 1 } },
+        { "assert": { "ref": "loading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-fetch-error",
+      "name": "fetchError sets error message",
+      "steps": [
+        { "dispatch": "fetchError", "params": { "message": "Network error" } },
+        { "assert": { "ref": "error", "eq": "Network error" } },
+        { "assert": { "ref": "loading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-toggle-polling",
+      "name": "togglePolling pauses/resumes",
+      "steps": [
+        { "assert": { "ref": "isPolling", "eq": true } },
+        { "dispatch": "togglePolling" },
+        { "assert": { "ref": "isPolling", "eq": false } },
+        { "dispatch": "togglePolling" },
+        { "assert": { "ref": "isPolling", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-set-interval",
+      "name": "setInterval changes poll interval",
+      "steps": [
+        { "dispatch": "setInterval", "params": { "interval": 10000 } },
+        { "assert": { "ref": "pollInterval", "eq": 10000 } },
+        { "assert": { "ref": "intervalSeconds", "eq": 10 } }
+      ]
+    },
+    {
+      "id": "test-toggle-auto-refresh",
+      "name": "toggleAutoRefresh disables auto",
+      "steps": [
+        { "assert": { "ref": "autoRefresh", "eq": true } },
+        { "dispatch": "toggleAutoRefresh" },
+        { "assert": { "ref": "autoRefresh", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-manual-refresh",
+      "name": "manualRefresh triggers fetch",
+      "steps": [
+        { "dispatch": "manualRefresh" },
+        { "assert": { "ref": "loading", "eq": true } }
+      ]
+    }
+  ]
+}

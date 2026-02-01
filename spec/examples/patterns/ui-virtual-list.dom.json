@@ -1,0 +1,397 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-virtual-list",
+  "target": "dom",
+
+  "state": {
+    "allItems": {
+      "type": "array",
+      "initial": [
+        { "id": 0, "name": "User 0", "email": "user0@example.com", "status": "active", "selected": false },
+        { "id": 1, "name": "User 1", "email": "user1@example.com", "status": "inactive", "selected": false },
+        { "id": 2, "name": "User 2", "email": "user2@example.com", "status": "inactive", "selected": false },
+        { "id": 3, "name": "User 3", "email": "user3@example.com", "status": "active", "selected": false },
+        { "id": 4, "name": "User 4", "email": "user4@example.com", "status": "inactive", "selected": false },
+        { "id": 5, "name": "User 5", "email": "user5@example.com", "status": "inactive", "selected": false },
+        { "id": 6, "name": "User 6", "email": "user6@example.com", "status": "active", "selected": false },
+        { "id": 7, "name": "User 7", "email": "user7@example.com", "status": "inactive", "selected": false },
+        { "id": 8, "name": "User 8", "email": "user8@example.com", "status": "inactive", "selected": false },
+        { "id": 9, "name": "User 9", "email": "user9@example.com", "status": "active", "selected": false },
+        { "id": 10, "name": "User 10", "email": "user10@example.com", "status": "inactive", "selected": false },
+        { "id": 11, "name": "User 11", "email": "user11@example.com", "status": "inactive", "selected": false },
+        { "id": 12, "name": "User 12", "email": "user12@example.com", "status": "active", "selected": false },
+        { "id": 13, "name": "User 13", "email": "user13@example.com", "status": "inactive", "selected": false },
+        { "id": 14, "name": "User 14", "email": "user14@example.com", "status": "inactive", "selected": false },
+        { "id": 15, "name": "User 15", "email": "user15@example.com", "status": "active", "selected": false },
+        { "id": 16, "name": "User 16", "email": "user16@example.com", "status": "inactive", "selected": false },
+        { "id": 17, "name": "User 17", "email": "user17@example.com", "status": "inactive", "selected": false },
+        { "id": 18, "name": "User 18", "email": "user18@example.com", "status": "active", "selected": false },
+        { "id": 19, "name": "User 19", "email": "user19@example.com", "status": "inactive", "selected": false }
+      ]
+    },
+    "scrollTop": { "type": "number", "initial": 0 },
+    "containerHeight": { "type": "number", "initial": 400 },
+    "itemHeight": { "type": "number", "initial": 50 },
+    "overscan": { "type": "number", "initial": 3 },
+    "isLoading": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "totalItems": {
+      "deps": ["allItems"],
+      "fn": { "op": "length", "args": [{ "ref": "allItems" }] }
+    },
+    "totalHeight": {
+      "deps": ["totalItems", "itemHeight"],
+      "fn": { "op": "multiply", "args": [{ "ref": "totalItems" }, { "ref": "itemHeight" }] }
+    },
+    "visibleCount": {
+      "deps": ["containerHeight", "itemHeight"],
+      "fn": { "op": "ceil", "args": [{ "op": "divide", "args": [{ "ref": "containerHeight" }, { "ref": "itemHeight" }] }] }
+    },
+    "startIndex": {
+      "deps": ["scrollTop", "itemHeight", "overscan"],
+      "fn": {
+        "op": "max",
+        "args": [
+          0,
+          { "op": "subtract", "args": [{ "op": "floor", "args": [{ "op": "divide", "args": [{ "ref": "scrollTop" }, { "ref": "itemHeight" }] }] }, { "ref": "overscan" }] }
+        ]
+      }
+    },
+    "endIndex": {
+      "deps": ["startIndex", "visibleCount", "overscan", "totalItems"],
+      "fn": {
+        "op": "min",
+        "args": [
+          { "ref": "totalItems" },
+          { "op": "add", "args": [{ "ref": "startIndex" }, { "ref": "visibleCount" }, { "op": "multiply", "args": [{ "ref": "overscan" }, 2] }] }
+        ]
+      }
+    },
+    "offsetY": {
+      "deps": ["startIndex", "itemHeight"],
+      "fn": { "op": "multiply", "args": [{ "ref": "startIndex" }, { "ref": "itemHeight" }] }
+    },
+    "visibleItems": {
+      "deps": ["allItems", "startIndex", "endIndex"],
+      "fn": { "op": "slice", "args": [{ "ref": "allItems" }, { "ref": "startIndex" }, { "ref": "endIndex" }] }
+    },
+    "visibleItemCount": {
+      "deps": ["visibleItems"],
+      "fn": { "op": "length", "args": [{ "ref": "visibleItems" }] }
+    }
+  },
+
+  "actions": {
+    "setScrollTop": {
+      "params": ["value"],
+      "mutations": [{ "target": "scrollTop", "op": "set", "value": { "param": "value" } }]
+    },
+    "setItems": {
+      "params": ["items"],
+      "mutations": [
+        { "target": "allItems", "op": "set", "value": { "param": "items" } },
+        { "target": "isLoading", "op": "set", "value": false }
+      ]
+    },
+    "generateItems": {
+      "params": ["count"],
+      "mutations": [
+        {
+          "target": "allItems",
+          "op": "set",
+          "value": { "param": "count" }
+        },
+        { "target": "isLoading", "op": "set", "value": false }
+      ]
+    },
+    "toggleItemSelection": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "allItems",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "allItems" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "selected": { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "selected"] }] } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "scrollToTop": {
+      "mutations": [{ "target": "scrollTop", "op": "set", "value": 0 }]
+    },
+    "scrollToBottom": {
+      "mutations": [
+        { "target": "scrollTop", "op": "set", "value": { "op": "subtract", "args": [{ "ref": "totalHeight" }, { "ref": "containerHeight" }] } }
+      ]
+    }
+  },
+
+  "effects": [],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mb-6" },
+        "children": [
+          {
+            "type": "div",
+            "children": [
+              { "type": "h1", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "Virtual List" }] },
+              {
+                "type": "p",
+                "props": { "className": "text-gray-600" },
+                "children": [
+                  { "text": "Rendering " },
+                  { "bind": "visibleItemCount" },
+                  { "text": " of " },
+                  { "bind": "totalItems" },
+                  { "text": " items" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm" },
+                "events": { "click": { "action": "scrollToTop" } },
+                "children": [{ "text": "↑ Top" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm" },
+                "events": { "click": { "action": "scrollToBottom" } },
+                "children": [{ "text": "↓ Bottom" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden mb-4" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "px-4 py-2 bg-gray-50 border-b grid grid-cols-12 text-sm font-medium text-gray-600" },
+            "children": [
+              { "type": "div", "props": { "className": "col-span-1" }, "children": [{ "text": "ID" }] },
+              { "type": "div", "props": { "className": "col-span-4" }, "children": [{ "text": "Name" }] },
+              { "type": "div", "props": { "className": "col-span-5" }, "children": [{ "text": "Email" }] },
+              { "type": "div", "props": { "className": "col-span-2 text-right" }, "children": [{ "text": "Status" }] }
+            ]
+          },
+          {
+            "if": { "ref": "isLoading" },
+            "then": {
+              "type": "div",
+              "props": { "className": "h-96 flex items-center justify-center" },
+              "children": [
+                { "type": "span", "props": { "className": "animate-spin text-2xl" }, "children": [{ "text": "⟳" }] },
+                { "type": "span", "props": { "className": "ml-2 text-gray-500" }, "children": [{ "text": "Loading 10,000 items..." }] }
+              ]
+            },
+            "else": {
+              "type": "div",
+              "props": {
+                "className": "overflow-auto",
+                "style": { "height": { "op": "concat", "args": [{ "ref": "containerHeight" }, "px"] } }
+              },
+              "events": {
+                "scroll": { "action": "setScrollTop", "args": [{ "op": "eventScrollTop" }] }
+              },
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "style": {
+                      "height": { "op": "concat", "args": [{ "ref": "totalHeight" }, "px"] },
+                      "position": "relative"
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "div",
+                      "props": {
+                        "style": {
+                          "position": "absolute",
+                          "top": { "op": "concat", "args": [{ "ref": "offsetY" }, "px"] },
+                          "left": 0,
+                          "right": 0
+                        }
+                      },
+                      "each": { "items": "visibleItems", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+                      "children": [
+                        {
+                          "type": "div",
+                          "props": {
+                            "className": {
+                              "op": "if",
+                              "args": [
+                                { "op": "get", "args": [{ "ref": "item" }, "selected"] },
+                                "grid grid-cols-12 px-4 items-center border-b cursor-pointer bg-blue-50",
+                                "grid grid-cols-12 px-4 items-center border-b cursor-pointer hover:bg-gray-50"
+                              ]
+                            },
+                            "style": { "height": { "op": "concat", "args": [{ "ref": "itemHeight" }, "px"] } }
+                          },
+                          "events": { "click": { "action": "toggleItemSelection", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }] } },
+                          "children": [
+                            {
+                              "type": "div",
+                              "props": { "className": "col-span-1 text-gray-500 text-sm" },
+                              "children": [{ "bind": "item.id" }]
+                            },
+                            {
+                              "type": "div",
+                              "props": { "className": "col-span-4 font-medium" },
+                              "children": [{ "bind": "item.name" }]
+                            },
+                            {
+                              "type": "div",
+                              "props": { "className": "col-span-5 text-gray-600 text-sm truncate" },
+                              "children": [{ "bind": "item.email" }]
+                            },
+                            {
+                              "type": "div",
+                              "props": { "className": "col-span-2 text-right" },
+                              "children": [
+                                {
+                                  "type": "span",
+                                  "props": {
+                                    "className": {
+                                      "op": "if",
+                                      "args": [
+                                        { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "item" }, "status"] }, "active"] },
+                                        "px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs",
+                                        "px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs"
+                                      ]
+                                    }
+                                  },
+                                  "children": [{ "bind": "item.status" }]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "text-sm text-gray-500 bg-gray-100 rounded p-3" },
+        "children": [
+          { "type": "p", "props": { "className": "font-medium mb-1" }, "children": [{ "text": "Virtual Scrolling Stats:" }] },
+          { "type": "p", "children": [{ "text": "• Scroll position: " }, { "bind": "scrollTop" }, { "text": "px" }] },
+          { "type": "p", "children": [{ "text": "• Visible range: " }, { "bind": "startIndex" }, { "text": " - " }, { "bind": "endIndex" }] },
+          { "type": "p", "children": [{ "text": "• DOM nodes: " }, { "bind": "visibleItemCount" }, { "text": " (instead of " }, { "bind": "totalItems" }, { "text": ")" }] }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Starts with sample data",
+      "steps": [
+        { "assert": { "ref": "isLoading", "eq": false } },
+        { "assert": { "ref": "totalItems", "eq": 20 } }
+      ]
+    },
+    {
+      "id": "test-set-items",
+      "name": "Can set items",
+      "steps": [
+        {
+          "dispatch": "setItems",
+          "args": [[
+            { "id": 0, "name": "User 0", "email": "user0@test.com", "status": "active", "selected": false },
+            { "id": 1, "name": "User 1", "email": "user1@test.com", "status": "inactive", "selected": false }
+          ]]
+        },
+        { "assert": { "ref": "totalItems", "eq": 2 } },
+        { "assert": { "ref": "isLoading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-visible-count",
+      "name": "Calculates visible count",
+      "steps": [
+        { "assert": { "ref": "visibleCount", "eq": 8 } }
+      ]
+    },
+    {
+      "id": "test-scroll-updates-range",
+      "name": "Scrolling updates visible range",
+      "steps": [
+        {
+          "dispatch": "setItems",
+          "args": [[
+            { "id": 0, "name": "U0", "email": "u0@t.com", "status": "active", "selected": false },
+            { "id": 1, "name": "U1", "email": "u1@t.com", "status": "active", "selected": false },
+            { "id": 2, "name": "U2", "email": "u2@t.com", "status": "active", "selected": false },
+            { "id": 3, "name": "U3", "email": "u3@t.com", "status": "active", "selected": false },
+            { "id": 4, "name": "U4", "email": "u4@t.com", "status": "active", "selected": false },
+            { "id": 5, "name": "U5", "email": "u5@t.com", "status": "active", "selected": false },
+            { "id": 6, "name": "U6", "email": "u6@t.com", "status": "active", "selected": false },
+            { "id": 7, "name": "U7", "email": "u7@t.com", "status": "active", "selected": false },
+            { "id": 8, "name": "U8", "email": "u8@t.com", "status": "active", "selected": false },
+            { "id": 9, "name": "U9", "email": "u9@t.com", "status": "active", "selected": false },
+            { "id": 10, "name": "U10", "email": "u10@t.com", "status": "active", "selected": false },
+            { "id": 11, "name": "U11", "email": "u11@t.com", "status": "active", "selected": false },
+            { "id": 12, "name": "U12", "email": "u12@t.com", "status": "active", "selected": false },
+            { "id": 13, "name": "U13", "email": "u13@t.com", "status": "active", "selected": false },
+            { "id": 14, "name": "U14", "email": "u14@t.com", "status": "active", "selected": false },
+            { "id": 15, "name": "U15", "email": "u15@t.com", "status": "active", "selected": false },
+            { "id": 16, "name": "U16", "email": "u16@t.com", "status": "active", "selected": false },
+            { "id": 17, "name": "U17", "email": "u17@t.com", "status": "active", "selected": false },
+            { "id": 18, "name": "U18", "email": "u18@t.com", "status": "active", "selected": false },
+            { "id": 19, "name": "U19", "email": "u19@t.com", "status": "active", "selected": false }
+          ]]
+        },
+        { "assert": { "ref": "startIndex", "eq": 0 } },
+        { "dispatch": "setScrollTop", "args": [250] },
+        { "assert": { "ref": "startIndex", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-toggle-selection",
+      "name": "Can toggle item selection",
+      "steps": [
+        {
+          "dispatch": "setItems",
+          "args": [[
+            { "id": 0, "name": "User 0", "email": "user0@test.com", "status": "active", "selected": false }
+          ]]
+        },
+        { "dispatch": "toggleItemSelection", "args": [0] }
+      ]
+    }
+  ]
+}

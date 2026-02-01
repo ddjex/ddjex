@@ -1,0 +1,239 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-dark-mode",
+  "target": "dom",
+
+  "state": {
+    "isDark": { "type": "boolean", "initial": false },
+    "systemPreference": { "type": "string", "initial": "light" }
+  },
+
+  "computed": {
+    "theme": {
+      "deps": ["isDark"],
+      "fn": { "op": "if", "args": [{ "ref": "isDark" }, "dark", "light"] }
+    },
+    "bgClass": {
+      "deps": ["isDark"],
+      "fn": { "op": "if", "args": [{ "ref": "isDark" }, "bg-gray-900", "bg-gray-100"] }
+    },
+    "textClass": {
+      "deps": ["isDark"],
+      "fn": { "op": "if", "args": [{ "ref": "isDark" }, "text-white", "text-gray-900"] }
+    },
+    "cardClass": {
+      "deps": ["isDark"],
+      "fn": { "op": "if", "args": [{ "ref": "isDark" }, "bg-gray-800", "bg-white"] }
+    },
+    "mutedClass": {
+      "deps": ["isDark"],
+      "fn": { "op": "if", "args": [{ "ref": "isDark" }, "text-gray-400", "text-gray-600"] }
+    }
+  },
+
+  "actions": {
+    "toggleTheme": {
+      "mutations": [{ "target": "isDark", "op": "toggle" }]
+    },
+    "setDark": {
+      "params": ["value"],
+      "mutations": [{ "target": "isDark", "op": "set", "value": { "param": "value" } }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": {
+      "className": { "op": "concat", "args": ["min-h-screen transition-colors duration-300 ", { "ref": "bgClass" }] }
+    },
+    "children": [
+      {
+        "type": "header",
+        "props": {
+          "className": { "op": "concat", "args": ["sticky top-0 shadow-lg transition-colors duration-300 ", { "ref": "cardClass" }] }
+        },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "max-w-4xl mx-auto px-4 py-4 flex justify-between items-center" },
+            "children": [
+              {
+                "type": "h1",
+                "props": { "className": { "op": "concat", "args": ["text-xl font-bold ", { "ref": "textClass" }] } },
+                "children": [{ "text": "Dark Mode Demo" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": "p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                },
+                "events": { "click": { "action": "toggleTheme" } },
+                "children": [
+                  {
+                    "if": { "ref": "isDark" },
+                    "then": { "type": "span", "props": { "className": "text-2xl" }, "children": [{ "text": "☀️" }] },
+                    "else": { "type": "span", "props": { "className": "text-2xl" }, "children": [{ "text": "🌙" }] }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "main",
+        "props": { "className": "max-w-4xl mx-auto p-4" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "grid gap-6 md:grid-cols-2" },
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": { "op": "concat", "args": ["rounded-lg shadow-md p-6 transition-colors duration-300 ", { "ref": "cardClass" }] }
+                },
+                "children": [
+                  {
+                    "type": "h2",
+                    "props": { "className": { "op": "concat", "args": ["text-lg font-semibold mb-2 ", { "ref": "textClass" }] } },
+                    "children": [{ "text": "Card Title" }]
+                  },
+                  {
+                    "type": "p",
+                    "props": { "className": { "ref": "mutedClass" } },
+                    "children": [{ "text": "This is a sample card that changes appearance based on the current theme." }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": {
+                  "className": { "op": "concat", "args": ["rounded-lg shadow-md p-6 transition-colors duration-300 ", { "ref": "cardClass" }] }
+                },
+                "children": [
+                  {
+                    "type": "h2",
+                    "props": { "className": { "op": "concat", "args": ["text-lg font-semibold mb-2 ", { "ref": "textClass" }] } },
+                    "children": [{ "text": "Another Card" }]
+                  },
+                  {
+                    "type": "p",
+                    "props": { "className": { "ref": "mutedClass" } },
+                    "children": [{ "text": "Toggle the theme using the button in the header to see the transition." }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": {
+                  "className": { "op": "concat", "args": ["rounded-lg shadow-md p-6 transition-colors duration-300 md:col-span-2 ", { "ref": "cardClass" }] }
+                },
+                "children": [
+                  {
+                    "type": "h2",
+                    "props": { "className": { "op": "concat", "args": ["text-lg font-semibold mb-4 ", { "ref": "textClass" }] } },
+                    "children": [{ "text": "Theme Settings" }]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "flex items-center justify-between" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "children": [
+                          {
+                            "type": "p",
+                            "props": { "className": { "ref": "textClass" } },
+                            "children": [{ "text": "Current theme: " }, { "bind": "theme" }]
+                          },
+                          {
+                            "type": "p",
+                            "props": { "className": { "op": "concat", "args": ["text-sm ", { "ref": "mutedClass" }] } },
+                            "children": [{ "text": "Click the toggle to switch themes" }]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "button",
+                        "props": {
+                          "className": {
+                            "op": "if",
+                            "args": [
+                              { "ref": "isDark" },
+                              "w-14 h-8 bg-blue-600 rounded-full relative transition-colors",
+                              "w-14 h-8 bg-gray-300 rounded-full relative transition-colors"
+                            ]
+                          }
+                        },
+                        "events": { "click": { "action": "toggleTheme" } },
+                        "children": [
+                          {
+                            "type": "span",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "ref": "isDark" },
+                                  "absolute right-1 top-1 w-6 h-6 bg-white rounded-full transition-all",
+                                  "absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-all"
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": { "op": "concat", "args": ["mt-6 p-4 rounded-lg ", { "op": "if", "args": [{ "ref": "isDark" }, "bg-blue-900/50", "bg-blue-100"] }] }
+            },
+            "children": [
+              {
+                "type": "p",
+                "props": { "className": { "op": "if", "args": [{ "ref": "isDark" }, "text-blue-200", "text-blue-800"] } },
+                "children": [{ "text": "💡 Tip: In a real app, you would persist the theme preference to localStorage and sync with system preferences." }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-light",
+      "name": "Starts in light mode",
+      "steps": [
+        { "assert": { "ref": "isDark", "eq": false } },
+        { "assert": { "ref": "theme", "eq": "light" } }
+      ]
+    },
+    {
+      "id": "test-toggle",
+      "name": "Can toggle theme",
+      "steps": [
+        { "dispatch": "toggleTheme" },
+        { "assert": { "ref": "isDark", "eq": true } },
+        { "assert": { "ref": "theme", "eq": "dark" } },
+        { "dispatch": "toggleTheme" },
+        { "assert": { "ref": "isDark", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-set-dark",
+      "name": "Can set theme directly",
+      "steps": [
+        { "dispatch": "setDark", "args": [true] },
+        { "assert": { "ref": "isDark", "eq": true } }
+      ]
+    }
+  ]
+}

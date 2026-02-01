@@ -1,0 +1,429 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-optimistic-update",
+  "target": "dom",
+
+  "state": {
+    "todos": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "text": "Learn ddjex", "completed": false },
+        { "id": 2, "text": "Build an app", "completed": false },
+        { "id": 3, "text": "Deploy to production", "completed": false }
+      ]
+    },
+    "pendingUpdates": {
+      "type": "array",
+      "initial": []
+    },
+    "failedUpdates": {
+      "type": "array",
+      "initial": []
+    },
+    "nextId": { "type": "number", "initial": 4 },
+    "newTodoText": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "todoCount": {
+      "deps": ["todos"],
+      "fn": { "op": "length", "args": [{ "ref": "todos" }] }
+    },
+    "completedCount": {
+      "deps": ["todos"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "todos" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "completed"] }, true] }] }
+        ]
+      }
+    },
+    "hasPendingUpdates": {
+      "deps": ["pendingUpdates"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "pendingUpdates" }] }, 0] }
+    },
+    "hasFailedUpdates": {
+      "deps": ["failedUpdates"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "failedUpdates" }] }, 0] }
+    }
+  },
+
+  "actions": {
+    "setNewTodoText": {
+      "params": ["value"],
+      "mutations": [{ "target": "newTodoText", "op": "set", "value": { "param": "value" } }]
+    },
+    "addTodo": {
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "text": { "ref": "newTodoText" },
+            "completed": false
+          }
+        },
+        {
+          "target": "pendingUpdates",
+          "op": "push",
+          "value": { "type": "add", "id": { "ref": "nextId" } }
+        },
+        { "target": "nextId", "op": "add", "value": 1 },
+        { "target": "newTodoText", "op": "set", "value": "" }
+      ]
+    },
+    "toggleTodo": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "todos" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  {
+                    "op": "merge",
+                    "args": [
+                      { "ref": "$item" },
+                      { "completed": { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "completed"] }] } }
+                    ]
+                  },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "target": "pendingUpdates",
+          "op": "push",
+          "value": { "type": "toggle", "id": { "param": "id" } }
+        }
+      ]
+    },
+    "deleteTodo": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "todos" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        },
+        {
+          "target": "pendingUpdates",
+          "op": "push",
+          "value": { "type": "delete", "id": { "param": "id" } }
+        }
+      ]
+    },
+    "confirmUpdate": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "pendingUpdates",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "pendingUpdates" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "failUpdate": {
+      "params": ["id", "originalTodo"],
+      "mutations": [
+        {
+          "target": "pendingUpdates",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "pendingUpdates" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        },
+        {
+          "target": "failedUpdates",
+          "op": "push",
+          "value": { "id": { "param": "id" }, "original": { "param": "originalTodo" } }
+        }
+      ]
+    },
+    "retryUpdate": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "failedUpdates",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "failedUpdates" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        },
+        {
+          "target": "pendingUpdates",
+          "op": "push",
+          "value": { "type": "retry", "id": { "param": "id" } }
+        }
+      ]
+    },
+    "revertUpdate": {
+      "params": ["id", "original"],
+      "mutations": [
+        {
+          "target": "failedUpdates",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "failedUpdates" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        },
+        {
+          "target": "todos",
+          "op": "push",
+          "value": { "param": "original" }
+        }
+      ]
+    },
+    "dismissFailure": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "failedUpdates",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "failedUpdates" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-lg mx-auto p-6" },
+    "children": [
+      {
+        "type": "h1",
+        "props": { "className": "text-2xl font-bold mb-6" },
+        "children": [{ "text": "Optimistic Updates Demo" }]
+      },
+      {
+        "if": { "ref": "hasPendingUpdates" },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-blue-100 border border-blue-400 text-blue-700 px-4 py-2 rounded mb-4 flex items-center" },
+          "children": [
+            { "type": "span", "props": { "className": "animate-spin mr-2" }, "children": [{ "text": "⟳" }] },
+            { "text": "Syncing changes..." }
+          ]
+        }
+      },
+      {
+        "if": { "ref": "hasFailedUpdates" },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" },
+          "children": [
+            { "type": "p", "props": { "className": "font-semibold mb-2" }, "children": [{ "text": "Some changes failed to sync" }] },
+            {
+              "type": "div",
+              "each": { "items": "failedUpdates", "as": "failure" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "flex items-center justify-between py-1" },
+                  "children": [
+                    { "type": "span", "children": [{ "text": "Update failed for item #" }, { "bind": "failure.id" }] },
+                    {
+                      "type": "div",
+                      "props": { "className": "flex gap-2" },
+                      "children": [
+                        {
+                          "type": "button",
+                          "props": { "className": "text-sm text-blue-600 hover:underline" },
+                          "events": { "click": { "action": "retryUpdate", "args": [{ "op": "get", "args": [{ "ref": "failure" }, "id"] }] } },
+                          "children": [{ "text": "Retry" }]
+                        },
+                        {
+                          "type": "button",
+                          "props": { "className": "text-sm text-gray-600 hover:underline" },
+                          "events": { "click": { "action": "dismissFailure", "args": [{ "op": "get", "args": [{ "ref": "failure" }, "id"] }] } },
+                          "children": [{ "text": "Dismiss" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "div",
+        "props": { "className": "flex gap-2 mb-4" },
+        "children": [
+          {
+            "type": "input",
+            "props": {
+              "type": "text",
+              "placeholder": "Add a new todo...",
+              "className": "flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+              "value": { "ref": "newTodoText" }
+            },
+            "events": { "input": { "action": "setNewTodoText", "args": [{ "op": "eventValue" }] } }
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": {
+                "op": "if",
+                "args": [
+                  { "op": "isNotEmpty", "args": [{ "ref": "newTodoText" }] },
+                  "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                  "px-4 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                ]
+              },
+              "disabled": { "op": "isEmpty", "args": [{ "ref": "newTodoText" }] }
+            },
+            "events": { "click": { "action": "addTodo" } },
+            "children": [{ "text": "Add" }]
+          }
+        ]
+      },
+      {
+        "type": "ul",
+        "props": { "className": "bg-white rounded-lg shadow divide-y" },
+        "each": { "items": "todos", "as": "todo", "key": { "op": "get", "args": [{ "ref": "todo" }, "id"] } },
+        "children": [
+          {
+            "type": "li",
+            "props": { "className": "flex items-center justify-between p-3 hover:bg-gray-50" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex items-center gap-3" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "checkbox",
+                      "checked": { "op": "get", "args": [{ "ref": "todo" }, "completed"] },
+                      "className": "w-4 h-4"
+                    },
+                    "events": { "change": { "action": "toggleTodo", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "id"] }] } }
+                  },
+                  {
+                    "type": "span",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "todo" }, "completed"] },
+                          "line-through text-gray-400",
+                          ""
+                        ]
+                      }
+                    },
+                    "children": [{ "bind": "todo.text" }]
+                  }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "text-red-500 hover:text-red-700" },
+                "events": { "click": { "action": "deleteTodo", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "id"] }] } },
+                "children": [{ "text": "×" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "p",
+        "props": { "className": "mt-4 text-sm text-gray-500 text-center" },
+        "children": [
+          { "bind": "completedCount" },
+          { "text": " of " },
+          { "bind": "todoCount" },
+          { "text": " completed" }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Has initial todos",
+      "steps": [
+        { "assert": { "ref": "todoCount", "eq": 3 } },
+        { "assert": { "ref": "completedCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-add-todo-optimistic",
+      "name": "Adding todo immediately appears with pending state",
+      "steps": [
+        { "dispatch": "setNewTodoText", "args": ["New task"] },
+        { "dispatch": "addTodo" },
+        { "assert": { "ref": "todoCount", "eq": 4 } },
+        { "assert": { "ref": "hasPendingUpdates", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-toggle-optimistic",
+      "name": "Toggle immediately updates with pending state",
+      "steps": [
+        { "dispatch": "toggleTodo", "args": [1] },
+        { "assert": { "ref": "completedCount", "eq": 1 } },
+        { "assert": { "ref": "hasPendingUpdates", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-delete-optimistic",
+      "name": "Delete immediately removes item",
+      "steps": [
+        { "dispatch": "deleteTodo", "args": [1] },
+        { "assert": { "ref": "todoCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-confirm-update",
+      "name": "Confirm clears pending state",
+      "steps": [
+        { "dispatch": "toggleTodo", "args": [1] },
+        { "assert": { "ref": "hasPendingUpdates", "eq": true } },
+        { "dispatch": "confirmUpdate", "args": [1] },
+        { "assert": { "ref": "hasPendingUpdates", "eq": false } }
+      ]
+    }
+  ]
+}

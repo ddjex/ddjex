@@ -1,0 +1,589 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-file-upload",
+  "target": "dom",
+
+  "state": {
+    "files": {
+      "type": "array",
+      "initial": []
+    },
+    "uploading": { "type": "boolean", "initial": false },
+    "dragOver": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "maxFiles": { "type": "number", "initial": 5 },
+    "maxSizeMB": { "type": "number", "initial": 10 }
+  },
+
+  "computed": {
+    "fileCount": {
+      "deps": ["files"],
+      "fn": { "op": "length", "args": [{ "ref": "files" }] }
+    },
+    "totalSize": {
+      "deps": ["files"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "files" },
+          { "op": "add", "args": [{ "ref": "$acc" }, { "op": "get", "args": [{ "ref": "$item" }, "size"] }] },
+          0
+        ]
+      }
+    },
+    "totalSizeMB": {
+      "deps": ["totalSize"],
+      "fn": { "op": "round", "args": [{ "op": "divide", "args": [{ "ref": "totalSize" }, 1048576] }, 2] }
+    },
+    "canAddMore": {
+      "deps": ["fileCount", "maxFiles"],
+      "fn": { "op": "lt", "args": [{ "ref": "fileCount" }, { "ref": "maxFiles" }] }
+    },
+    "hasFiles": {
+      "deps": ["fileCount"],
+      "fn": { "op": "gt", "args": [{ "ref": "fileCount" }, 0] }
+    },
+    "allComplete": {
+      "deps": ["files"],
+      "fn": {
+        "op": "every",
+        "args": [
+          { "ref": "files" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "complete"] }
+        ]
+      }
+    },
+    "uploadProgress": {
+      "deps": ["files"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "op": "length", "args": [{ "ref": "files" }] }, 0] },
+          0,
+          {
+            "op": "round",
+            "args": [
+              {
+                "op": "divide",
+                "args": [
+                  {
+                    "op": "reduce",
+                    "args": [
+                      { "ref": "files" },
+                      { "op": "add", "args": [{ "ref": "$acc" }, { "op": "get", "args": [{ "ref": "$item" }, "progress"] }] },
+                      0
+                    ]
+                  },
+                  { "op": "length", "args": [{ "ref": "files" }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "addFiles": {
+      "params": ["newFiles"],
+      "mutations": [
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "concat",
+            "args": [
+              { "ref": "files" },
+              { "param": "newFiles" }
+            ]
+          }
+        },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "removeFile": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "files" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "updateFileProgress": {
+      "params": ["id", "progress"],
+      "mutations": [
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "files" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "progress": { "param": "progress" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "setFileStatus": {
+      "params": ["id", "status"],
+      "mutations": [
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "files" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": { "param": "status" }, "progress": 100 }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "setFileError": {
+      "params": ["id", "error"],
+      "mutations": [
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "files" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": "error", "error": { "param": "error" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "startUpload": {
+      "mutations": [
+        { "target": "uploading", "op": "set", "value": true },
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "files" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "pending"] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": "uploading" }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "finishUpload": {
+      "mutations": [
+        { "target": "uploading", "op": "set", "value": false }
+      ]
+    },
+    "setDragOver": {
+      "params": ["value"],
+      "mutations": [{ "target": "dragOver", "op": "set", "value": { "param": "value" } }]
+    },
+    "setError": {
+      "params": ["message"],
+      "mutations": [{ "target": "error", "op": "set", "value": { "param": "message" } }]
+    },
+    "clearAll": {
+      "mutations": [
+        { "target": "files", "op": "set", "value": [] },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "retryFile": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "files",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "files" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": "pending", "progress": 0, "error": null }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "File Upload" }] },
+      {
+        "if": { "op": "isNotEmpty", "args": [{ "ref": "error" }] },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" },
+          "children": [{ "bind": "error" }]
+        }
+      },
+      {
+        "type": "div",
+        "props": {
+          "className": {
+            "op": "if",
+            "args": [
+              { "ref": "dragOver" },
+              "border-2 border-dashed border-blue-500 bg-blue-50 rounded-lg p-8 text-center mb-6 transition-colors",
+              "border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6 hover:border-gray-400 transition-colors"
+            ]
+          }
+        },
+        "events": {
+          "dragenter": { "action": "setDragOver", "args": [true] },
+          "dragleave": { "action": "setDragOver", "args": [false] },
+          "drop": { "action": "setDragOver", "args": [false] }
+        },
+        "children": [
+          { "type": "div", "props": { "className": "text-4xl mb-4" }, "children": [{ "text": "📁" }] },
+          { "type": "p", "props": { "className": "text-gray-600 mb-2" }, "children": [{ "text": "Drag and drop files here, or" }] },
+          {
+            "type": "label",
+            "props": { "className": "inline-block" },
+            "children": [
+              {
+                "type": "span",
+                "props": { "className": "text-blue-500 hover:text-blue-700 cursor-pointer underline" },
+                "children": [{ "text": "browse" }]
+              },
+              {
+                "type": "input",
+                "props": {
+                  "type": "file",
+                  "className": "hidden",
+                  "multiple": true,
+                  "accept": "image/*,.pdf,.doc,.docx"
+                }
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "props": { "className": "text-sm text-gray-500 mt-2" },
+            "children": [
+              { "text": "Max " },
+              { "bind": "maxFiles" },
+              { "text": " files, " },
+              { "bind": "maxSizeMB" },
+              { "text": "MB each" }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "ref": "hasFiles" },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden mb-6" },
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": "px-4 py-3 bg-gray-50 border-b flex justify-between items-center" },
+              "children": [
+                {
+                  "type": "span",
+                  "props": { "className": "font-medium" },
+                  "children": [
+                    { "bind": "fileCount" },
+                    { "text": " file(s) • " },
+                    { "bind": "totalSizeMB" },
+                    { "text": " MB" }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "props": { "className": "text-red-500 hover:text-red-700 text-sm" },
+                  "events": { "click": { "action": "clearAll" } },
+                  "children": [{ "text": "Clear All" }]
+                }
+              ]
+            },
+            {
+              "type": "ul",
+              "props": { "className": "divide-y" },
+              "each": { "items": "files", "as": "file", "key": { "op": "get", "args": [{ "ref": "file" }, "id"] } },
+              "children": [
+                {
+                  "type": "li",
+                  "props": { "className": "p-4" },
+                  "children": [
+                    {
+                      "type": "div",
+                      "props": { "className": "flex items-start justify-between" },
+                      "children": [
+                        {
+                          "type": "div",
+                          "props": { "className": "flex items-center gap-3" },
+                          "children": [
+                            {
+                              "type": "div",
+                              "props": { "className": "text-2xl" },
+                              "children": [
+                                {
+                                  "op": "switch",
+                                  "args": [
+                                    { "op": "get", "args": [{ "ref": "file" }, "type"] },
+                                    { "image": "🖼️", "pdf": "📄", "document": "📝" },
+                                    "📎"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "children": [
+                                { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "file.name" }] },
+                                {
+                                  "type": "p",
+                                  "props": { "className": "text-sm text-gray-500" },
+                                  "children": [{ "bind": "file.sizeFormatted" }]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "div",
+                          "props": { "className": "flex items-center gap-2" },
+                          "children": [
+                            {
+                              "if": { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "file" }, "status"] }, "error"] },
+                              "then": {
+                                "type": "button",
+                                "props": { "className": "text-blue-500 hover:text-blue-700 text-sm" },
+                                "events": { "click": { "action": "retryFile", "args": [{ "op": "get", "args": [{ "ref": "file" }, "id"] }] } },
+                                "children": [{ "text": "Retry" }]
+                              }
+                            },
+                            {
+                              "type": "button",
+                              "props": { "className": "text-red-500 hover:text-red-700" },
+                              "events": { "click": { "action": "removeFile", "args": [{ "op": "get", "args": [{ "ref": "file" }, "id"] }] } },
+                              "children": [{ "text": "×" }]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "if": { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "file" }, "status"] }, "uploading"] },
+                      "then": {
+                        "type": "div",
+                        "props": { "className": "mt-2" },
+                        "children": [
+                          {
+                            "type": "div",
+                            "props": { "className": "w-full bg-gray-200 rounded-full h-2" },
+                            "children": [
+                              {
+                                "type": "div",
+                                "props": {
+                                  "className": "bg-blue-500 h-2 rounded-full transition-all",
+                                  "style": {
+                                    "width": { "op": "concat", "args": [{ "op": "get", "args": [{ "ref": "file" }, "progress"] }, "%"] }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "p",
+                            "props": { "className": "text-xs text-gray-500 mt-1" },
+                            "children": [{ "bind": "file.progress" }, { "text": "% uploaded" }]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "if": { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "file" }, "status"] }, "complete"] },
+                      "then": {
+                        "type": "div",
+                        "props": { "className": "mt-2 flex items-center gap-1 text-green-600 text-sm" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "✓" }] },
+                          { "text": " Upload complete" }
+                        ]
+                      }
+                    },
+                    {
+                      "if": { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "file" }, "status"] }, "error"] },
+                      "then": {
+                        "type": "div",
+                        "props": { "className": "mt-2 text-red-600 text-sm" },
+                        "children": [
+                          { "text": "Error: " },
+                          { "bind": "file.error" }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "if": { "ref": "hasFiles" },
+        "then": {
+          "type": "div",
+          "props": { "className": "flex justify-between items-center" },
+          "children": [
+            {
+              "if": { "ref": "uploading" },
+              "then": {
+                "type": "div",
+                "props": { "className": "flex items-center gap-2 text-gray-600" },
+                "children": [
+                  { "type": "span", "props": { "className": "animate-spin" }, "children": [{ "text": "⟳" }] },
+                  { "text": "Uploading... " },
+                  { "bind": "uploadProgress" },
+                  { "text": "%" }
+                ]
+              }
+            },
+            {
+              "type": "button",
+              "props": {
+                "className": {
+                  "op": "if",
+                  "args": [
+                    { "op": "and", "args": [{ "ref": "hasFiles" }, { "op": "not", "args": [{ "ref": "uploading" }] }] },
+                    "px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                    "px-6 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                  ]
+                },
+                "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "hasFiles" }] }, { "ref": "uploading" }] }
+              },
+              "events": { "click": { "action": "startUpload" } },
+              "children": [
+                { "op": "if", "args": [{ "ref": "allComplete" }, "Upload More", "Upload All"] }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-empty",
+      "name": "Starts with no files",
+      "steps": [
+        { "assert": { "ref": "fileCount", "eq": 0 } },
+        { "assert": { "ref": "hasFiles", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-add-files",
+      "name": "Can add files",
+      "steps": [
+        {
+          "dispatch": "addFiles",
+          "args": [[
+            { "id": 1, "name": "test.jpg", "size": 1048576, "sizeFormatted": "1 MB", "type": "image", "status": "pending", "progress": 0 }
+          ]]
+        },
+        { "assert": { "ref": "fileCount", "eq": 1 } },
+        { "assert": { "ref": "hasFiles", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-remove-file",
+      "name": "Can remove a file",
+      "steps": [
+        {
+          "dispatch": "addFiles",
+          "args": [[
+            { "id": 1, "name": "test.jpg", "size": 1048576, "sizeFormatted": "1 MB", "type": "image", "status": "pending", "progress": 0 }
+          ]]
+        },
+        { "dispatch": "removeFile", "args": [1] },
+        { "assert": { "ref": "fileCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-upload-progress",
+      "name": "Tracks upload progress",
+      "steps": [
+        {
+          "dispatch": "addFiles",
+          "args": [[
+            { "id": 1, "name": "test.jpg", "size": 1048576, "sizeFormatted": "1 MB", "type": "image", "status": "pending", "progress": 0 }
+          ]]
+        },
+        { "dispatch": "startUpload" },
+        { "assert": { "ref": "uploading", "eq": true } },
+        { "dispatch": "updateFileProgress", "args": [1, 50] },
+        { "assert": { "ref": "uploadProgress", "eq": 50 } }
+      ]
+    },
+    {
+      "id": "test-clear-all",
+      "name": "Clear all removes all files",
+      "steps": [
+        {
+          "dispatch": "addFiles",
+          "args": [[
+            { "id": 1, "name": "a.jpg", "size": 100, "sizeFormatted": "100 B", "type": "image", "status": "pending", "progress": 0 },
+            { "id": 2, "name": "b.jpg", "size": 200, "sizeFormatted": "200 B", "type": "image", "status": "pending", "progress": 0 }
+          ]]
+        },
+        { "assert": { "ref": "fileCount", "eq": 2 } },
+        { "dispatch": "clearAll" },
+        { "assert": { "ref": "fileCount", "eq": 0 } }
+      ]
+    }
+  ]
+}

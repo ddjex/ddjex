@@ -1,0 +1,348 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-carousel",
+  "target": "dom",
+
+  "state": {
+    "slides": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "image": "https://picsum.photos/800/400?random=1", "title": "Mountain Adventure", "description": "Explore the heights of nature's majesty" },
+        { "id": 2, "image": "https://picsum.photos/800/400?random=2", "title": "Ocean Dreams", "description": "Dive into the deep blue wonder" },
+        { "id": 3, "image": "https://picsum.photos/800/400?random=3", "title": "Forest Escape", "description": "Find peace among ancient trees" },
+        { "id": 4, "image": "https://picsum.photos/800/400?random=4", "title": "Desert Sunrise", "description": "Witness golden sands come alive" },
+        { "id": 5, "image": "https://picsum.photos/800/400?random=5", "title": "City Lights", "description": "Experience the urban jungle" }
+      ]
+    },
+    "currentIndex": { "type": "number", "initial": 0 },
+    "isAutoPlaying": { "type": "boolean", "initial": true },
+    "isTransitioning": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "slideCount": {
+      "deps": ["slides"],
+      "fn": { "op": "length", "args": [{ "ref": "slides" }] }
+    },
+    "currentSlide": {
+      "deps": ["slides", "currentIndex"],
+      "fn": { "op": "get", "args": [{ "ref": "slides" }, { "ref": "currentIndex" }] }
+    },
+    "isFirstSlide": {
+      "deps": ["currentIndex"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentIndex" }, 0] }
+    },
+    "isLastSlide": {
+      "deps": ["currentIndex", "slideCount"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentIndex" }, { "op": "subtract", "args": [{ "ref": "slideCount" }, 1] }] }
+    },
+    "translateValue": {
+      "deps": ["currentIndex"],
+      "fn": { "op": "multiply", "args": [{ "ref": "currentIndex" }, -100] }
+    }
+  },
+
+  "actions": {
+    "goToSlide": {
+      "params": ["index"],
+      "mutations": [
+        { "target": "isTransitioning", "op": "set", "value": true },
+        { "target": "currentIndex", "op": "set", "value": { "param": "index" } }
+      ]
+    },
+    "nextSlide": {
+      "mutations": [
+        { "target": "isTransitioning", "op": "set", "value": true },
+        {
+          "target": "currentIndex",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "ref": "isLastSlide" },
+              0,
+              { "op": "add", "args": [{ "ref": "currentIndex" }, 1] }
+            ]
+          }
+        }
+      ]
+    },
+    "prevSlide": {
+      "mutations": [
+        { "target": "isTransitioning", "op": "set", "value": true },
+        {
+          "target": "currentIndex",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "ref": "isFirstSlide" },
+              { "op": "subtract", "args": [{ "ref": "slideCount" }, 1] },
+              { "op": "subtract", "args": [{ "ref": "currentIndex" }, 1] }
+            ]
+          }
+        }
+      ]
+    },
+    "toggleAutoPlay": {
+      "mutations": [
+        { "target": "isAutoPlaying", "op": "set", "value": { "op": "not", "args": [{ "ref": "isAutoPlaying" }] } }
+      ]
+    },
+    "endTransition": {
+      "mutations": [
+        { "target": "isTransitioning", "op": "set", "value": false }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "auto-advance",
+      "trigger": { "type": "interval", "interval": 4000 },
+      "condition": { "ref": "isAutoPlaying" },
+      "do": { "action": "nextSlide" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-4xl mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Image Carousel" }] },
+      {
+        "type": "div",
+        "props": { "className": "relative bg-black rounded-lg overflow-hidden shadow-xl" },
+        "children": [
+          {
+            "type": "div",
+            "props": {
+              "className": "flex transition-transform duration-500 ease-in-out",
+              "style": {
+                "transform": { "op": "concat", "args": ["translateX(", { "ref": "translateValue" }, "%)"] }
+              }
+            },
+            "each": { "items": "slides", "as": "slide", "key": { "op": "get", "args": [{ "ref": "slide" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "w-full flex-shrink-0 relative" },
+                "children": [
+                  {
+                    "type": "img",
+                    "props": {
+                      "src": { "op": "get", "args": [{ "ref": "slide" }, "image"] },
+                      "alt": { "op": "get", "args": [{ "ref": "slide" }, "title"] },
+                      "className": "w-full h-64 md:h-96 object-cover"
+                    }
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6" },
+                    "children": [
+                      {
+                        "type": "h3",
+                        "props": { "className": "text-white text-2xl font-bold" },
+                        "children": [{ "bind": "slide.title" }]
+                      },
+                      {
+                        "type": "p",
+                        "props": { "className": "text-white/80 mt-1" },
+                        "children": [{ "bind": "slide.description" }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": "absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full backdrop-blur-sm transition"
+            },
+            "events": { "click": { "action": "prevSlide" } },
+            "children": [
+              { "type": "span", "props": { "className": "text-2xl" }, "children": [{ "text": "‹" }] }
+            ]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": "absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full backdrop-blur-sm transition"
+            },
+            "events": { "click": { "action": "nextSlide" } },
+            "children": [
+              { "type": "span", "props": { "className": "text-2xl" }, "children": [{ "text": "›" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2" },
+            "each": { "items": "slides", "as": "slide" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "$index" }, { "ref": "currentIndex" }] },
+                      "w-3 h-3 rounded-full bg-white",
+                      "w-3 h-3 rounded-full bg-white/50 hover:bg-white/75"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "goToSlide", "args": [{ "ref": "$index" }] } }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mt-4" },
+        "children": [
+          {
+            "type": "p",
+            "props": { "className": "text-gray-600" },
+            "children": [
+              { "text": "Slide " },
+              { "op": "add", "args": [{ "ref": "currentIndex" }, 1] },
+              { "text": " of " },
+              { "bind": "slideCount" }
+            ]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": {
+                "op": "if",
+                "args": [
+                  { "ref": "isAutoPlaying" },
+                  "flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                  "flex items-center gap-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                ]
+              }
+            },
+            "events": { "click": { "action": "toggleAutoPlay" } },
+            "children": [
+              {
+                "if": { "ref": "isAutoPlaying" },
+                "then": { "type": "span", "children": [{ "text": "⏸ Pause" }] },
+                "else": { "type": "span", "children": [{ "text": "▶ Play" }] }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "mt-6" },
+        "children": [
+          { "type": "h3", "props": { "className": "text-lg font-semibold mb-3" }, "children": [{ "text": "Thumbnails" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 overflow-x-auto pb-2" },
+            "each": { "items": "slides", "as": "slide" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "$index" }, { "ref": "currentIndex" }] },
+                      "flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden ring-2 ring-blue-500",
+                      "flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden opacity-60 hover:opacity-100"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "goToSlide", "args": [{ "ref": "$index" }] } },
+                "children": [
+                  {
+                    "type": "img",
+                    "props": {
+                      "src": { "op": "get", "args": [{ "ref": "slide" }, "image"] },
+                      "alt": { "op": "get", "args": [{ "ref": "slide" }, "title"] },
+                      "className": "w-full h-full object-cover"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Starts at first slide with autoplay",
+      "steps": [
+        { "assert": { "ref": "currentIndex", "eq": 0 } },
+        { "assert": { "ref": "isAutoPlaying", "eq": true } },
+        { "assert": { "ref": "slideCount", "eq": 5 } }
+      ]
+    },
+    {
+      "id": "test-next-slide",
+      "name": "Can navigate to next slide",
+      "steps": [
+        { "dispatch": "nextSlide" },
+        { "assert": { "ref": "currentIndex", "eq": 1 } },
+        { "dispatch": "nextSlide" },
+        { "assert": { "ref": "currentIndex", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-prev-slide",
+      "name": "Can navigate to previous slide",
+      "steps": [
+        { "dispatch": "goToSlide", "args": [2] },
+        { "dispatch": "prevSlide" },
+        { "assert": { "ref": "currentIndex", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-wrap-around-next",
+      "name": "Wraps to first slide after last",
+      "steps": [
+        { "dispatch": "goToSlide", "args": [4] },
+        { "assert": { "ref": "isLastSlide", "eq": true } },
+        { "dispatch": "nextSlide" },
+        { "assert": { "ref": "currentIndex", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-wrap-around-prev",
+      "name": "Wraps to last slide from first",
+      "steps": [
+        { "assert": { "ref": "isFirstSlide", "eq": true } },
+        { "dispatch": "prevSlide" },
+        { "assert": { "ref": "currentIndex", "eq": 4 } }
+      ]
+    },
+    {
+      "id": "test-toggle-autoplay",
+      "name": "Can toggle autoplay",
+      "steps": [
+        { "assert": { "ref": "isAutoPlaying", "eq": true } },
+        { "dispatch": "toggleAutoPlay" },
+        { "assert": { "ref": "isAutoPlaying", "eq": false } },
+        { "dispatch": "toggleAutoPlay" },
+        { "assert": { "ref": "isAutoPlaying", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-go-to-slide",
+      "name": "Can jump to specific slide",
+      "steps": [
+        { "dispatch": "goToSlide", "args": [3] },
+        { "assert": { "ref": "currentIndex", "eq": 3 } }
+      ]
+    }
+  ]
+}

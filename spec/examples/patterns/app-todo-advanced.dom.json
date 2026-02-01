@@ -1,0 +1,956 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-todo-advanced-pattern",
+  "target": "dom",
+  "description": "Advanced todo app with categories, due dates, priorities, and local storage persistence",
+
+  "state": {
+    "todos": {
+      "type": "array",
+      "initial": [],
+      "itemType": "object"
+    },
+    "nextId": { "type": "number", "initial": 1 },
+    "newTodoText": { "type": "string", "initial": "" },
+    "newTodoPriority": { "type": "string", "initial": "medium" },
+    "newTodoCategory": { "type": "string", "initial": "personal" },
+    "newTodoDueDate": { "type": "string", "initial": "" },
+    "filter": { "type": "string", "initial": "all" },
+    "sortBy": { "type": "string", "initial": "createdAt" },
+    "sortOrder": { "type": "string", "initial": "desc" },
+    "searchQuery": { "type": "string", "initial": "" },
+    "categoryFilter": { "type": "string", "initial": "all" },
+    "editingId": { "type": "number", "initial": null, "nullable": true },
+    "editText": { "type": "string", "initial": "" },
+    "categories": {
+      "type": "array",
+      "initial": ["personal", "work", "shopping", "health"],
+      "itemType": "string"
+    },
+    "showCompleted": { "type": "boolean", "initial": true }
+  },
+
+  "computed": {
+    "totalCount": {
+      "deps": ["todos"],
+      "fn": { "op": "length", "args": [{ "ref": "todos" }] }
+    },
+    "completedCount": {
+      "deps": ["todos"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "todos" }, { "op": "get", "args": ["$item", "completed"] }] }
+        ]
+      }
+    },
+    "activeCount": {
+      "deps": ["totalCount", "completedCount"],
+      "fn": { "op": "subtract", "args": [{ "ref": "totalCount" }, { "ref": "completedCount" }] }
+    },
+    "overdueCount": {
+      "deps": ["todos"],
+      "fn": {
+        "op": "length",
+        "args": [
+          {
+            "op": "filter",
+            "args": [
+              { "ref": "todos" },
+              {
+                "op": "and",
+                "args": [
+                  { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] },
+                  { "op": "neq", "args": [{ "op": "get", "args": ["$item", "dueDate"] }, ""] },
+                  { "op": "lt", "args": [{ "op": "get", "args": ["$item", "dueDate"] }, { "op": "formatDate", "args": [{ "op": "now" }, "YYYY-MM-DD"] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "filteredTodos": {
+      "deps": ["todos", "filter", "searchQuery", "categoryFilter", "showCompleted"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "todos" },
+          {
+            "op": "and",
+            "args": [
+              {
+                "op": "or",
+                "args": [
+                  { "ref": "showCompleted" },
+                  { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] }
+                ]
+              },
+              {
+                "op": "switch",
+                "args": [
+                  { "ref": "filter" },
+                  {
+                    "all": true,
+                    "active": { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] },
+                    "completed": { "op": "get", "args": ["$item", "completed"] },
+                    "overdue": {
+                      "op": "and",
+                      "args": [
+                        { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] },
+                        { "op": "neq", "args": [{ "op": "get", "args": ["$item", "dueDate"] }, ""] },
+                        { "op": "lt", "args": [{ "op": "get", "args": ["$item", "dueDate"] }, { "op": "formatDate", "args": [{ "op": "now" }, "YYYY-MM-DD"] }] }
+                      ]
+                    }
+                  },
+                  true
+                ]
+              },
+              {
+                "op": "or",
+                "args": [
+                  { "op": "eq", "args": [{ "ref": "categoryFilter" }, "all"] },
+                  { "op": "eq", "args": [{ "op": "get", "args": ["$item", "category"] }, { "ref": "categoryFilter" }] }
+                ]
+              },
+              {
+                "op": "or",
+                "args": [
+                  { "op": "eq", "args": [{ "ref": "searchQuery" }, ""] },
+                  { "op": "includes", "args": [{ "op": "toLowerCase", "args": [{ "op": "get", "args": ["$item", "text"] }] }, { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "sortedTodos": {
+      "deps": ["filteredTodos", "sortBy", "sortOrder"],
+      "fn": {
+        "op": "sort",
+        "args": [
+          { "ref": "filteredTodos" },
+          { "ref": "sortBy" },
+          { "ref": "sortOrder" }
+        ]
+      }
+    },
+    "canAddTodo": {
+      "deps": ["newTodoText"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "trim", "args": [{ "ref": "newTodoText" }] }] }, 0] }
+    },
+    "isEditing": {
+      "deps": ["editingId"],
+      "fn": { "op": "neq", "args": [{ "ref": "editingId" }, null] }
+    },
+    "highPriorityCount": {
+      "deps": ["todos"],
+      "fn": {
+        "op": "length",
+        "args": [
+          {
+            "op": "filter",
+            "args": [
+              { "ref": "todos" },
+              {
+                "op": "and",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": ["$item", "priority"] }, "high"] },
+                  { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "todosByCategory": {
+      "deps": ["todos", "categories"],
+      "fn": {
+        "op": "map",
+        "args": [
+          { "ref": "categories" },
+          {
+            "category": { "$item": true },
+            "count": {
+              "op": "length",
+              "args": [
+                { "op": "filter", "args": [{ "ref": "todos" }, { "op": "eq", "args": [{ "op": "get", "args": ["$item", "category"] }, { "$item": true }] }] }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setNewTodoText": {
+      "params": ["text"],
+      "mutations": [
+        { "target": "newTodoText", "op": "set", "value": { "param": "text" } }
+      ]
+    },
+    "setNewTodoPriority": {
+      "params": ["priority"],
+      "mutations": [
+        { "target": "newTodoPriority", "op": "set", "value": { "param": "priority" } }
+      ]
+    },
+    "setNewTodoCategory": {
+      "params": ["category"],
+      "mutations": [
+        { "target": "newTodoCategory", "op": "set", "value": { "param": "category" } }
+      ]
+    },
+    "setNewTodoDueDate": {
+      "params": ["date"],
+      "mutations": [
+        { "target": "newTodoDueDate", "op": "set", "value": { "param": "date" } }
+      ]
+    },
+    "addTodo": {
+      "guard": { "ref": "canAddTodo" },
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "text": { "op": "trim", "args": [{ "ref": "newTodoText" }] },
+            "completed": false,
+            "priority": { "ref": "newTodoPriority" },
+            "category": { "ref": "newTodoCategory" },
+            "dueDate": { "ref": "newTodoDueDate" },
+            "createdAt": { "op": "now" },
+            "completedAt": null
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 },
+        { "target": "newTodoText", "op": "set", "value": "" },
+        { "target": "newTodoDueDate", "op": "set", "value": "" }
+      ]
+    },
+    "toggleTodo": {
+      "params": ["todoId"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "todoId" }] },
+              {
+                "op": "merge",
+                "args": [
+                  { "$item": true },
+                  {
+                    "completed": { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] },
+                    "completedAt": {
+                      "op": "if",
+                      "args": [
+                        { "op": "get", "args": ["$item", "completed"] },
+                        null,
+                        { "op": "now" }
+                      ]
+                    }
+                  }
+                ]
+              },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "deleteTodo": {
+      "params": ["todoId"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "filter",
+          "predicate": { "op": "neq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "todoId" }] }
+        }
+      ]
+    },
+    "startEdit": {
+      "params": ["todoId", "currentText"],
+      "mutations": [
+        { "target": "editingId", "op": "set", "value": { "param": "todoId" } },
+        { "target": "editText", "op": "set", "value": { "param": "currentText" } }
+      ]
+    },
+    "setEditText": {
+      "params": ["text"],
+      "mutations": [
+        { "target": "editText", "op": "set", "value": { "param": "text" } }
+      ]
+    },
+    "saveEdit": {
+      "guard": { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "trim", "args": [{ "ref": "editText" }] }] }, 0] },
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "ref": "editingId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "text": { "op": "trim", "args": [{ "ref": "editText" }] } }] },
+              { "$item": true }
+            ]
+          }
+        },
+        { "target": "editingId", "op": "set", "value": null },
+        { "target": "editText", "op": "set", "value": "" }
+      ]
+    },
+    "cancelEdit": {
+      "mutations": [
+        { "target": "editingId", "op": "set", "value": null },
+        { "target": "editText", "op": "set", "value": "" }
+      ]
+    },
+    "setFilter": {
+      "params": ["filterValue"],
+      "mutations": [
+        { "target": "filter", "op": "set", "value": { "param": "filterValue" } }
+      ]
+    },
+    "setCategoryFilter": {
+      "params": ["category"],
+      "mutations": [
+        { "target": "categoryFilter", "op": "set", "value": { "param": "category" } }
+      ]
+    },
+    "setSearchQuery": {
+      "params": ["query"],
+      "mutations": [
+        { "target": "searchQuery", "op": "set", "value": { "param": "query" } }
+      ]
+    },
+    "setSortBy": {
+      "params": ["field"],
+      "mutations": [
+        { "target": "sortBy", "op": "set", "value": { "param": "field" } }
+      ]
+    },
+    "toggleSortOrder": {
+      "mutations": [
+        {
+          "target": "sortOrder",
+          "op": "set",
+          "value": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "sortOrder" }, "asc"] }, "desc", "asc"] }
+        }
+      ]
+    },
+    "toggleShowCompleted": {
+      "mutations": [
+        { "target": "showCompleted", "op": "not" }
+      ]
+    },
+    "clearCompleted": {
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "filter",
+          "predicate": { "op": "not", "args": [{ "op": "get", "args": ["$item", "completed"] }] }
+        }
+      ]
+    },
+    "updateTodoPriority": {
+      "params": ["todoId", "priority"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "todoId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "priority": { "param": "priority" } }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "loadFromStorage": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "todos", "op": "set", "value": { "op": "get", "args": [{ "param": "data" }, "todos"] } },
+        { "target": "nextId", "op": "set", "value": { "op": "get", "args": [{ "param": "data" }, "nextId"] } }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "load-todos",
+      "trigger": { "type": "mount" },
+      "do": { "op": "storage.get", "key": "advanced-todos", "storage": "local" },
+      "onSuccess": {
+        "op": "if",
+        "args": [
+          { "op": "neq", "args": ["$result", null] },
+          { "action": "loadFromStorage", "params": { "data": "$result" } },
+          null
+        ]
+      }
+    },
+    {
+      "id": "save-todos",
+      "watch": ["todos", "nextId"],
+      "debounce": 500,
+      "do": {
+        "op": "storage.set",
+        "key": "advanced-todos",
+        "value": {
+          "todos": { "ref": "todos" },
+          "nextId": { "ref": "nextId" }
+        },
+        "storage": "local"
+      }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "todo-app-advanced" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "app-header" },
+        "children": [
+          {
+            "type": "h1",
+            "children": [{ "text": "Advanced Todo" }]
+          },
+          {
+            "type": "div",
+            "props": { "className": "stats" },
+            "children": [
+              {
+                "type": "span",
+                "props": { "className": "stat" },
+                "children": [{ "bind": "activeCount" }, { "text": " active" }]
+              },
+              {
+                "type": "span",
+                "props": { "className": "stat" },
+                "children": [{ "bind": "completedCount" }, { "text": " done" }]
+              },
+              {
+                "type": "span",
+                "when": { "op": "gt", "args": [{ "ref": "overdueCount" }, 0] },
+                "props": { "className": "stat overdue" },
+                "children": [{ "bind": "overdueCount" }, { "text": " overdue" }]
+              },
+              {
+                "type": "span",
+                "when": { "op": "gt", "args": [{ "ref": "highPriorityCount" }, 0] },
+                "props": { "className": "stat high-priority" },
+                "children": [{ "bind": "highPriorityCount" }, { "text": " high priority" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "form",
+        "props": { "className": "add-todo-form" },
+        "events": {
+          "submit": { "action": "addTodo", "preventDefault": true }
+        },
+        "children": [
+          {
+            "type": "input",
+            "props": {
+              "type": "text",
+              "className": "todo-input",
+              "placeholder": "What needs to be done?",
+              "value": { "ref": "newTodoText" }
+            },
+            "events": {
+              "input": { "action": "setNewTodoText", "params": { "text": "$event.target.value" } }
+            }
+          },
+          {
+            "type": "div",
+            "props": { "className": "todo-options" },
+            "children": [
+              {
+                "type": "select",
+                "props": { "className": "priority-select", "value": { "ref": "newTodoPriority" } },
+                "events": { "change": { "action": "setNewTodoPriority", "params": { "priority": "$event.target.value" } } },
+                "children": [
+                  { "type": "option", "props": { "value": "low" }, "children": [{ "text": "Low" }] },
+                  { "type": "option", "props": { "value": "medium" }, "children": [{ "text": "Medium" }] },
+                  { "type": "option", "props": { "value": "high" }, "children": [{ "text": "High" }] }
+                ]
+              },
+              {
+                "type": "select",
+                "props": { "className": "category-select", "value": { "ref": "newTodoCategory" } },
+                "events": { "change": { "action": "setNewTodoCategory", "params": { "category": "$event.target.value" } } },
+                "each": { "items": "categories", "as": "cat" },
+                "children": [
+                  {
+                    "type": "option",
+                    "props": { "value": { "ref": "cat" } },
+                    "children": [{ "op": "capitalize", "args": [{ "ref": "cat" }] }]
+                  }
+                ]
+              },
+              {
+                "type": "input",
+                "props": {
+                  "type": "date",
+                  "className": "due-date-input",
+                  "value": { "ref": "newTodoDueDate" }
+                },
+                "events": { "change": { "action": "setNewTodoDueDate", "params": { "date": "$event.target.value" } } }
+              }
+            ]
+          },
+          {
+            "type": "button",
+            "props": {
+              "type": "submit",
+              "className": "add-btn",
+              "disabled": { "op": "not", "args": [{ "ref": "canAddTodo" }] }
+            },
+            "children": [{ "text": "Add" }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "filters-bar" },
+        "children": [
+          {
+            "type": "input",
+            "props": {
+              "type": "search",
+              "className": "search-input",
+              "placeholder": "Search todos...",
+              "value": { "ref": "searchQuery" }
+            },
+            "events": { "input": { "action": "setSearchQuery", "params": { "query": "$event.target.value" } } }
+          },
+          {
+            "type": "div",
+            "props": { "className": "filter-buttons" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "all"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "all" } } },
+                "children": [{ "text": "All" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "active"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "active" } } },
+                "children": [{ "text": "Active" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "completed"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "completed" } } },
+                "children": [{ "text": "Completed" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "overdue"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "overdue" } } },
+                "children": [{ "text": "Overdue" }]
+              }
+            ]
+          },
+          {
+            "type": "select",
+            "props": { "className": "category-filter", "value": { "ref": "categoryFilter" } },
+            "events": { "change": { "action": "setCategoryFilter", "params": { "category": "$event.target.value" } } },
+            "children": [
+              { "type": "option", "props": { "value": "all" }, "children": [{ "text": "All Categories" }] },
+              {
+                "type": "fragment",
+                "each": { "items": "categories", "as": "cat" },
+                "children": [
+                  {
+                    "type": "option",
+                    "props": { "value": { "ref": "cat" } },
+                    "children": [{ "op": "capitalize", "args": [{ "ref": "cat" }] }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "sort-controls" },
+            "children": [
+              {
+                "type": "select",
+                "props": { "value": { "ref": "sortBy" } },
+                "events": { "change": { "action": "setSortBy", "params": { "field": "$event.target.value" } } },
+                "children": [
+                  { "type": "option", "props": { "value": "createdAt" }, "children": [{ "text": "Created" }] },
+                  { "type": "option", "props": { "value": "dueDate" }, "children": [{ "text": "Due Date" }] },
+                  { "type": "option", "props": { "value": "priority" }, "children": [{ "text": "Priority" }] },
+                  { "type": "option", "props": { "value": "text" }, "children": [{ "text": "Name" }] }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "sort-order-btn" },
+                "events": { "click": { "action": "toggleSortOrder" } },
+                "children": [{ "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "sortOrder" }, "asc"] }, "↑", "↓"] }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ul",
+        "props": { "className": "todo-list" },
+        "each": { "items": "sortedTodos", "as": "todo" },
+        "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+        "children": [
+          {
+            "type": "li",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "todo-item",
+                  { "op": "if", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "completed"] }, " completed", ""] },
+                  " priority-",
+                  { "op": "get", "args": [{ "ref": "todo" }, "priority"] }
+                ]
+              }
+            },
+            "children": [
+              {
+                "type": "input",
+                "props": {
+                  "type": "checkbox",
+                  "checked": { "op": "get", "args": [{ "ref": "todo" }, "completed"] },
+                  "className": "todo-checkbox"
+                },
+                "events": {
+                  "change": { "action": "toggleTodo", "params": { "todoId": { "op": "get", "args": [{ "ref": "todo" }, "id"] } } }
+                }
+              },
+              {
+                "type": "div",
+                "when": { "op": "neq", "args": [{ "ref": "editingId" }, { "op": "get", "args": [{ "ref": "todo" }, "id"] }] },
+                "props": { "className": "todo-content" },
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "todo-text" },
+                    "events": {
+                      "dblclick": {
+                        "action": "startEdit",
+                        "params": {
+                          "todoId": { "op": "get", "args": [{ "ref": "todo" }, "id"] },
+                          "currentText": { "op": "get", "args": [{ "ref": "todo" }, "text"] }
+                        }
+                      }
+                    },
+                    "children": [{ "op": "get", "args": [{ "ref": "todo" }, "text"] }]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "todo-meta" },
+                    "children": [
+                      {
+                        "type": "span",
+                        "props": { "className": { "op": "concat", "args": ["category-badge ", { "op": "get", "args": [{ "ref": "todo" }, "category"] }] } },
+                        "children": [{ "op": "get", "args": [{ "ref": "todo" }, "category"] }]
+                      },
+                      {
+                        "type": "span",
+                        "when": { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "dueDate"] }, ""] },
+                        "props": {
+                          "className": {
+                            "op": "concat",
+                            "args": [
+                              "due-date",
+                              {
+                                "op": "if",
+                                "args": [
+                                  {
+                                    "op": "and",
+                                    "args": [
+                                      { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "completed"] }] },
+                                      { "op": "lt", "args": [{ "op": "get", "args": [{ "ref": "todo" }, "dueDate"] }, { "op": "formatDate", "args": [{ "op": "now" }, "YYYY-MM-DD"] }] }
+                                    ]
+                                  },
+                                  " overdue",
+                                  ""
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "children": [{ "op": "get", "args": [{ "ref": "todo" }, "dueDate"] }]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "when": { "op": "eq", "args": [{ "ref": "editingId" }, { "op": "get", "args": [{ "ref": "todo" }, "id"] }] },
+                "props": { "className": "edit-form" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "text",
+                      "className": "edit-input",
+                      "value": { "ref": "editText" }
+                    },
+                    "events": {
+                      "input": { "action": "setEditText", "params": { "text": "$event.target.value" } },
+                      "keydown": {
+                        "op": "switch",
+                        "args": [
+                          "$event.key",
+                          {
+                            "Enter": { "action": "saveEdit" },
+                            "Escape": { "action": "cancelEdit" }
+                          },
+                          null
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "save-btn" },
+                    "events": { "click": { "action": "saveEdit" } },
+                    "children": [{ "text": "Save" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "cancel-btn" },
+                    "events": { "click": { "action": "cancelEdit" } },
+                    "children": [{ "text": "Cancel" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "todo-actions" },
+                "children": [
+                  {
+                    "type": "select",
+                    "props": {
+                      "className": "priority-quick-select",
+                      "value": { "op": "get", "args": [{ "ref": "todo" }, "priority"] }
+                    },
+                    "events": {
+                      "change": {
+                        "action": "updateTodoPriority",
+                        "params": {
+                          "todoId": { "op": "get", "args": [{ "ref": "todo" }, "id"] },
+                          "priority": "$event.target.value"
+                        }
+                      }
+                    },
+                    "children": [
+                      { "type": "option", "props": { "value": "low" }, "children": [{ "text": "Low" }] },
+                      { "type": "option", "props": { "value": "medium" }, "children": [{ "text": "Med" }] },
+                      { "type": "option", "props": { "value": "high" }, "children": [{ "text": "High" }] }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "delete-btn" },
+                    "events": {
+                      "click": { "action": "deleteTodo", "params": { "todoId": { "op": "get", "args": [{ "ref": "todo" }, "id"] } } }
+                    },
+                    "children": [{ "text": "×" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "eq", "args": [{ "op": "length", "args": [{ "ref": "sortedTodos" }] }, 0] },
+        "props": { "className": "empty-state" },
+        "children": [
+          {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "ref": "totalCount" }, 0] },
+              "No todos yet. Add one above!",
+              "No todos match your filters."
+            ]
+          }
+        ]
+      },
+      {
+        "type": "footer",
+        "when": { "op": "gt", "args": [{ "ref": "totalCount" }, 0] },
+        "props": { "className": "app-footer" },
+        "children": [
+          {
+            "type": "label",
+            "props": { "className": "show-completed-toggle" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "checkbox", "checked": { "ref": "showCompleted" } },
+                "events": { "change": { "action": "toggleShowCompleted" } }
+              },
+              { "text": "Show completed" }
+            ]
+          },
+          {
+            "type": "button",
+            "when": { "op": "gt", "args": [{ "ref": "completedCount" }, 0] },
+            "props": { "className": "clear-completed-btn" },
+            "events": { "click": { "action": "clearCompleted" } },
+            "children": [{ "text": "Clear completed (" }, { "bind": "completedCount" }, { "text": ")" }]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with empty todos",
+      "steps": [
+        { "assert": { "ref": "totalCount", "eq": 0 } },
+        { "assert": { "ref": "activeCount", "eq": 0 } },
+        { "assert": { "ref": "completedCount", "eq": 0 } },
+        { "assert": { "ref": "filter", "eq": "all" } }
+      ]
+    },
+    {
+      "id": "test-add-todo",
+      "name": "addTodo creates new todo",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Test todo" } },
+        { "assert": { "ref": "canAddTodo", "eq": true } },
+        { "dispatch": "addTodo" },
+        { "assert": { "ref": "totalCount", "eq": 1 } },
+        { "assert": { "ref": "activeCount", "eq": 1 } },
+        { "assert": { "ref": "newTodoText", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-toggle-todo",
+      "name": "toggleTodo marks todo complete",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Toggle test" } },
+        { "dispatch": "addTodo" },
+        { "assert": { "ref": "completedCount", "eq": 0 } },
+        { "dispatch": "toggleTodo", "params": { "todoId": 1 } },
+        { "assert": { "ref": "completedCount", "eq": 1 } },
+        { "assert": { "ref": "activeCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-delete-todo",
+      "name": "deleteTodo removes todo",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Delete test" } },
+        { "dispatch": "addTodo" },
+        { "assert": { "ref": "totalCount", "eq": 1 } },
+        { "dispatch": "deleteTodo", "params": { "todoId": 1 } },
+        { "assert": { "ref": "totalCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-filter-active",
+      "name": "filter shows only active todos",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Active todo" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "setNewTodoText", "params": { "text": "Completed todo" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "toggleTodo", "params": { "todoId": 2 } },
+        { "dispatch": "setFilter", "params": { "filterValue": "active" } },
+        { "assert": { "ref": "filter", "eq": "active" } }
+      ]
+    },
+    {
+      "id": "test-clear-completed",
+      "name": "clearCompleted removes done todos",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Keep this" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "setNewTodoText", "params": { "text": "Clear this" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "toggleTodo", "params": { "todoId": 2 } },
+        { "dispatch": "clearCompleted" },
+        { "assert": { "ref": "totalCount", "eq": 1 } },
+        { "assert": { "ref": "completedCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-edit-todo",
+      "name": "edit workflow works",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Original" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "startEdit", "params": { "todoId": 1, "currentText": "Original" } },
+        { "assert": { "ref": "isEditing", "eq": true } },
+        { "assert": { "ref": "editText", "eq": "Original" } },
+        { "dispatch": "setEditText", "params": { "text": "Updated" } },
+        { "dispatch": "saveEdit" },
+        { "assert": { "ref": "isEditing", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-cancel-edit",
+      "name": "cancelEdit clears edit state",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Test" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "startEdit", "params": { "todoId": 1, "currentText": "Test" } },
+        { "dispatch": "cancelEdit" },
+        { "assert": { "ref": "isEditing", "eq": false } },
+        { "assert": { "ref": "editText", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-priority",
+      "name": "updateTodoPriority changes priority",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Priority test" } },
+        { "dispatch": "setNewTodoPriority", "params": { "priority": "low" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "updateTodoPriority", "params": { "todoId": 1, "priority": "high" } },
+        { "assert": { "ref": "highPriorityCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-category-filter",
+      "name": "category filter works",
+      "steps": [
+        { "dispatch": "setNewTodoText", "params": { "text": "Work task" } },
+        { "dispatch": "setNewTodoCategory", "params": { "category": "work" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "setNewTodoText", "params": { "text": "Personal task" } },
+        { "dispatch": "setNewTodoCategory", "params": { "category": "personal" } },
+        { "dispatch": "addTodo" },
+        { "dispatch": "setCategoryFilter", "params": { "category": "work" } },
+        { "assert": { "ref": "categoryFilter", "eq": "work" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "counter_app",
+  "target": "dom",
+
+  "state": {
+    "count": { "type": "number", "initial": 0 }
+  },
+
+  "computed": {
+    "doubled": {
+      "deps": ["count"],
+      "fn": { "op": "multiply", "args": [{ "ref": "count" }, 2] }
+    },
+    "isEven": {
+      "deps": ["count"],
+      "fn": { "op": "eq", "args": [{ "op": "modulo", "args": [{ "ref": "count" }, 2] }, 0] }
+    }
+  },
+
+  "effects": [
+    {
+      "id": "logChanges",
+      "watch": ["count"],
+      "do": { "op": "log", "args": ["Count is now:", { "ref": "count" }] }
+    }
+  ],
+
+  "actions": {
+    "increment": {
+      "mutations": [
+        { "target": "count", "op": "add", "value": 1 }
+      ]
+    },
+    "decrement": {
+      "mutations": [
+        { "target": "count", "op": "subtract", "value": 1 }
+      ]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "count", "op": "set", "value": 0 }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "counter" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "ddjex Counter" }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "display" },
+        "children": [
+          { "text": "Count: " },
+          { "bind": "count" },
+          { "text": " (doubled: " },
+          { "bind": "doubled" },
+          { "text": ")" }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "status" },
+        "children": [
+          {
+            "if": { "op": "eq", "args": [{ "ref": "isEven" }, true] },
+            "then": { "type": "span", "children": [{ "text": "Even number" }] },
+            "else": { "type": "span", "children": [{ "text": "Odd number" }] }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "buttons" },
+        "children": [
+          {
+            "type": "button",
+            "events": { "click": { "action": "decrement" } },
+            "children": [{ "text": "-" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "increment" } },
+            "children": [{ "text": "+" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "reset" } },
+            "children": [{ "text": "Reset" }]
+          }
+        ]
+      }
+    ]
+  }
+}

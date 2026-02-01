@@ -1,0 +1,189 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-infinite-scroll",
+  "target": "dom",
+
+  "state": {
+    "items": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "title": "Post 1", "excerpt": "This is the first post..." },
+        { "id": 2, "title": "Post 2", "excerpt": "Another interesting article..." },
+        { "id": 3, "title": "Post 3", "excerpt": "More content to read..." },
+        { "id": 4, "title": "Post 4", "excerpt": "Scroll down for more..." },
+        { "id": 5, "title": "Post 5", "excerpt": "Keep scrolling..." }
+      ]
+    },
+    "page": { "type": "number", "initial": 1 },
+    "loading": { "type": "boolean", "initial": false },
+    "hasMore": { "type": "boolean", "initial": true },
+    "nextId": { "type": "number", "initial": 6 }
+  },
+
+  "computed": {
+    "itemCount": {
+      "deps": ["items"],
+      "fn": { "op": "length", "args": [{ "ref": "items" }] }
+    }
+  },
+
+  "actions": {
+    "loadMore": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true }
+      ]
+    },
+    "appendItems": {
+      "params": ["newItems"],
+      "mutations": [
+        { "target": "items", "op": "set", "value": { "op": "concat", "args": [{ "ref": "items" }, { "param": "newItems" }] } },
+        { "target": "page", "op": "add", "value": 1 },
+        { "target": "loading", "op": "set", "value": false }
+      ]
+    },
+    "setHasMore": {
+      "params": ["value"],
+      "mutations": [{ "target": "hasMore", "op": "set", "value": { "param": "value" } }]
+    },
+    "simulateLoad": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true },
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "concat",
+            "args": [
+              { "ref": "items" },
+              [
+                { "id": { "ref": "nextId" }, "title": { "op": "concat", "args": ["Post ", { "ref": "nextId" }] }, "excerpt": "Loaded dynamically..." }
+              ]
+            ]
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 },
+        { "target": "page", "op": "add", "value": 1 },
+        { "target": "loading", "op": "set", "value": false },
+        {
+          "target": "hasMore",
+          "op": "set",
+          "value": { "op": "lt", "args": [{ "ref": "page" }, 5] }
+        }
+      ]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "items", "op": "set", "value": [{ "id": 1, "title": "Post 1", "excerpt": "This is the first post..." }] },
+        { "target": "page", "op": "set", "value": 1 },
+        { "target": "hasMore", "op": "set", "value": true },
+        { "target": "nextId", "op": "set", "value": 2 }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-4" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mb-6" },
+        "children": [
+          { "type": "h1", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "Infinite Scroll Demo" }] },
+          {
+            "type": "button",
+            "props": { "className": "px-4 py-2 bg-gray-200 rounded hover:bg-gray-300" },
+            "events": { "click": { "action": "reset" } },
+            "children": [{ "text": "Reset" }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "space-y-4" },
+        "each": { "items": "items", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+        "children": [
+          {
+            "type": "article",
+            "props": { "className": "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow" },
+            "children": [
+              { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "bind": "item.title" }] },
+              { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "bind": "item.excerpt" }] },
+              {
+                "type": "div",
+                "props": { "className": "mt-4 flex items-center text-sm text-gray-400" },
+                "children": [{ "text": "ID: " }, { "bind": "item.id" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "mt-6 text-center" },
+        "children": [
+          {
+            "if": { "ref": "loading" },
+            "then": {
+              "type": "div",
+              "props": { "className": "py-4" },
+              "children": [
+                { "type": "div", "props": { "className": "animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" } },
+                { "type": "p", "props": { "className": "mt-2 text-gray-500" }, "children": [{ "text": "Loading more..." }] }
+              ]
+            },
+            "else": {
+              "if": { "ref": "hasMore" },
+              "then": {
+                "type": "button",
+                "props": { "className": "px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600" },
+                "events": { "click": { "action": "simulateLoad" } },
+                "children": [{ "text": "Load More" }]
+              },
+              "else": {
+                "type": "p",
+                "props": { "className": "py-4 text-gray-500" },
+                "children": [{ "text": "No more items to load" }]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "mt-4 text-center text-sm text-gray-400" },
+        "children": [{ "text": "Showing " }, { "bind": "itemCount" }, { "text": " items • Page " }, { "bind": "page" }]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial",
+      "name": "Has initial items",
+      "steps": [
+        { "assert": { "ref": "itemCount", "eq": 5 } },
+        { "assert": { "ref": "page", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-load-more",
+      "name": "Can load more items",
+      "steps": [
+        { "dispatch": "simulateLoad" },
+        { "assert": { "ref": "itemCount", "eq": 6 } },
+        { "assert": { "ref": "page", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-reset",
+      "name": "Can reset to initial state",
+      "steps": [
+        { "dispatch": "simulateLoad" },
+        { "dispatch": "reset" },
+        { "assert": { "ref": "itemCount", "eq": 1 } },
+        { "assert": { "ref": "page", "eq": 1 } }
+      ]
+    }
+  ]
+}

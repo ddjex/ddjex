@@ -1,0 +1,660 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-search-pattern",
+  "target": "dom",
+  "description": "Search results page with filters, facets, and sorting",
+
+  "state": {
+    "query": { "type": "string", "initial": "" },
+    "results": { "type": "array", "initial": [], "itemType": "object" },
+    "totalResults": { "type": "number", "initial": 0 },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "filters": {
+      "type": "object",
+      "initial": {
+        "category": "all",
+        "priceMin": 0,
+        "priceMax": 1000,
+        "rating": 0,
+        "inStock": false
+      }
+    },
+    "sortBy": { "type": "string", "initial": "relevance" },
+    "currentPage": { "type": "number", "initial": 1 },
+    "resultsPerPage": { "type": "number", "initial": 10 },
+    "recentSearches": { "type": "array", "initial": [], "itemType": "string", "constraints": { "maxLength": 5 } },
+    "suggestions": { "type": "array", "initial": [], "itemType": "string" },
+    "showSuggestions": { "type": "boolean", "initial": false },
+    "selectedResult": { "type": "object", "initial": null, "nullable": true },
+    "viewMode": { "type": "string", "initial": "grid" }
+  },
+
+  "computed": {
+    "hasQuery": {
+      "deps": ["query"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "trim", "args": [{ "ref": "query" }] }] }, 0] }
+    },
+    "hasResults": {
+      "deps": ["results"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "results" }] }, 0] }
+    },
+    "totalPages": {
+      "deps": ["totalResults", "resultsPerPage"],
+      "fn": { "op": "ceil", "args": [{ "op": "divide", "args": [{ "ref": "totalResults" }, { "ref": "resultsPerPage" }] }] }
+    },
+    "showingFrom": {
+      "deps": ["currentPage", "resultsPerPage"],
+      "fn": { "op": "add", "args": [{ "op": "multiply", "args": [{ "op": "subtract", "args": [{ "ref": "currentPage" }, 1] }, { "ref": "resultsPerPage" }] }, 1] }
+    },
+    "showingTo": {
+      "deps": ["currentPage", "resultsPerPage", "totalResults"],
+      "fn": { "op": "min", "args": [{ "op": "multiply", "args": [{ "ref": "currentPage" }, { "ref": "resultsPerPage" }] }, { "ref": "totalResults" }] }
+    },
+    "activeFilterCount": {
+      "deps": ["filters"],
+      "fn": {
+        "op": "length",
+        "args": [{
+          "op": "filter",
+          "args": [
+            { "op": "entries", "args": [{ "ref": "filters" }] },
+            {
+              "op": "and",
+              "args": [
+                { "op": "neq", "args": [{ "op": "get", "args": ["$item", 1] }, "all"] },
+                { "op": "neq", "args": [{ "op": "get", "args": ["$item", 1] }, 0] },
+                { "op": "neq", "args": [{ "op": "get", "args": ["$item", 1] }, false] },
+                { "op": "neq", "args": [{ "op": "get", "args": ["$item", 1] }, 1000] }
+              ]
+            }
+          ]
+        }]
+      }
+    },
+    "isFiltered": {
+      "deps": ["activeFilterCount"],
+      "fn": { "op": "gt", "args": [{ "ref": "activeFilterCount" }, 0] }
+    }
+  },
+
+  "actions": {
+    "setQuery": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "query", "op": "set", "value": { "param": "value" } },
+        { "target": "showSuggestions", "op": "set", "value": true }
+      ]
+    },
+    "search": {
+      "guard": { "ref": "hasQuery" },
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true },
+        { "target": "error", "op": "set", "value": "" },
+        { "target": "currentPage", "op": "set", "value": 1 },
+        { "target": "showSuggestions", "op": "set", "value": false },
+        {
+          "target": "recentSearches",
+          "op": "set",
+          "value": {
+            "op": "slice",
+            "args": [
+              {
+                "op": "filter",
+                "args": [
+                  { "op": "concat", "args": [[{ "op": "trim", "args": [{ "ref": "query" }] }], { "ref": "recentSearches" }] },
+                  { "op": "neq", "args": [{ "op": "indexOf", "args": [{ "ref": "recentSearches" }, "$item"] }, { "op": "subtract", "args": [{ "op": "length", "args": [{ "ref": "recentSearches" }] }, 1] }] }
+                ]
+              },
+              0,
+              5
+            ]
+          }
+        }
+      ]
+    },
+    "searchSuccess": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "results", "op": "set", "value": { "op": "get", "args": [{ "param": "data" }, "items"] } },
+        { "target": "totalResults", "op": "set", "value": { "op": "get", "args": [{ "param": "data" }, "total"] } },
+        { "target": "loading", "op": "set", "value": false }
+      ]
+    },
+    "searchError": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": { "param": "message" } },
+        { "target": "results", "op": "set", "value": [] },
+        { "target": "totalResults", "op": "set", "value": 0 }
+      ]
+    },
+    "setFilter": {
+      "params": ["key", "value"],
+      "mutations": [
+        {
+          "target": "filters",
+          "op": "merge",
+          "value": { "op": "fromEntries", "args": [[[{ "param": "key" }, { "param": "value" }]]] }
+        },
+        { "target": "currentPage", "op": "set", "value": 1 }
+      ]
+    },
+    "clearFilters": {
+      "mutations": [
+        {
+          "target": "filters",
+          "op": "set",
+          "value": { "category": "all", "priceMin": 0, "priceMax": 1000, "rating": 0, "inStock": false }
+        },
+        { "target": "currentPage", "op": "set", "value": 1 }
+      ]
+    },
+    "setSortBy": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "sortBy", "op": "set", "value": { "param": "value" } },
+        { "target": "currentPage", "op": "set", "value": 1 }
+      ]
+    },
+    "goToPage": {
+      "params": ["page"],
+      "mutations": [
+        { "target": "currentPage", "op": "set", "value": { "param": "page" } }
+      ]
+    },
+    "nextPage": {
+      "guard": { "op": "lt", "args": [{ "ref": "currentPage" }, { "ref": "totalPages" }] },
+      "mutations": [
+        { "target": "currentPage", "op": "add", "value": 1 }
+      ]
+    },
+    "prevPage": {
+      "guard": { "op": "gt", "args": [{ "ref": "currentPage" }, 1] },
+      "mutations": [
+        { "target": "currentPage", "op": "subtract", "value": 1 }
+      ]
+    },
+    "selectResult": {
+      "params": ["result"],
+      "mutations": [
+        { "target": "selectedResult", "op": "set", "value": { "param": "result" } }
+      ]
+    },
+    "clearSelection": {
+      "mutations": [
+        { "target": "selectedResult", "op": "set", "value": null }
+      ]
+    },
+    "setViewMode": {
+      "params": ["mode"],
+      "mutations": [
+        { "target": "viewMode", "op": "set", "value": { "param": "mode" } }
+      ]
+    },
+    "useSuggestion": {
+      "params": ["suggestion"],
+      "mutations": [
+        { "target": "query", "op": "set", "value": { "param": "suggestion" } },
+        { "target": "showSuggestions", "op": "set", "value": false }
+      ]
+    },
+    "hideSuggestions": {
+      "mutations": [
+        { "target": "showSuggestions", "op": "set", "value": false }
+      ]
+    },
+    "clearRecentSearch": {
+      "params": ["search"],
+      "mutations": [
+        {
+          "target": "recentSearches",
+          "op": "filter",
+          "predicate": { "op": "neq", "args": ["$item", { "param": "search" }] }
+        }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "perform-search",
+      "watch": ["loading"],
+      "condition": { "ref": "loading" },
+      "do": {
+        "op": "fetch",
+        "url": {
+          "op": "concat",
+          "args": [
+            "/api/search?q=",
+            { "op": "encodeURIComponent", "args": [{ "ref": "query" }] },
+            "&page=",
+            { "ref": "currentPage" },
+            "&limit=",
+            { "ref": "resultsPerPage" },
+            "&sort=",
+            { "ref": "sortBy" }
+          ]
+        },
+        "method": "GET"
+      },
+      "onSuccess": { "action": "searchSuccess", "params": { "data": "$result" } },
+      "onError": { "action": "searchError", "params": { "message": "Search failed" } }
+    },
+    {
+      "id": "fetch-suggestions",
+      "watch": ["query"],
+      "condition": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "query" }] }, 2] },
+      "debounce": 300,
+      "do": {
+        "op": "fetch",
+        "url": { "op": "concat", "args": ["/api/suggestions?q=", { "op": "encodeURIComponent", "args": [{ "ref": "query" }] }] },
+        "method": "GET"
+      }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "search-page" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "search-header" },
+        "children": [
+          {
+            "type": "form",
+            "props": { "className": "search-form" },
+            "events": { "submit": { "action": "search", "preventDefault": true } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "search-input-wrapper" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "search",
+                      "className": "search-input",
+                      "placeholder": "Search products...",
+                      "value": { "ref": "query" }
+                    },
+                    "events": {
+                      "input": { "action": "setQuery", "params": { "value": "$event.target.value" } },
+                      "blur": { "action": "hideSuggestions" }
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "type": "submit", "className": "search-btn" },
+                    "children": [{ "text": "Search" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "when": { "op": "and", "args": [{ "ref": "showSuggestions" }, { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "recentSearches" }] }, 0] }] },
+                "props": { "className": "suggestions-dropdown" },
+                "children": [
+                  { "type": "div", "props": { "className": "suggestions-label" }, "children": [{ "text": "Recent searches" }] },
+                  {
+                    "type": "div",
+                    "each": { "items": "recentSearches", "as": "recent" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "suggestion-item" },
+                        "children": [
+                          {
+                            "type": "span",
+                            "events": { "mousedown": { "action": "useSuggestion", "params": { "suggestion": { "ref": "recent" } } } },
+                            "children": [{ "bind": "recent" }]
+                          },
+                          {
+                            "type": "button",
+                            "props": { "className": "remove-btn" },
+                            "events": { "mousedown": { "action": "clearRecentSearch", "params": { "search": { "ref": "recent" } } } },
+                            "children": [{ "text": "×" }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "search-content" },
+        "children": [
+          {
+            "type": "aside",
+            "props": { "className": "filters-sidebar" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "filters-header" },
+                "children": [
+                  { "type": "h3", "children": [{ "text": "Filters" }] },
+                  {
+                    "type": "button",
+                    "when": { "ref": "isFiltered" },
+                    "props": { "className": "clear-filters-btn" },
+                    "events": { "click": { "action": "clearFilters" } },
+                    "children": [{ "text": "Clear all" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "filter-group" },
+                "children": [
+                  { "type": "label", "children": [{ "text": "Category" }] },
+                  {
+                    "type": "select",
+                    "props": { "value": { "op": "get", "args": [{ "ref": "filters" }, "category"] } },
+                    "events": { "change": { "action": "setFilter", "params": { "key": "category", "value": "$event.target.value" } } },
+                    "children": [
+                      { "type": "option", "props": { "value": "all" }, "children": [{ "text": "All Categories" }] },
+                      { "type": "option", "props": { "value": "electronics" }, "children": [{ "text": "Electronics" }] },
+                      { "type": "option", "props": { "value": "clothing" }, "children": [{ "text": "Clothing" }] },
+                      { "type": "option", "props": { "value": "books" }, "children": [{ "text": "Books" }] },
+                      { "type": "option", "props": { "value": "home" }, "children": [{ "text": "Home & Garden" }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "filter-group" },
+                "children": [
+                  { "type": "label", "children": [{ "text": "Price Range" }] },
+                  {
+                    "type": "div",
+                    "props": { "className": "price-inputs" },
+                    "children": [
+                      {
+                        "type": "input",
+                        "props": { "type": "number", "placeholder": "Min", "value": { "op": "get", "args": [{ "ref": "filters" }, "priceMin"] }, "min": 0 },
+                        "events": { "change": { "action": "setFilter", "params": { "key": "priceMin", "value": "$event.target.valueAsNumber" } } }
+                      },
+                      { "type": "span", "children": [{ "text": "to" }] },
+                      {
+                        "type": "input",
+                        "props": { "type": "number", "placeholder": "Max", "value": { "op": "get", "args": [{ "ref": "filters" }, "priceMax"] }, "min": 0 },
+                        "events": { "change": { "action": "setFilter", "params": { "key": "priceMax", "value": "$event.target.valueAsNumber" } } }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "filter-group" },
+                "children": [
+                  { "type": "label", "children": [{ "text": "Minimum Rating" }] },
+                  {
+                    "type": "select",
+                    "props": { "value": { "op": "get", "args": [{ "ref": "filters" }, "rating"] } },
+                    "events": { "change": { "action": "setFilter", "params": { "key": "rating", "value": "$event.target.valueAsNumber" } } },
+                    "children": [
+                      { "type": "option", "props": { "value": 0 }, "children": [{ "text": "Any" }] },
+                      { "type": "option", "props": { "value": 4 }, "children": [{ "text": "4+ Stars" }] },
+                      { "type": "option", "props": { "value": 3 }, "children": [{ "text": "3+ Stars" }] },
+                      { "type": "option", "props": { "value": 2 }, "children": [{ "text": "2+ Stars" }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "label",
+                "props": { "className": "checkbox-filter" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "filters" }, "inStock"] } },
+                    "events": { "change": { "action": "setFilter", "params": { "key": "inStock", "value": "$event.target.checked" } } }
+                  },
+                  { "text": "In Stock Only" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "main",
+            "props": { "className": "results-main" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "results-toolbar" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "results-info" },
+                    "children": [
+                      {
+                        "type": "span",
+                        "when": { "ref": "hasResults" },
+                        "children": [
+                          { "text": "Showing " },
+                          { "bind": "showingFrom" },
+                          { "text": "-" },
+                          { "bind": "showingTo" },
+                          { "text": " of " },
+                          { "bind": "totalResults" },
+                          { "text": " results" }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "results-controls" },
+                    "children": [
+                      {
+                        "type": "select",
+                        "props": { "value": { "ref": "sortBy" } },
+                        "events": { "change": { "action": "setSortBy", "params": { "value": "$event.target.value" } } },
+                        "children": [
+                          { "type": "option", "props": { "value": "relevance" }, "children": [{ "text": "Relevance" }] },
+                          { "type": "option", "props": { "value": "price_asc" }, "children": [{ "text": "Price: Low to High" }] },
+                          { "type": "option", "props": { "value": "price_desc" }, "children": [{ "text": "Price: High to Low" }] },
+                          { "type": "option", "props": { "value": "rating" }, "children": [{ "text": "Rating" }] },
+                          { "type": "option", "props": { "value": "newest" }, "children": [{ "text": "Newest" }] }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "view-toggle" },
+                        "children": [
+                          {
+                            "type": "button",
+                            "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "viewMode" }, "grid"] }, "active", ""] } },
+                            "events": { "click": { "action": "setViewMode", "params": { "mode": "grid" } } },
+                            "children": [{ "text": "▦" }]
+                          },
+                          {
+                            "type": "button",
+                            "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "viewMode" }, "list"] }, "active", ""] } },
+                            "events": { "click": { "action": "setViewMode", "params": { "mode": "list" } } },
+                            "children": [{ "text": "☰" }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "when": { "ref": "loading" },
+                "props": { "className": "loading-state" },
+                "children": [{ "text": "Searching..." }]
+              },
+              {
+                "type": "div",
+                "when": { "op": "neq", "args": [{ "ref": "error" }, ""] },
+                "props": { "className": "error-state" },
+                "children": [{ "bind": "error" }]
+              },
+              {
+                "type": "div",
+                "when": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "loading" }] }, { "op": "not", "args": [{ "ref": "hasResults" }] }, { "ref": "hasQuery" }] },
+                "props": { "className": "no-results" },
+                "children": [
+                  { "type": "h3", "children": [{ "text": "No results found" }] },
+                  { "type": "p", "children": [{ "text": "Try different keywords or filters" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "when": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "loading" }] }, { "ref": "hasResults" }] },
+                "props": { "className": { "op": "concat", "args": ["results-", { "ref": "viewMode" }] } },
+                "each": { "items": "results", "as": "result" },
+                "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "result-card" },
+                    "events": { "click": { "action": "selectResult", "params": { "result": { "ref": "result" } } } },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "result-image" },
+                        "children": [
+                          { "type": "img", "props": { "src": { "op": "get", "args": [{ "ref": "result" }, "image"] }, "alt": { "op": "get", "args": [{ "ref": "result" }, "title"] } } }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "result-info" },
+                        "children": [
+                          { "type": "h4", "children": [{ "op": "get", "args": [{ "ref": "result" }, "title"] }] },
+                          { "type": "p", "props": { "className": "result-description" }, "children": [{ "op": "get", "args": [{ "ref": "result" }, "description"] }] },
+                          {
+                            "type": "div",
+                            "props": { "className": "result-meta" },
+                            "children": [
+                              { "type": "span", "props": { "className": "price" }, "children": [{ "text": "$" }, { "op": "get", "args": [{ "ref": "result" }, "price"] }] },
+                              { "type": "span", "props": { "className": "rating" }, "children": [{ "text": "★ " }, { "op": "get", "args": [{ "ref": "result" }, "rating"] }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "nav",
+                "when": { "op": "gt", "args": [{ "ref": "totalPages" }, 1] },
+                "props": { "className": "pagination" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "disabled": { "op": "eq", "args": [{ "ref": "currentPage" }, 1] } },
+                    "events": { "click": { "action": "prevPage" } },
+                    "children": [{ "text": "← Previous" }]
+                  },
+                  {
+                    "type": "span",
+                    "props": { "className": "page-info" },
+                    "children": [{ "text": "Page " }, { "bind": "currentPage" }, { "text": " of " }, { "bind": "totalPages" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "disabled": { "op": "eq", "args": [{ "ref": "currentPage" }, { "ref": "totalPages" }] } },
+                    "events": { "click": { "action": "nextPage" } },
+                    "children": [{ "text": "Next →" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with empty query",
+      "steps": [
+        { "assert": { "ref": "query", "eq": "" } },
+        { "assert": { "ref": "hasQuery", "eq": false } },
+        { "assert": { "ref": "loading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-set-query",
+      "name": "setQuery updates query",
+      "steps": [
+        { "dispatch": "setQuery", "params": { "value": "laptop" } },
+        { "assert": { "ref": "query", "eq": "laptop" } },
+        { "assert": { "ref": "hasQuery", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-search",
+      "name": "search sets loading state",
+      "steps": [
+        { "dispatch": "setQuery", "params": { "value": "test" } },
+        { "dispatch": "search" },
+        { "assert": { "ref": "loading", "eq": true } },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-search-success",
+      "name": "searchSuccess updates results",
+      "steps": [
+        { "dispatch": "searchSuccess", "params": { "data": { "items": [{ "id": 1, "title": "Test" }], "total": 1 } } },
+        { "assert": { "ref": "hasResults", "eq": true } },
+        { "assert": { "ref": "totalResults", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-filter",
+      "name": "setFilter updates filters",
+      "steps": [
+        { "dispatch": "setFilter", "params": { "key": "category", "value": "electronics" } },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-clear-filters",
+      "name": "clearFilters resets all filters",
+      "steps": [
+        { "dispatch": "setFilter", "params": { "key": "category", "value": "books" } },
+        { "dispatch": "setFilter", "params": { "key": "inStock", "value": true } },
+        { "dispatch": "clearFilters" }
+      ]
+    },
+    {
+      "id": "test-pagination",
+      "name": "pagination works correctly",
+      "steps": [
+        { "dispatch": "searchSuccess", "params": { "data": { "items": [], "total": 50 } } },
+        { "assert": { "ref": "totalPages", "eq": 5 } },
+        { "dispatch": "nextPage" },
+        { "assert": { "ref": "currentPage", "eq": 2 } },
+        { "dispatch": "prevPage" },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-view-mode",
+      "name": "setViewMode changes view",
+      "steps": [
+        { "assert": { "ref": "viewMode", "eq": "grid" } },
+        { "dispatch": "setViewMode", "params": { "mode": "list" } },
+        { "assert": { "ref": "viewMode", "eq": "list" } }
+      ]
+    }
+  ]
+}

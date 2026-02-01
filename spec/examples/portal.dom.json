@@ -1,0 +1,113 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "portal_demo",
+  "target": "dom",
+
+  "state": {
+    "showModal": { "type": "boolean", "initial": false },
+    "showTooltip": { "type": "boolean", "initial": false }
+  },
+
+  "actions": {
+    "openModal": {
+      "mutations": [
+        { "target": "showModal", "op": "set", "value": true }
+      ]
+    },
+    "closeModal": {
+      "mutations": [
+        { "target": "showModal", "op": "set", "value": false }
+      ]
+    },
+    "toggleTooltip": {
+      "mutations": [
+        { "target": "showTooltip", "op": "toggle" }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "portal-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Portal Demo" }]
+      },
+      {
+        "type": "p",
+        "children": [{ "text": "Portals render content outside the normal component tree, useful for modals and tooltips." }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "content-area" },
+        "children": [
+          {
+            "type": "button",
+            "events": { "click": { "action": "openModal" } },
+            "children": [{ "text": "Open Modal" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "toggleTooltip" } },
+            "children": [{ "text": "Toggle Tooltip" }]
+          }
+        ]
+      },
+      {
+        "if": { "op": "eq", "args": [{ "ref": "showModal" }, true] },
+        "then": {
+          "portal": {
+            "target": "body",
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "modal-overlay" },
+                "events": { "click": { "action": "closeModal" } },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "modal-content" },
+                    "children": [
+                      {
+                        "type": "h2",
+                        "children": [{ "text": "Modal Title" }]
+                      },
+                      {
+                        "type": "p",
+                        "children": [{ "text": "This modal is rendered via a portal to the body element." }]
+                      },
+                      {
+                        "type": "button",
+                        "events": { "click": { "action": "closeModal" } },
+                        "children": [{ "text": "Close" }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "if": { "op": "eq", "args": [{ "ref": "showTooltip" }, true] },
+        "then": {
+          "portal": {
+            "target": "body",
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": "tooltip",
+                  "style": { "position": "fixed", "top": "100px", "right": "20px" }
+                },
+                "children": [{ "text": "This is a tooltip rendered via portal!" }]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

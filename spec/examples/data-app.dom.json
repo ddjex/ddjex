@@ -1,0 +1,286 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data_app",
+  "target": "dom",
+
+  "state": {
+    "posts": { "type": "array", "initial": [], "itemType": "object" },
+    "selectedPost": { "type": "object", "initial": null, "nullable": true },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "", "nullable": true },
+    "searchQuery": { "type": "string", "initial": "" },
+    "page": { "type": "number", "initial": 1 },
+    "postsPerPage": { "type": "number", "initial": 10 }
+  },
+
+  "computed": {
+    "filteredPosts": {
+      "deps": ["posts", "searchQuery"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "searchQuery" }, ""] },
+          { "ref": "posts" },
+          {
+            "op": "filter",
+            "args": [
+              { "ref": "posts" },
+              {
+                "op": "or",
+                "args": [
+                  { "op": "includes", "args": [{ "op": "toLowerCase", "args": [{ "op": "get", "args": [{ "param": "item" }, "title"] }] }, { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }] },
+                  { "op": "includes", "args": [{ "op": "toLowerCase", "args": [{ "op": "get", "args": [{ "param": "item" }, "body"] }] }, { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "paginatedPosts": {
+      "deps": ["filteredPosts", "page", "postsPerPage"],
+      "fn": {
+        "op": "slice",
+        "args": [
+          { "ref": "filteredPosts" },
+          { "op": "multiply", "args": [{ "op": "subtract", "args": [{ "ref": "page" }, 1] }, { "ref": "postsPerPage" }] },
+          { "op": "multiply", "args": [{ "ref": "page" }, { "ref": "postsPerPage" }] }
+        ]
+      }
+    },
+    "totalPages": {
+      "deps": ["filteredPosts", "postsPerPage"],
+      "fn": {
+        "op": "ceil",
+        "args": [{ "op": "divide", "args": [{ "op": "length", "args": [{ "ref": "filteredPosts" }] }, { "ref": "postsPerPage" }] }]
+      }
+    },
+    "hasNextPage": {
+      "deps": ["page", "totalPages"],
+      "fn": { "op": "lt", "args": [{ "ref": "page" }, { "ref": "totalPages" }] }
+    },
+    "hasPrevPage": {
+      "deps": ["page"],
+      "fn": { "op": "gt", "args": [{ "ref": "page" }, 1] }
+    },
+    "postCount": {
+      "deps": ["filteredPosts"],
+      "fn": { "op": "length", "args": [{ "ref": "filteredPosts" }] }
+    }
+  },
+
+  "actions": {
+    "setLoading": {
+      "params": ["value"],
+      "mutations": [{ "target": "loading", "op": "set", "value": { "param": "value" } }]
+    },
+    "setError": {
+      "params": ["message"],
+      "mutations": [{ "target": "error", "op": "set", "value": { "param": "message" } }]
+    },
+    "setPosts": {
+      "params": ["posts"],
+      "mutations": [
+        { "target": "posts", "op": "set", "value": { "param": "posts" } },
+        { "target": "loading", "op": "set", "value": false }
+      ]
+    },
+    "setSearch": {
+      "params": ["query"],
+      "mutations": [
+        { "target": "searchQuery", "op": "set", "value": { "param": "query" } },
+        { "target": "page", "op": "set", "value": 1 }
+      ]
+    },
+    "selectPost": {
+      "params": ["post"],
+      "mutations": [{ "target": "selectedPost", "op": "set", "value": { "param": "post" } }]
+    },
+    "closePost": {
+      "mutations": [{ "target": "selectedPost", "op": "set", "value": null }]
+    },
+    "nextPage": {
+      "mutations": [{ "target": "page", "op": "add", "value": 1 }]
+    },
+    "prevPage": {
+      "mutations": [{ "target": "page", "op": "subtract", "value": 1 }]
+    },
+    "goToPage": {
+      "params": ["pageNum"],
+      "mutations": [{ "target": "page", "op": "set", "value": { "param": "pageNum" } }]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "logPageChange",
+      "watch": ["page"],
+      "do": { "op": "log", "args": ["Page changed to:", { "ref": "page" }] }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "app" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "header" },
+        "children": [
+          { "type": "h1", "children": [{ "text": "ddjex Data App" }] },
+          {
+            "type": "div",
+            "props": { "className": "search-bar" },
+            "children": [
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "placeholder": "Search posts...",
+                  "value": { "ref": "searchQuery" }
+                },
+                "events": {
+                  "input": { "action": "setSearch", "args": [{ "op": "eventValue" }] }
+                }
+              },
+              {
+                "type": "span",
+                "props": { "className": "count" },
+                "children": [{ "bind": "postCount" }, { "text": " posts" }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "if": { "op": "eq", "args": [{ "ref": "loading" }, true] },
+        "then": {
+          "type": "div",
+          "props": { "className": "loading" },
+          "children": [{ "text": "Loading..." }]
+        }
+      },
+
+      {
+        "if": { "op": "neq", "args": [{ "ref": "error" }, ""] },
+        "then": {
+          "type": "div",
+          "props": { "className": "error" },
+          "children": [{ "text": "Error: " }, { "bind": "error" }]
+        }
+      },
+
+      {
+        "type": "main",
+        "props": { "className": "content" },
+        "children": [
+          {
+            "type": "ul",
+            "props": { "className": "post-list" },
+            "each": { "items": "paginatedPosts", "as": "post", "index": "i" },
+            "children": [
+              {
+                "type": "li",
+                "props": { "className": "post-item" },
+                "children": [
+                  {
+                    "type": "h3",
+                    "children": [{ "bind": "post.title" }]
+                  },
+                  {
+                    "type": "p",
+                    "props": { "className": "preview" },
+                    "children": [
+                      {
+                        "bind": "post.body",
+                        "format": { "op": "substring", "args": [{ "param": "value" }, 0, 100] }
+                      },
+                      { "text": "..." }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "events": {
+                      "click": { "action": "selectPost", "args": [{ "ref": "post" }] }
+                    },
+                    "children": [{ "text": "Read more" }]
+                  }
+                ]
+              }
+            ]
+          },
+
+          {
+            "type": "div",
+            "props": { "className": "pagination" },
+            "children": [
+              {
+                "if": { "op": "eq", "args": [{ "ref": "hasPrevPage" }, true] },
+                "then": {
+                  "type": "button",
+                  "events": { "click": { "action": "prevPage" } },
+                  "children": [{ "text": "Previous" }]
+                }
+              },
+              {
+                "type": "span",
+                "props": { "className": "page-info" },
+                "children": [
+                  { "text": "Page " },
+                  { "bind": "page" },
+                  { "text": " of " },
+                  { "bind": "totalPages" }
+                ]
+              },
+              {
+                "if": { "op": "eq", "args": [{ "ref": "hasNextPage" }, true] },
+                "then": {
+                  "type": "button",
+                  "events": { "click": { "action": "nextPage" } },
+                  "children": [{ "text": "Next" }]
+                }
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "if": { "op": "neq", "args": [{ "ref": "selectedPost" }, null] },
+        "then": {
+          "type": "div",
+          "props": { "className": "modal-overlay" },
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": "modal" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "modal-header" },
+                  "children": [
+                    { "type": "h2", "children": [{ "bind": "selectedPost.title" }] },
+                    {
+                      "type": "button",
+                      "props": { "className": "close-btn" },
+                      "events": { "click": { "action": "closePost" } },
+                      "children": [{ "text": "×" }]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "modal-body" },
+                  "children": [
+                    { "type": "p", "children": [{ "bind": "selectedPost.body" }] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,457 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-cache",
+  "target": "dom",
+
+  "state": {
+    "cache": {
+      "type": "object",
+      "initial": {}
+    },
+    "cacheTimestamps": {
+      "type": "object",
+      "initial": {}
+    },
+    "cacheTTL": { "type": "number", "initial": 60000 },
+    "currentQuery": { "type": "string", "initial": "" },
+    "currentData": { "type": "object", "initial": null, "nullable": true },
+    "isLoading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "cacheHits": { "type": "number", "initial": 0 },
+    "cacheMisses": { "type": "number", "initial": 0 },
+    "lastFetchTime": { "type": "number", "initial": 0 }
+  },
+
+  "computed": {
+    "cacheKeys": {
+      "deps": ["cache"],
+      "fn": { "op": "keys", "args": [{ "ref": "cache" }] }
+    },
+    "cacheSize": {
+      "deps": ["cacheKeys"],
+      "fn": { "op": "length", "args": [{ "ref": "cacheKeys" }] }
+    },
+    "hitRate": {
+      "deps": ["cacheHits", "cacheMisses"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "op": "add", "args": [{ "ref": "cacheHits" }, { "ref": "cacheMisses" }] }, 0] },
+          0,
+          {
+            "op": "round",
+            "args": [
+              { "op": "multiply", "args": [{ "op": "divide", "args": [{ "ref": "cacheHits" }, { "op": "add", "args": [{ "ref": "cacheHits" }, { "ref": "cacheMisses" }] }] }, 100] }
+            ]
+          }
+        ]
+      }
+    },
+    "hasData": {
+      "deps": ["currentData"],
+      "fn": { "op": "isDefined", "args": [{ "ref": "currentData" }] }
+    },
+    "wasFromCache": {
+      "deps": ["lastFetchTime"],
+      "fn": { "op": "eq", "args": [{ "ref": "lastFetchTime" }, 0] }
+    }
+  },
+
+  "actions": {
+    "setQuery": {
+      "params": ["query"],
+      "mutations": [
+        { "target": "currentQuery", "op": "set", "value": { "param": "query" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "fetchData": {
+      "mutations": [
+        { "target": "isLoading", "op": "set", "value": true },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "cacheHit": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "currentData", "op": "set", "value": { "param": "data" } },
+        { "target": "isLoading", "op": "set", "value": false },
+        { "target": "cacheHits", "op": "add", "value": 1 },
+        { "target": "lastFetchTime", "op": "set", "value": 0 }
+      ]
+    },
+    "cacheMiss": {
+      "params": ["query", "data", "timestamp"],
+      "mutations": [
+        { "target": "currentData", "op": "set", "value": { "param": "data" } },
+        {
+          "target": "cache",
+          "op": "set",
+          "value": { "op": "set", "args": [{ "ref": "cache" }, { "param": "query" }, { "param": "data" }] }
+        },
+        {
+          "target": "cacheTimestamps",
+          "op": "set",
+          "value": { "op": "set", "args": [{ "ref": "cacheTimestamps" }, { "param": "query" }, { "param": "timestamp" }] }
+        },
+        { "target": "isLoading", "op": "set", "value": false },
+        { "target": "cacheMisses", "op": "add", "value": 1 },
+        { "target": "lastFetchTime", "op": "set", "value": { "param": "timestamp" } }
+      ]
+    },
+    "fetchError": {
+      "params": ["error"],
+      "mutations": [
+        { "target": "error", "op": "set", "value": { "param": "error" } },
+        { "target": "isLoading", "op": "set", "value": false }
+      ]
+    },
+    "clearCache": {
+      "mutations": [
+        { "target": "cache", "op": "set", "value": {} },
+        { "target": "cacheTimestamps", "op": "set", "value": {} },
+        { "target": "cacheHits", "op": "set", "value": 0 },
+        { "target": "cacheMisses", "op": "set", "value": 0 }
+      ]
+    },
+    "invalidateKey": {
+      "params": ["key"],
+      "mutations": [
+        {
+          "target": "cache",
+          "op": "set",
+          "value": { "op": "omit", "args": [{ "ref": "cache" }, [{ "param": "key" }]] }
+        },
+        {
+          "target": "cacheTimestamps",
+          "op": "set",
+          "value": { "op": "omit", "args": [{ "ref": "cacheTimestamps" }, [{ "param": "key" }]] }
+        }
+      ]
+    },
+    "setTTL": {
+      "params": ["ttl"],
+      "mutations": [
+        { "target": "cacheTTL", "op": "set", "value": { "param": "ttl" } }
+      ]
+    },
+    "prefetch": {
+      "params": ["key", "data"],
+      "mutations": [
+        {
+          "target": "cache",
+          "op": "set",
+          "value": { "op": "set", "args": [{ "ref": "cache" }, { "param": "key" }, { "param": "data" }] }
+        },
+        {
+          "target": "cacheTimestamps",
+          "op": "set",
+          "value": { "op": "set", "args": [{ "ref": "cacheTimestamps" }, { "param": "key" }, 0] }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Data Caching Demo" }] },
+      {
+        "type": "div",
+        "props": { "className": "grid grid-cols-4 gap-4 mb-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "bg-white p-4 rounded-lg shadow text-center" },
+            "children": [
+              { "type": "p", "props": { "className": "text-2xl font-bold text-blue-500" }, "children": [{ "bind": "cacheSize" }] },
+              { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Cached Items" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "bg-white p-4 rounded-lg shadow text-center" },
+            "children": [
+              { "type": "p", "props": { "className": "text-2xl font-bold text-green-500" }, "children": [{ "bind": "cacheHits" }] },
+              { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Cache Hits" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "bg-white p-4 rounded-lg shadow text-center" },
+            "children": [
+              { "type": "p", "props": { "className": "text-2xl font-bold text-red-500" }, "children": [{ "bind": "cacheMisses" }] },
+              { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Cache Misses" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "bg-white p-4 rounded-lg shadow text-center" },
+            "children": [
+              {
+                "type": "p",
+                "props": { "className": "text-2xl font-bold text-purple-500" },
+                "children": [{ "bind": "hitRate" }, { "text": "%" }]
+              },
+              { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Hit Rate" }] }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Search Data" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 mb-4" },
+            "children": [
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "className": "flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "placeholder": "Enter search query...",
+                  "value": { "ref": "currentQuery" }
+                },
+                "events": { "input": { "action": "setQuery", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "and", "args": [{ "op": "isNotEmpty", "args": [{ "ref": "currentQuery" }] }, { "op": "not", "args": [{ "ref": "isLoading" }] }] },
+                      "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                      "px-4 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                    ]
+                  },
+                  "disabled": { "op": "or", "args": [{ "op": "isEmpty", "args": [{ "ref": "currentQuery" }] }, { "ref": "isLoading" }] }
+                },
+                "events": { "click": { "action": "fetchData" } },
+                "children": [
+                  { "op": "if", "args": [{ "ref": "isLoading" }, "Loading...", "Search"] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 mb-4" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300" },
+                "events": { "click": { "action": "setQuery", "args": ["users"] } },
+                "children": [{ "text": "users" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300" },
+                "events": { "click": { "action": "setQuery", "args": ["products"] } },
+                "children": [{ "text": "products" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300" },
+                "events": { "click": { "action": "setQuery", "args": ["orders"] } },
+                "children": [{ "text": "orders" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "isNotEmpty", "args": [{ "ref": "error" }] },
+            "then": {
+              "type": "div",
+              "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" },
+              "children": [{ "bind": "error" }]
+            }
+          },
+          {
+            "if": { "ref": "hasData" },
+            "then": {
+              "type": "div",
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "className": {
+                      "op": "if",
+                      "args": [
+                        { "ref": "wasFromCache" },
+                        "bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4",
+                        "bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4"
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "op": "if",
+                      "args": [
+                        { "ref": "wasFromCache" },
+                        "⚡ Loaded from cache (instant)",
+                        "📡 Fetched from server"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "bg-gray-50 p-4 rounded font-mono text-sm" },
+                  "children": [
+                    { "type": "pre", "children": [{ "text": "{ \"source\": \"cached/fetched\", \"query\": \"...\" }" }] }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex justify-between items-center mb-4" },
+            "children": [
+              { "type": "h2", "props": { "className": "text-lg font-semibold" }, "children": [{ "text": "Cache Contents" }] },
+              {
+                "if": { "op": "gt", "args": [{ "ref": "cacheSize" }, 0] },
+                "then": {
+                  "type": "button",
+                  "props": { "className": "text-red-500 hover:text-red-700 text-sm" },
+                  "events": { "click": { "action": "clearCache" } },
+                  "children": [{ "text": "Clear Cache" }]
+                }
+              }
+            ]
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "cacheSize" }, 0] },
+            "then": {
+              "type": "p",
+              "props": { "className": "text-gray-500 text-center py-4" },
+              "children": [{ "text": "Cache is empty. Search for something to populate it." }]
+            },
+            "else": {
+              "type": "div",
+              "props": { "className": "space-y-2" },
+              "each": { "items": "cacheKeys", "as": "key" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "flex items-center justify-between p-3 bg-gray-50 rounded" },
+                  "children": [
+                    {
+                      "type": "div",
+                      "children": [
+                        { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "key" }] },
+                        { "type": "p", "props": { "className": "text-xs text-gray-500" }, "children": [{ "text": "Cached entry" }] }
+                      ]
+                    },
+                    {
+                      "type": "button",
+                      "props": { "className": "text-red-500 hover:text-red-700 text-sm" },
+                      "events": { "click": { "action": "invalidateKey", "args": [{ "ref": "key" }] } },
+                      "children": [{ "text": "Invalidate" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "mt-6 bg-gray-50 rounded-lg p-4" },
+        "children": [
+          { "type": "h3", "props": { "className": "font-semibold mb-2" }, "children": [{ "text": "Cache Settings" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex items-center gap-4" },
+            "children": [
+              { "type": "label", "props": { "className": "text-sm text-gray-600" }, "children": [{ "text": "TTL (seconds):" }] },
+              {
+                "type": "input",
+                "props": {
+                  "type": "number",
+                  "className": "w-24 px-2 py-1 border rounded",
+                  "value": { "op": "divide", "args": [{ "ref": "cacheTTL" }, 1000] },
+                  "min": 1
+                },
+                "events": { "input": { "action": "setTTL", "args": [{ "op": "multiply", "args": [{ "op": "eventValue" }, 1000] }] } }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-empty-cache",
+      "name": "Starts with empty cache",
+      "steps": [
+        { "assert": { "ref": "cacheSize", "eq": 0 } },
+        { "assert": { "ref": "cacheHits", "eq": 0 } },
+        { "assert": { "ref": "cacheMisses", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-cache-miss",
+      "name": "Records cache miss",
+      "steps": [
+        { "dispatch": "cacheMiss", "args": ["users", { "data": "test" }, 1234567890] },
+        { "assert": { "ref": "cacheSize", "eq": 1 } },
+        { "assert": { "ref": "cacheMisses", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-cache-hit",
+      "name": "Records cache hit",
+      "steps": [
+        { "dispatch": "cacheHit", "args": [{ "data": "cached" }] },
+        { "assert": { "ref": "cacheHits", "eq": 1 } },
+        { "assert": { "ref": "wasFromCache", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-hit-rate",
+      "name": "Calculates hit rate",
+      "steps": [
+        { "dispatch": "cacheHit", "args": [{}] },
+        { "dispatch": "cacheHit", "args": [{}] },
+        { "dispatch": "cacheMiss", "args": ["test", {}, 0] },
+        { "dispatch": "cacheMiss", "args": ["test2", {}, 0] },
+        { "assert": { "ref": "hitRate", "eq": 50 } }
+      ]
+    },
+    {
+      "id": "test-clear-cache",
+      "name": "Can clear cache",
+      "steps": [
+        { "dispatch": "cacheMiss", "args": ["key1", {}, 0] },
+        { "dispatch": "cacheMiss", "args": ["key2", {}, 0] },
+        { "assert": { "ref": "cacheSize", "eq": 2 } },
+        { "dispatch": "clearCache" },
+        { "assert": { "ref": "cacheSize", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-invalidate-key",
+      "name": "Can invalidate specific key",
+      "steps": [
+        { "dispatch": "cacheMiss", "args": ["key1", {}, 0] },
+        { "dispatch": "cacheMiss", "args": ["key2", {}, 0] },
+        { "dispatch": "invalidateKey", "args": ["key1"] },
+        { "assert": { "ref": "cacheSize", "eq": 1 } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,603 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "realtime-collab-pattern",
+  "target": "dom",
+  "description": "Pattern for collaborative editing with conflict resolution",
+
+  "state": {
+    "documentId": { "type": "string", "initial": "doc-123" },
+    "content": { "type": "string", "initial": "" },
+    "localVersion": { "type": "number", "initial": 0 },
+    "serverVersion": { "type": "number", "initial": 0 },
+    "pendingChanges": { "type": "array", "initial": [], "itemType": "object" },
+    "collaborators": { "type": "array", "initial": [], "itemType": "object" },
+    "cursors": { "type": "object", "initial": {} },
+    "connected": { "type": "boolean", "initial": false },
+    "syncing": { "type": "boolean", "initial": false },
+    "conflict": { "type": "object", "initial": null, "nullable": true },
+    "lastSyncTime": { "type": "number", "initial": 0 },
+    "currentUser": {
+      "type": "object",
+      "initial": { "id": "user-1", "name": "You", "color": "#3b82f6" }
+    },
+    "selectionStart": { "type": "number", "initial": 0 },
+    "selectionEnd": { "type": "number", "initial": 0 }
+  },
+
+  "computed": {
+    "hasPendingChanges": {
+      "deps": ["pendingChanges"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "pendingChanges" }] }, 0] }
+    },
+    "pendingCount": {
+      "deps": ["pendingChanges"],
+      "fn": { "op": "length", "args": [{ "ref": "pendingChanges" }] }
+    },
+    "collaboratorCount": {
+      "deps": ["collaborators"],
+      "fn": { "op": "length", "args": [{ "ref": "collaborators" }] }
+    },
+    "hasConflict": {
+      "deps": ["conflict"],
+      "fn": { "op": "neq", "args": [{ "ref": "conflict" }, null] }
+    },
+    "syncStatus": {
+      "deps": ["connected", "syncing", "hasPendingChanges", "hasConflict"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "not", "args": [{ "ref": "connected" }] },
+          "offline",
+          {
+            "op": "if",
+            "args": [
+              { "ref": "hasConflict" },
+              "conflict",
+              {
+                "op": "if",
+                "args": [
+                  { "ref": "syncing" },
+                  "syncing",
+                  {
+                    "op": "if",
+                    "args": [
+                      { "ref": "hasPendingChanges" },
+                      "pending",
+                      "synced"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "versionsBehind": {
+      "deps": ["serverVersion", "localVersion"],
+      "fn": { "op": "subtract", "args": [{ "ref": "serverVersion" }, { "ref": "localVersion" }] }
+    },
+    "otherCursors": {
+      "deps": ["cursors", "currentUser"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "op": "entries", "args": [{ "ref": "cursors" }] },
+          { "op": "neq", "args": [{ "op": "get", "args": ["$item", 0] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "connect": {
+      "mutations": [
+        { "target": "connected", "op": "set", "value": true }
+      ]
+    },
+    "disconnect": {
+      "mutations": [
+        { "target": "connected", "op": "set", "value": false }
+      ]
+    },
+    "updateContent": {
+      "params": ["newContent", "changeType"],
+      "mutations": [
+        { "target": "content", "op": "set", "value": { "param": "newContent" } },
+        {
+          "target": "pendingChanges",
+          "op": "push",
+          "value": {
+            "id": { "op": "uuid" },
+            "type": { "param": "changeType" },
+            "content": { "param": "newContent" },
+            "timestamp": { "op": "now" },
+            "version": { "ref": "localVersion" }
+          }
+        },
+        { "target": "localVersion", "op": "add", "value": 1 }
+      ]
+    },
+    "updateSelection": {
+      "params": ["start", "end"],
+      "mutations": [
+        { "target": "selectionStart", "op": "set", "value": { "param": "start" } },
+        { "target": "selectionEnd", "op": "set", "value": { "param": "end" } }
+      ]
+    },
+    "startSync": {
+      "mutations": [
+        { "target": "syncing", "op": "set", "value": true }
+      ]
+    },
+    "syncSuccess": {
+      "params": ["serverVer"],
+      "mutations": [
+        { "target": "syncing", "op": "set", "value": false },
+        { "target": "pendingChanges", "op": "set", "value": [] },
+        { "target": "serverVersion", "op": "set", "value": { "param": "serverVer" } },
+        { "target": "lastSyncTime", "op": "set", "value": { "op": "now" } }
+      ]
+    },
+    "syncError": {
+      "mutations": [
+        { "target": "syncing", "op": "set", "value": false }
+      ]
+    },
+    "receiveRemoteChange": {
+      "params": ["change"],
+      "mutations": [
+        { "target": "serverVersion", "op": "set", "value": { "op": "get", "args": [{ "param": "change" }, "version"] } },
+        {
+          "target": "conflict",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              {
+                "op": "and",
+                "args": [
+                  { "ref": "hasPendingChanges" },
+                  { "op": "gt", "args": [{ "op": "get", "args": [{ "param": "change" }, "version"] }, { "ref": "localVersion" }] }
+                ]
+              },
+              {
+                "local": { "ref": "content" },
+                "remote": { "op": "get", "args": [{ "param": "change" }, "content"] },
+                "baseVersion": { "ref": "localVersion" }
+              },
+              null
+            ]
+          }
+        }
+      ]
+    },
+    "resolveConflict": {
+      "params": ["resolution"],
+      "mutations": [
+        {
+          "target": "content",
+          "op": "set",
+          "value": {
+            "op": "switch",
+            "args": [
+              { "param": "resolution" },
+              {
+                "local": { "ref": "content" },
+                "remote": { "op": "get", "args": [{ "ref": "conflict" }, "remote"] },
+                "merge": {
+                  "op": "concat",
+                  "args": [
+                    { "ref": "content" },
+                    "\n--- merged ---\n",
+                    { "op": "get", "args": [{ "ref": "conflict" }, "remote"] }
+                  ]
+                }
+              },
+              { "ref": "content" }
+            ]
+          }
+        },
+        { "target": "conflict", "op": "set", "value": null },
+        { "target": "pendingChanges", "op": "set", "value": [] },
+        { "target": "localVersion", "op": "set", "value": { "ref": "serverVersion" } }
+      ]
+    },
+    "updateCollaborator": {
+      "params": ["user"],
+      "mutations": [
+        {
+          "target": "collaborators",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "find", "args": [{ "ref": "collaborators" }, { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "op": "get", "args": [{ "param": "user" }, "id"] }] }] },
+              {
+                "op": "map",
+                "args": [
+                  { "ref": "collaborators" },
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "op": "get", "args": [{ "param": "user" }, "id"] }] },
+                      { "param": "user" },
+                      { "$item": true }
+                    ]
+                  }
+                ]
+              },
+              { "op": "concat", "args": [{ "ref": "collaborators" }, [{ "param": "user" }]] }
+            ]
+          }
+        }
+      ]
+    },
+    "removeCollaborator": {
+      "params": ["userId"],
+      "mutations": [
+        {
+          "target": "collaborators",
+          "op": "filter",
+          "predicate": { "op": "neq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "userId" }] }
+        },
+        {
+          "target": "cursors",
+          "op": "omit",
+          "keys": [{ "param": "userId" }]
+        }
+      ]
+    },
+    "updateCursor": {
+      "params": ["userId", "position"],
+      "mutations": [
+        {
+          "target": "cursors",
+          "op": "merge",
+          "value": {
+            "op": "fromEntries",
+            "args": [[[{ "param": "userId" }, { "param": "position" }]]]
+          }
+        }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "connect-ws",
+      "trigger": { "type": "mount" },
+      "do": {
+        "op": "wsConnect",
+        "url": { "op": "concat", "args": ["wss://collab.example.com/doc/", { "ref": "documentId" }] }
+      },
+      "onSuccess": { "action": "connect" },
+      "onError": { "action": "disconnect" }
+    },
+    {
+      "id": "broadcast-cursor",
+      "watch": ["selectionStart", "selectionEnd"],
+      "condition": { "ref": "connected" },
+      "debounce": 50,
+      "do": {
+        "op": "wsSend",
+        "message": {
+          "type": "cursor",
+          "userId": { "op": "get", "args": [{ "ref": "currentUser" }, "id"] },
+          "position": {
+            "start": { "ref": "selectionStart" },
+            "end": { "ref": "selectionEnd" }
+          }
+        }
+      }
+    },
+    {
+      "id": "sync-changes",
+      "watch": ["pendingChanges"],
+      "condition": {
+        "op": "and",
+        "args": [
+          { "ref": "hasPendingChanges" },
+          { "ref": "connected" },
+          { "op": "not", "args": [{ "ref": "syncing" }] },
+          { "op": "not", "args": [{ "ref": "hasConflict" }] }
+        ]
+      },
+      "debounce": 500,
+      "do": { "action": "startSync" }
+    },
+    {
+      "id": "perform-sync",
+      "watch": ["syncing"],
+      "condition": { "ref": "syncing" },
+      "do": {
+        "op": "fetch",
+        "url": { "op": "concat", "args": ["/api/docs/", { "ref": "documentId" }, "/sync"] },
+        "method": "POST",
+        "body": {
+          "changes": { "ref": "pendingChanges" },
+          "baseVersion": { "ref": "localVersion" }
+        }
+      },
+      "onSuccess": { "action": "syncSuccess", "params": { "serverVer": "$result.version" } },
+      "onError": { "action": "syncError" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "collab-editor" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "editor-header" },
+        "children": [
+          {
+            "type": "h2",
+            "children": [
+              { "text": "Collaborative Document" }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "collab-info" },
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": {
+                    "op": "concat",
+                    "args": ["sync-status status-", { "ref": "syncStatus" }]
+                  }
+                },
+                "children": [
+                  {
+                    "op": "switch",
+                    "args": [
+                      { "ref": "syncStatus" },
+                      {
+                        "offline": "⚫ Offline",
+                        "conflict": "⚠️ Conflict",
+                        "syncing": "🔄 Syncing...",
+                        "pending": "📝 Unsaved changes",
+                        "synced": "✓ Saved"
+                      },
+                      "Unknown"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "collaborators" },
+                "children": [
+                  {
+                    "type": "span",
+                    "children": [
+                      { "bind": "collaboratorCount" },
+                      { "text": " online" }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "avatar-list" },
+                    "each": { "items": "collaborators", "as": "collab" },
+                    "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": {
+                          "className": "avatar",
+                          "style": {
+                            "backgroundColor": { "op": "get", "args": [{ "ref": "collab" }, "color"] }
+                          },
+                          "title": { "op": "get", "args": [{ "ref": "collab" }, "name"] }
+                        },
+                        "children": [
+                          {
+                            "op": "slice",
+                            "args": [{ "op": "get", "args": [{ "ref": "collab" }, "name"] }, 0, 1]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "hasConflict" },
+        "props": { "className": "conflict-banner" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "conflict-message" },
+            "children": [
+              { "text": "Conflict detected! Another user made changes. Choose how to resolve:" }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "conflict-options" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "btn-resolve" },
+                "events": { "click": { "action": "resolveConflict", "params": { "resolution": "local" } } },
+                "children": [{ "text": "Keep My Changes" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-resolve" },
+                "events": { "click": { "action": "resolveConflict", "params": { "resolution": "remote" } } },
+                "children": [{ "text": "Use Their Changes" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-resolve btn-merge" },
+                "events": { "click": { "action": "resolveConflict", "params": { "resolution": "merge" } } },
+                "children": [{ "text": "Merge Both" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "editor-container" },
+        "children": [
+          {
+            "type": "textarea",
+            "ref": "editor",
+            "props": {
+              "className": "editor-textarea",
+              "value": { "ref": "content" },
+              "placeholder": "Start typing...",
+              "disabled": { "ref": "hasConflict" }
+            },
+            "events": {
+              "input": {
+                "action": "updateContent",
+                "params": {
+                  "newContent": "$event.target.value",
+                  "changeType": "edit"
+                }
+              },
+              "select": {
+                "action": "updateSelection",
+                "params": {
+                  "start": "$event.target.selectionStart",
+                  "end": "$event.target.selectionEnd"
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "footer",
+        "props": { "className": "editor-footer" },
+        "children": [
+          {
+            "type": "span",
+            "children": [
+              { "text": "Version: " },
+              { "bind": "localVersion" },
+              {
+                "type": "span",
+                "when": { "op": "gt", "args": [{ "ref": "versionsBehind" }, 0] },
+                "props": { "className": "version-behind" },
+                "children": [
+                  { "text": " (" },
+                  { "bind": "versionsBehind" },
+                  { "text": " behind)" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "span",
+            "when": { "ref": "hasPendingChanges" },
+            "children": [
+              { "bind": "pendingCount" },
+              { "text": " pending changes" }
+            ]
+          },
+          {
+            "type": "span",
+            "children": [
+              { "op": "length", "args": [{ "ref": "content" }] },
+              { "text": " characters" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts disconnected with empty content",
+      "steps": [
+        { "assert": { "ref": "connected", "eq": false } },
+        { "assert": { "ref": "content", "eq": "" } },
+        { "assert": { "ref": "localVersion", "eq": 0 } },
+        { "assert": { "ref": "syncStatus", "eq": "offline" } }
+      ]
+    },
+    {
+      "id": "test-connect",
+      "name": "connect sets connected state",
+      "steps": [
+        { "dispatch": "connect" },
+        { "assert": { "ref": "connected", "eq": true } },
+        { "assert": { "ref": "syncStatus", "eq": "synced" } }
+      ]
+    },
+    {
+      "id": "test-update-content",
+      "name": "updateContent adds pending change",
+      "steps": [
+        { "dispatch": "connect" },
+        { "dispatch": "updateContent", "params": { "newContent": "Hello", "changeType": "edit" } },
+        { "assert": { "ref": "content", "eq": "Hello" } },
+        { "assert": { "ref": "hasPendingChanges", "eq": true } },
+        { "assert": { "ref": "pendingCount", "eq": 1 } },
+        { "assert": { "ref": "localVersion", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-sync-success",
+      "name": "syncSuccess clears pending changes",
+      "steps": [
+        { "dispatch": "updateContent", "params": { "newContent": "Test", "changeType": "edit" } },
+        { "assert": { "ref": "hasPendingChanges", "eq": true } },
+        { "dispatch": "syncSuccess", "params": { "serverVer": 1 } },
+        { "assert": { "ref": "hasPendingChanges", "eq": false } },
+        { "assert": { "ref": "serverVersion", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-add-collaborator",
+      "name": "updateCollaborator adds new collaborator",
+      "steps": [
+        { "assert": { "ref": "collaboratorCount", "eq": 0 } },
+        { "dispatch": "updateCollaborator", "params": { "user": { "id": "user-2", "name": "Alice", "color": "#10b981" } } },
+        { "assert": { "ref": "collaboratorCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-remove-collaborator",
+      "name": "removeCollaborator removes user",
+      "steps": [
+        { "dispatch": "updateCollaborator", "params": { "user": { "id": "user-2", "name": "Alice", "color": "#10b981" } } },
+        { "dispatch": "removeCollaborator", "params": { "userId": "user-2" } },
+        { "assert": { "ref": "collaboratorCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-resolve-conflict-local",
+      "name": "resolveConflict with local keeps content",
+      "steps": [
+        { "dispatch": "updateContent", "params": { "newContent": "My content", "changeType": "edit" } },
+        { "dispatch": "receiveRemoteChange", "params": { "change": { "content": "Their content", "version": 5 } } },
+        { "assert": { "ref": "hasConflict", "eq": true } },
+        { "dispatch": "resolveConflict", "params": { "resolution": "local" } },
+        { "assert": { "ref": "content", "eq": "My content" } },
+        { "assert": { "ref": "hasConflict", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-cursor-update",
+      "name": "updateCursor stores cursor position",
+      "steps": [
+        { "dispatch": "updateCursor", "params": { "userId": "user-2", "position": { "start": 10, "end": 20 } } }
+      ]
+    }
+  ]
+}

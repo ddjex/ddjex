@@ -1,0 +1,180 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-dropdown",
+  "target": "dom",
+
+  "state": {
+    "isOpen": { "type": "boolean", "initial": false },
+    "selectedOption": { "type": "object", "initial": null, "nullable": true },
+    "options": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "label": "Option 1", "value": "opt1" },
+        { "id": 2, "label": "Option 2", "value": "opt2" },
+        { "id": 3, "label": "Option 3", "value": "opt3" },
+        { "id": 4, "label": "Option 4", "value": "opt4" }
+      ]
+    }
+  },
+
+  "computed": {
+    "displayText": {
+      "deps": ["selectedOption"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "selectedOption" },
+          { "op": "get", "args": [{ "ref": "selectedOption" }, "label"] },
+          "Select an option..."
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "toggle": {
+      "mutations": [{ "target": "isOpen", "op": "toggle" }]
+    },
+    "close": {
+      "mutations": [{ "target": "isOpen", "op": "set", "value": false }]
+    },
+    "select": {
+      "params": ["option"],
+      "mutations": [
+        { "target": "selectedOption", "op": "set", "value": { "param": "option" } },
+        { "target": "isOpen", "op": "set", "value": false }
+      ]
+    },
+    "clear": {
+      "mutations": [{ "target": "selectedOption", "op": "set", "value": null }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Dropdown Example" }] },
+      {
+        "type": "div",
+        "props": { "className": "relative inline-block w-64" },
+        "children": [
+          {
+            "type": "button",
+            "props": {
+              "className": "w-full px-4 py-2 text-left bg-white border rounded-lg shadow-sm flex items-center justify-between hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            },
+            "events": { "click": { "action": "toggle" } },
+            "children": [
+              { "type": "span", "children": [{ "bind": "displayText" }] },
+              {
+                "type": "span",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "isOpen" },
+                      "transform rotate-180 transition-transform",
+                      "transform rotate-0 transition-transform"
+                    ]
+                  }
+                },
+                "children": [{ "text": "▼" }]
+              }
+            ]
+          },
+          {
+            "if": { "ref": "isOpen" },
+            "then": {
+              "type": "div",
+              "props": { "className": "absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg" },
+              "children": [
+                {
+                  "type": "ul",
+                  "props": { "className": "py-1" },
+                  "each": { "items": "options", "as": "option", "key": { "op": "get", "args": [{ "ref": "option" }, "id"] } },
+                  "children": [
+                    {
+                      "type": "li",
+                      "children": [
+                        {
+                          "type": "button",
+                          "props": {
+                            "className": {
+                              "op": "if",
+                              "args": [
+                                { "op": "and", "args": [
+                                  { "ref": "selectedOption" },
+                                  { "op": "eq", "args": [
+                                    { "op": "get", "args": [{ "ref": "selectedOption" }, "id"] },
+                                    { "op": "get", "args": [{ "ref": "option" }, "id"] }
+                                  ]}
+                                ]},
+                                "w-full px-4 py-2 text-left bg-blue-100 text-blue-700 hover:bg-blue-200",
+                                "w-full px-4 py-2 text-left hover:bg-gray-100"
+                              ]
+                            }
+                          },
+                          "events": { "click": { "action": "select", "args": [{ "ref": "option" }] } },
+                          "children": [{ "bind": "option.label" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "if": { "ref": "selectedOption" },
+        "then": {
+          "type": "div",
+          "props": { "className": "mt-4 p-4 bg-gray-100 rounded-lg" },
+          "children": [
+            { "type": "p", "children": [{ "text": "Selected: " }, { "bind": "selectedOption.label" }] },
+            { "type": "p", "props": { "className": "text-gray-600 text-sm" }, "children": [{ "text": "Value: " }, { "bind": "selectedOption.value" }] },
+            {
+              "type": "button",
+              "props": { "className": "mt-2 text-sm text-red-500 hover:text-red-700" },
+              "events": { "click": { "action": "clear" } },
+              "children": [{ "text": "Clear selection" }]
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-closed",
+      "name": "Dropdown starts closed",
+      "steps": [
+        { "assert": { "ref": "isOpen", "eq": false } },
+        { "assert": { "ref": "selectedOption", "eq": null } }
+      ]
+    },
+    {
+      "id": "test-toggle",
+      "name": "Can toggle dropdown",
+      "steps": [
+        { "dispatch": "toggle" },
+        { "assert": { "ref": "isOpen", "eq": true } },
+        { "dispatch": "toggle" },
+        { "assert": { "ref": "isOpen", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-select",
+      "name": "Selecting closes dropdown",
+      "steps": [
+        { "dispatch": "toggle" },
+        { "dispatch": "select", "args": [{ "id": 1, "label": "Option 1", "value": "opt1" }] },
+        { "assert": { "ref": "isOpen", "eq": false } },
+        { "assert": { "value": { "op": "get", "args": [{ "ref": "selectedOption" }, "id"] }, "eq": 1 } }
+      ]
+    }
+  ]
+}

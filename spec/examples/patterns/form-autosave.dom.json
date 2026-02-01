@@ -1,0 +1,439 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-autosave",
+  "target": "dom",
+
+  "state": {
+    "title": { "type": "string", "initial": "" },
+    "content": { "type": "string", "initial": "" },
+    "tags": { "type": "string", "initial": "" },
+    "lastSaved": { "type": "string", "initial": "" },
+    "isSaving": { "type": "boolean", "initial": false },
+    "hasUnsavedChanges": { "type": "boolean", "initial": false },
+    "saveError": { "type": "string", "initial": "" },
+    "draftId": { "type": "string", "initial": "draft-1" },
+    "autoSaveEnabled": { "type": "boolean", "initial": true },
+    "saveInterval": { "type": "number", "initial": 3000 }
+  },
+
+  "computed": {
+    "wordCount": {
+      "deps": ["content"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "isEmpty", "args": [{ "op": "trim", "args": [{ "ref": "content" }] }] },
+          0,
+          { "op": "length", "args": [{ "op": "split", "args": [{ "op": "trim", "args": [{ "ref": "content" }] }, " "] }] }
+        ]
+      }
+    },
+    "charCount": {
+      "deps": ["content"],
+      "fn": { "op": "length", "args": [{ "ref": "content" }] }
+    },
+    "hasContent": {
+      "deps": ["title", "content"],
+      "fn": {
+        "op": "or",
+        "args": [
+          { "op": "isNotEmpty", "args": [{ "ref": "title" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "content" }] }
+        ]
+      }
+    },
+    "saveStatus": {
+      "deps": ["isSaving", "hasUnsavedChanges", "saveError", "lastSaved"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "isNotEmpty", "args": [{ "ref": "saveError" }] },
+          "error",
+          {
+            "op": "if",
+            "args": [
+              { "ref": "isSaving" },
+              "saving",
+              {
+                "op": "if",
+                "args": [
+                  { "ref": "hasUnsavedChanges" },
+                  "unsaved",
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "isNotEmpty", "args": [{ "ref": "lastSaved" }] },
+                      "saved",
+                      "idle"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "statusText": {
+      "deps": ["saveStatus", "lastSaved"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "saveStatus" },
+          {
+            "error": "Save failed",
+            "saving": "Saving...",
+            "unsaved": "Unsaved changes",
+            "saved": { "op": "concat", "args": ["Last saved: ", { "ref": "lastSaved" }] },
+            "idle": "No changes"
+          },
+          ""
+        ]
+      }
+    },
+    "statusColor": {
+      "deps": ["saveStatus"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "saveStatus" },
+          {
+            "error": "text-red-500",
+            "saving": "text-blue-500",
+            "unsaved": "text-yellow-500",
+            "saved": "text-green-500",
+            "idle": "text-gray-400"
+          },
+          "text-gray-400"
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setTitle": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "title", "op": "set", "value": { "param": "value" } },
+        { "target": "hasUnsavedChanges", "op": "set", "value": true },
+        { "target": "saveError", "op": "set", "value": "" }
+      ]
+    },
+    "setContent": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "content", "op": "set", "value": { "param": "value" } },
+        { "target": "hasUnsavedChanges", "op": "set", "value": true },
+        { "target": "saveError", "op": "set", "value": "" }
+      ]
+    },
+    "setTags": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "tags", "op": "set", "value": { "param": "value" } },
+        { "target": "hasUnsavedChanges", "op": "set", "value": true },
+        { "target": "saveError", "op": "set", "value": "" }
+      ]
+    },
+    "startSave": {
+      "mutations": [
+        { "target": "isSaving", "op": "set", "value": true }
+      ]
+    },
+    "saveSuccess": {
+      "params": ["timestamp"],
+      "mutations": [
+        { "target": "isSaving", "op": "set", "value": false },
+        { "target": "hasUnsavedChanges", "op": "set", "value": false },
+        { "target": "lastSaved", "op": "set", "value": { "param": "timestamp" } },
+        { "target": "saveError", "op": "set", "value": "" }
+      ]
+    },
+    "saveFailure": {
+      "params": ["error"],
+      "mutations": [
+        { "target": "isSaving", "op": "set", "value": false },
+        { "target": "saveError", "op": "set", "value": { "param": "error" } }
+      ]
+    },
+    "manualSave": {
+      "mutations": [
+        { "target": "isSaving", "op": "set", "value": true }
+      ]
+    },
+    "toggleAutoSave": {
+      "mutations": [
+        { "target": "autoSaveEnabled", "op": "set", "value": { "op": "not", "args": [{ "ref": "autoSaveEnabled" }] } }
+      ]
+    },
+    "clearDraft": {
+      "mutations": [
+        { "target": "title", "op": "set", "value": "" },
+        { "target": "content", "op": "set", "value": "" },
+        { "target": "tags", "op": "set", "value": "" },
+        { "target": "hasUnsavedChanges", "op": "set", "value": false },
+        { "target": "lastSaved", "op": "set", "value": "" }
+      ]
+    },
+    "loadDraft": {
+      "params": ["draft"],
+      "mutations": [
+        { "target": "title", "op": "set", "value": { "op": "get", "args": [{ "param": "draft" }, "title"] } },
+        { "target": "content", "op": "set", "value": { "op": "get", "args": [{ "param": "draft" }, "content"] } },
+        { "target": "tags", "op": "set", "value": { "op": "get", "args": [{ "param": "draft" }, "tags"] } },
+        { "target": "hasUnsavedChanges", "op": "set", "value": false }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "autosave",
+      "trigger": { "type": "interval", "interval": 3000 },
+      "condition": {
+        "op": "and",
+        "args": [
+          { "ref": "autoSaveEnabled" },
+          { "ref": "hasUnsavedChanges" },
+          { "op": "not", "args": [{ "ref": "isSaving" }] }
+        ]
+      },
+      "do": { "action": "startSave" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-3xl mx-auto p-6" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mb-6" },
+        "children": [
+          { "type": "h1", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "Draft Editor" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex items-center gap-4" },
+            "children": [
+              {
+                "type": "span",
+                "props": { "className": { "op": "concat", "args": ["text-sm ", { "ref": "statusColor" }] } },
+                "children": [
+                  {
+                    "if": { "op": "eq", "args": [{ "ref": "saveStatus" }, "saving"] },
+                    "then": {
+                      "type": "span",
+                      "props": { "className": "inline-flex items-center" },
+                      "children": [
+                        { "type": "span", "props": { "className": "animate-spin mr-1" }, "children": [{ "text": "⟳" }] },
+                        { "bind": "statusText" }
+                      ]
+                    },
+                    "else": { "bind": "statusText" }
+                  }
+                ]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": "px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-gray-300",
+                  "disabled": { "op": "or", "args": [{ "ref": "isSaving" }, { "op": "not", "args": [{ "ref": "hasUnsavedChanges" }] }] }
+                },
+                "events": { "click": { "action": "manualSave" } },
+                "children": [{ "text": "Save Now" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "op": "isNotEmpty", "args": [{ "ref": "saveError" }] },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center" },
+          "children": [
+            { "type": "span", "children": [{ "text": "Error: " }, { "bind": "saveError" }] },
+            {
+              "type": "button",
+              "props": { "className": "text-red-700 hover:text-red-900" },
+              "events": { "click": { "action": "manualSave" } },
+              "children": [{ "text": "Retry" }]
+            }
+          ]
+        }
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "mb-4" },
+            "children": [
+              { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-2" }, "children": [{ "text": "Title" }] },
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "placeholder": "Enter your title...",
+                  "value": { "ref": "title" }
+                },
+                "events": { "input": { "action": "setTitle", "args": [{ "op": "eventValue" }] } }
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "mb-4" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex justify-between items-center mb-2" },
+                "children": [
+                  { "type": "label", "props": { "className": "block text-gray-700 font-medium" }, "children": [{ "text": "Content" }] },
+                  {
+                    "type": "span",
+                    "props": { "className": "text-sm text-gray-500" },
+                    "children": [{ "bind": "wordCount" }, { "text": " words • " }, { "bind": "charCount" }, { "text": " chars" }]
+                  }
+                ]
+              },
+              {
+                "type": "textarea",
+                "props": {
+                  "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-48",
+                  "placeholder": "Start writing...",
+                  "value": { "ref": "content" }
+                },
+                "events": { "input": { "action": "setContent", "args": [{ "op": "eventValue" }] } }
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "children": [
+              { "type": "label", "props": { "className": "block text-gray-700 font-medium mb-2" }, "children": [{ "text": "Tags (comma-separated)" }] },
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "placeholder": "tag1, tag2, tag3",
+                  "value": { "ref": "tags" }
+                },
+                "events": { "input": { "action": "setTags", "args": [{ "op": "eventValue" }] } }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-gray-50 rounded-lg p-4 flex justify-between items-center" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex items-center gap-4" },
+            "children": [
+              {
+                "type": "label",
+                "props": { "className": "flex items-center gap-2 cursor-pointer" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "checkbox",
+                      "checked": { "ref": "autoSaveEnabled" },
+                      "className": "w-4 h-4"
+                    },
+                    "events": { "change": { "action": "toggleAutoSave" } }
+                  },
+                  { "type": "span", "props": { "className": "text-gray-700" }, "children": [{ "text": "Auto-save every 3 seconds" }] }
+                ]
+              }
+            ]
+          },
+          {
+            "if": { "ref": "hasContent" },
+            "then": {
+              "type": "button",
+              "props": { "className": "text-red-500 hover:text-red-700 text-sm" },
+              "events": { "click": { "action": "clearDraft" } },
+              "children": [{ "text": "Clear Draft" }]
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Starts with empty form",
+      "steps": [
+        { "assert": { "ref": "title", "eq": "" } },
+        { "assert": { "ref": "content", "eq": "" } },
+        { "assert": { "ref": "hasUnsavedChanges", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-unsaved-changes",
+      "name": "Marks unsaved changes when editing",
+      "steps": [
+        { "dispatch": "setTitle", "args": ["My Draft"] },
+        { "assert": { "ref": "hasUnsavedChanges", "eq": true } },
+        { "assert": { "ref": "saveStatus", "eq": "unsaved" } }
+      ]
+    },
+    {
+      "id": "test-save-success",
+      "name": "Save clears unsaved flag",
+      "steps": [
+        { "dispatch": "setContent", "args": ["Some content"] },
+        { "assert": { "ref": "hasUnsavedChanges", "eq": true } },
+        { "dispatch": "saveSuccess", "args": ["2:30 PM"] },
+        { "assert": { "ref": "hasUnsavedChanges", "eq": false } },
+        { "assert": { "ref": "saveStatus", "eq": "saved" } }
+      ]
+    },
+    {
+      "id": "test-save-failure",
+      "name": "Save failure shows error",
+      "steps": [
+        { "dispatch": "setContent", "args": ["Some content"] },
+        { "dispatch": "saveFailure", "args": ["Network error"] },
+        { "assert": { "ref": "saveStatus", "eq": "error" } }
+      ]
+    },
+    {
+      "id": "test-word-count",
+      "name": "Word count calculated correctly",
+      "steps": [
+        { "dispatch": "setContent", "args": ["Hello world from here"] },
+        { "assert": { "ref": "wordCount", "eq": 4 } }
+      ]
+    },
+    {
+      "id": "test-clear-draft",
+      "name": "Clear draft resets form",
+      "steps": [
+        { "dispatch": "setTitle", "args": ["Test Title"] },
+        { "dispatch": "setContent", "args": ["Test Content"] },
+        { "dispatch": "clearDraft" },
+        { "assert": { "ref": "title", "eq": "" } },
+        { "assert": { "ref": "content", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-toggle-autosave",
+      "name": "Can toggle autosave",
+      "steps": [
+        { "assert": { "ref": "autoSaveEnabled", "eq": true } },
+        { "dispatch": "toggleAutoSave" },
+        { "assert": { "ref": "autoSaveEnabled", "eq": false } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,519 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-dynamic-fields",
+  "target": "dom",
+
+  "state": {
+    "contacts": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "type": "email", "value": "" }
+      ]
+    },
+    "nextId": { "type": "number", "initial": 2 },
+    "skills": {
+      "type": "array",
+      "initial": []
+    },
+    "newSkill": { "type": "string", "initial": "" },
+    "experienceItems": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "company": "", "title": "", "years": "" }
+      ]
+    },
+    "nextExpId": { "type": "number", "initial": 2 }
+  },
+
+  "computed": {
+    "contactCount": {
+      "deps": ["contacts"],
+      "fn": { "op": "length", "args": [{ "ref": "contacts" }] }
+    },
+    "skillCount": {
+      "deps": ["skills"],
+      "fn": { "op": "length", "args": [{ "ref": "skills" }] }
+    },
+    "experienceCount": {
+      "deps": ["experienceItems"],
+      "fn": { "op": "length", "args": [{ "ref": "experienceItems" }] }
+    },
+    "canAddContact": {
+      "deps": ["contactCount"],
+      "fn": { "op": "lt", "args": [{ "ref": "contactCount" }, 5] }
+    },
+    "canRemoveContact": {
+      "deps": ["contactCount"],
+      "fn": { "op": "gt", "args": [{ "ref": "contactCount" }, 1] }
+    }
+  },
+
+  "actions": {
+    "addContact": {
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "push",
+          "value": { "id": { "ref": "nextId" }, "type": "email", "value": "" }
+        },
+        { "target": "nextId", "op": "add", "value": 1 }
+      ]
+    },
+    "removeContact": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "contacts" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "updateContactType": {
+      "params": ["id", "type"],
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "contacts" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "type": { "param": "type" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "updateContactValue": {
+      "params": ["id", "value"],
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "contacts" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "value": { "param": "value" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "setNewSkill": {
+      "params": ["value"],
+      "mutations": [{ "target": "newSkill", "op": "set", "value": { "param": "value" } }]
+    },
+    "addSkill": {
+      "mutations": [
+        { "target": "skills", "op": "push", "value": { "ref": "newSkill" } },
+        { "target": "newSkill", "op": "set", "value": "" }
+      ]
+    },
+    "removeSkill": {
+      "params": ["index"],
+      "mutations": [
+        {
+          "target": "skills",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "skills" },
+              { "op": "neq", "args": [{ "ref": "$index" }, { "param": "index" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "addExperience": {
+      "mutations": [
+        {
+          "target": "experienceItems",
+          "op": "push",
+          "value": { "id": { "ref": "nextExpId" }, "company": "", "title": "", "years": "" }
+        },
+        { "target": "nextExpId", "op": "add", "value": 1 }
+      ]
+    },
+    "removeExperience": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "experienceItems",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "experienceItems" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "updateExperience": {
+      "params": ["id", "field", "value"],
+      "mutations": [
+        {
+          "target": "experienceItems",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "experienceItems" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "set", "args": [{ "ref": "$item" }, { "param": "field" }, { "param": "value" }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Dynamic Form Fields" }] },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex justify-between items-center mb-4" },
+            "children": [
+              { "type": "h2", "props": { "className": "text-lg font-semibold" }, "children": [{ "text": "Contact Methods" }] },
+              {
+                "type": "span",
+                "props": { "className": "text-sm text-gray-500" },
+                "children": [{ "bind": "contactCount" }, { "text": " / 5" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "space-y-3" },
+            "each": { "items": "contacts", "as": "contact", "key": { "op": "get", "args": [{ "ref": "contact" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex gap-2" },
+                "children": [
+                  {
+                    "type": "select",
+                    "props": {
+                      "className": "px-3 py-2 border rounded w-32",
+                      "value": { "op": "get", "args": [{ "ref": "contact" }, "type"] }
+                    },
+                    "events": {
+                      "change": {
+                        "action": "updateContactType",
+                        "args": [{ "op": "get", "args": [{ "ref": "contact" }, "id"] }, { "op": "eventValue" }]
+                      }
+                    },
+                    "children": [
+                      { "type": "option", "props": { "value": "email" }, "children": [{ "text": "Email" }] },
+                      { "type": "option", "props": { "value": "phone" }, "children": [{ "text": "Phone" }] },
+                      { "type": "option", "props": { "value": "linkedin" }, "children": [{ "text": "LinkedIn" }] },
+                      { "type": "option", "props": { "value": "twitter" }, "children": [{ "text": "Twitter" }] }
+                    ]
+                  },
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "text",
+                      "className": "flex-1 px-3 py-2 border rounded",
+                      "placeholder": {
+                        "op": "switch",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "contact" }, "type"] },
+                          { "email": "you@example.com", "phone": "+1 (555) 000-0000", "linkedin": "linkedin.com/in/...", "twitter": "@username" },
+                          "Enter value..."
+                        ]
+                      },
+                      "value": { "op": "get", "args": [{ "ref": "contact" }, "value"] }
+                    },
+                    "events": {
+                      "input": {
+                        "action": "updateContactValue",
+                        "args": [{ "op": "get", "args": [{ "ref": "contact" }, "id"] }, { "op": "eventValue" }]
+                      }
+                    }
+                  },
+                  {
+                    "if": { "ref": "canRemoveContact" },
+                    "then": {
+                      "type": "button",
+                      "props": { "className": "px-3 py-2 text-red-500 hover:bg-red-50 rounded" },
+                      "events": { "click": { "action": "removeContact", "args": [{ "op": "get", "args": [{ "ref": "contact" }, "id"] }] } },
+                      "children": [{ "text": "×" }]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "if": { "ref": "canAddContact" },
+            "then": {
+              "type": "button",
+              "props": { "className": "mt-3 text-blue-500 hover:text-blue-700 flex items-center gap-1" },
+              "events": { "click": { "action": "addContact" } },
+              "children": [{ "text": "+ Add Contact Method" }]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Skills" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex flex-wrap gap-2 mb-4" },
+            "each": { "items": "skills", "as": "skill" },
+            "children": [
+              {
+                "type": "span",
+                "props": { "className": "inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full" },
+                "children": [
+                  { "bind": "skill" },
+                  {
+                    "type": "button",
+                    "props": { "className": "ml-1 text-blue-500 hover:text-blue-700" },
+                    "events": { "click": { "action": "removeSkill", "args": [{ "ref": "$index" }] } },
+                    "children": [{ "text": "×" }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2" },
+            "children": [
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "className": "flex-1 px-3 py-2 border rounded",
+                  "placeholder": "Add a skill...",
+                  "value": { "ref": "newSkill" }
+                },
+                "events": { "input": { "action": "setNewSkill", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "isNotEmpty", "args": [{ "ref": "newSkill" }] },
+                      "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                      "px-4 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                    ]
+                  },
+                  "disabled": { "op": "isEmpty", "args": [{ "ref": "newSkill" }] }
+                },
+                "events": { "click": { "action": "addSkill" } },
+                "children": [{ "text": "Add" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Work Experience" }] },
+          {
+            "type": "div",
+            "props": { "className": "space-y-4" },
+            "each": { "items": "experienceItems", "as": "exp", "key": { "op": "get", "args": [{ "ref": "exp" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "p-4 border rounded-lg bg-gray-50" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "flex justify-between items-start mb-3" },
+                    "children": [
+                      { "type": "span", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Experience #" }, { "bind": "$index" }] },
+                      {
+                        "if": { "op": "gt", "args": [{ "ref": "experienceCount" }, 1] },
+                        "then": {
+                          "type": "button",
+                          "props": { "className": "text-red-500 hover:text-red-700" },
+                          "events": { "click": { "action": "removeExperience", "args": [{ "op": "get", "args": [{ "ref": "exp" }, "id"] }] } },
+                          "children": [{ "text": "Remove" }]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "grid grid-cols-1 md:grid-cols-3 gap-3" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "children": [
+                          { "type": "label", "props": { "className": "block text-sm text-gray-600 mb-1" }, "children": [{ "text": "Company" }] },
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "text",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "placeholder": "Company name",
+                              "value": { "op": "get", "args": [{ "ref": "exp" }, "company"] }
+                            },
+                            "events": {
+                              "input": {
+                                "action": "updateExperience",
+                                "args": [{ "op": "get", "args": [{ "ref": "exp" }, "id"] }, "company", { "op": "eventValue" }]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "children": [
+                          { "type": "label", "props": { "className": "block text-sm text-gray-600 mb-1" }, "children": [{ "text": "Job Title" }] },
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "text",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "placeholder": "Your title",
+                              "value": { "op": "get", "args": [{ "ref": "exp" }, "title"] }
+                            },
+                            "events": {
+                              "input": {
+                                "action": "updateExperience",
+                                "args": [{ "op": "get", "args": [{ "ref": "exp" }, "id"] }, "title", { "op": "eventValue" }]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "children": [
+                          { "type": "label", "props": { "className": "block text-sm text-gray-600 mb-1" }, "children": [{ "text": "Years" }] },
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "text",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "placeholder": "2020-2023",
+                              "value": { "op": "get", "args": [{ "ref": "exp" }, "years"] }
+                            },
+                            "events": {
+                              "input": {
+                                "action": "updateExperience",
+                                "args": [{ "op": "get", "args": [{ "ref": "exp" }, "id"] }, "years", { "op": "eventValue" }]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "button",
+            "props": { "className": "mt-4 text-blue-500 hover:text-blue-700 flex items-center gap-1" },
+            "events": { "click": { "action": "addExperience" } },
+            "children": [{ "text": "+ Add Experience" }]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-contact",
+      "name": "Has one initial contact field",
+      "steps": [
+        { "assert": { "ref": "contactCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-add-contact",
+      "name": "Can add contact method",
+      "steps": [
+        { "dispatch": "addContact" },
+        { "assert": { "ref": "contactCount", "eq": 2 } },
+        { "dispatch": "addContact" },
+        { "assert": { "ref": "contactCount", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-remove-contact",
+      "name": "Can remove contact method",
+      "steps": [
+        { "dispatch": "addContact" },
+        { "assert": { "ref": "contactCount", "eq": 2 } },
+        { "dispatch": "removeContact", "args": [1] },
+        { "assert": { "ref": "contactCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-add-skill",
+      "name": "Can add skills",
+      "steps": [
+        { "dispatch": "setNewSkill", "args": ["JavaScript"] },
+        { "dispatch": "addSkill" },
+        { "assert": { "ref": "skillCount", "eq": 1 } },
+        { "dispatch": "setNewSkill", "args": ["React"] },
+        { "dispatch": "addSkill" },
+        { "assert": { "ref": "skillCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-add-experience",
+      "name": "Can add experience items",
+      "steps": [
+        { "assert": { "ref": "experienceCount", "eq": 1 } },
+        { "dispatch": "addExperience" },
+        { "assert": { "ref": "experienceCount", "eq": 2 } }
+      ]
+    }
+  ]
+}

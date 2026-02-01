@@ -1,0 +1,329 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-retry-pattern",
+  "target": "dom",
+  "description": "Pattern for retrying failed API requests with exponential backoff",
+
+  "state": {
+    "data": { "type": "object", "initial": null, "nullable": true },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "object", "initial": null, "nullable": true },
+    "retryCount": { "type": "number", "initial": 0, "constraints": { "min": 0, "max": 5 } },
+    "maxRetries": { "type": "number", "initial": 3 },
+    "retryDelay": { "type": "number", "initial": 1000 },
+    "isRetrying": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "canRetry": {
+      "deps": ["retryCount", "maxRetries", "loading"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "lt", "args": [{ "ref": "retryCount" }, { "ref": "maxRetries" }] },
+          { "op": "not", "args": [{ "ref": "loading" }] }
+        ]
+      }
+    },
+    "nextRetryDelay": {
+      "deps": ["retryDelay", "retryCount"],
+      "fn": {
+        "op": "multiply",
+        "args": [
+          { "ref": "retryDelay" },
+          { "op": "pow", "args": [2, { "ref": "retryCount" }] }
+        ]
+      }
+    },
+    "hasError": {
+      "deps": ["error"],
+      "fn": { "op": "neq", "args": [{ "ref": "error" }, null] }
+    },
+    "retriesRemaining": {
+      "deps": ["maxRetries", "retryCount"],
+      "fn": { "op": "subtract", "args": [{ "ref": "maxRetries" }, { "ref": "retryCount" }] }
+    }
+  },
+
+  "actions": {
+    "fetchData": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true },
+        { "target": "error", "op": "set", "value": null }
+      ]
+    },
+    "fetchSuccess": {
+      "params": ["result"],
+      "mutations": [
+        { "target": "data", "op": "set", "value": { "param": "result" } },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": null },
+        { "target": "retryCount", "op": "set", "value": 0 },
+        { "target": "isRetrying", "op": "set", "value": false }
+      ]
+    },
+    "fetchError": {
+      "params": ["err"],
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": { "param": "err" } }
+      ]
+    },
+    "startRetry": {
+      "mutations": [
+        { "target": "isRetrying", "op": "set", "value": true },
+        { "target": "retryCount", "op": "add", "value": 1 }
+      ]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "data", "op": "set", "value": null },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": null },
+        { "target": "retryCount", "op": "set", "value": 0 },
+        { "target": "isRetrying", "op": "set", "value": false }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "initial-fetch",
+      "trigger": { "type": "mount" },
+      "do": { "action": "fetchData" }
+    },
+    {
+      "id": "perform-fetch",
+      "watch": ["loading"],
+      "condition": { "ref": "loading" },
+      "do": {
+        "op": "fetch",
+        "url": "/api/data",
+        "method": "GET"
+      },
+      "onSuccess": { "action": "fetchSuccess", "params": { "result": "$result" } },
+      "onError": { "action": "fetchError", "params": { "err": "$error" } }
+    },
+    {
+      "id": "auto-retry",
+      "watch": ["error", "canRetry", "isRetrying"],
+      "condition": {
+        "op": "and",
+        "args": [
+          { "ref": "hasError" },
+          { "ref": "canRetry" },
+          { "op": "not", "args": [{ "ref": "isRetrying" }] }
+        ]
+      },
+      "debounce": { "ref": "nextRetryDelay" },
+      "do": { "action": "startRetry" }
+    },
+    {
+      "id": "retry-fetch",
+      "watch": ["isRetrying"],
+      "condition": { "ref": "isRetrying" },
+      "do": { "action": "fetchData" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "retry-container" },
+    "children": [
+      {
+        "type": "h2",
+        "children": [{ "text": "Data Fetch with Retry" }]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "loading" },
+        "props": { "className": "loading-state" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "spinner" }
+          },
+          {
+            "type": "span",
+            "children": [
+              {
+                "op": "if",
+                "args": [
+                  { "op": "gt", "args": [{ "ref": "retryCount" }, 0] },
+                  { "op": "concat", "args": ["Retrying... (attempt ", { "ref": "retryCount" }, ")"] },
+                  "Loading..."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "hasError" },
+        "props": { "className": "error-state" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "error-message" },
+            "children": [
+              { "text": "Error: " },
+              { "op": "get", "args": [{ "ref": "error" }, "message"] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "retry-info" },
+            "children": [
+              {
+                "op": "if",
+                "args": [
+                  { "ref": "canRetry" },
+                  {
+                    "op": "concat",
+                    "args": [
+                      "Retrying in ",
+                      { "op": "divide", "args": [{ "ref": "nextRetryDelay" }, 1000] },
+                      "s (",
+                      { "ref": "retriesRemaining" },
+                      " retries remaining)"
+                    ]
+                  },
+                  "Max retries reached"
+                ]
+              }
+            ]
+          },
+          {
+            "type": "button",
+            "props": { "className": "btn-retry" },
+            "events": { "click": { "action": "reset" } },
+            "children": [{ "text": "Reset & Try Again" }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": {
+          "op": "and",
+          "args": [
+            { "op": "neq", "args": [{ "ref": "data" }, null] },
+            { "op": "not", "args": [{ "ref": "loading" }] }
+          ]
+        },
+        "props": { "className": "success-state" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "success-message" },
+            "children": [{ "text": "Data loaded successfully!" }]
+          },
+          {
+            "type": "pre",
+            "children": [
+              { "op": "stringify", "args": [{ "ref": "data" }, null, 2] }
+            ]
+          },
+          {
+            "type": "button",
+            "props": { "className": "btn-refresh" },
+            "events": { "click": { "action": "reset" } },
+            "children": [{ "text": "Refresh Data" }]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "initial state is correct",
+      "steps": [
+        { "assert": { "ref": "data", "eq": null } },
+        { "assert": { "ref": "retryCount", "eq": 0 } },
+        { "assert": { "ref": "maxRetries", "eq": 3 } },
+        { "assert": { "ref": "canRetry", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-fetch-loading",
+      "name": "fetchData sets loading state",
+      "steps": [
+        { "dispatch": "fetchData" },
+        { "assert": { "ref": "loading", "eq": true } },
+        { "assert": { "ref": "error", "eq": null } }
+      ]
+    },
+    {
+      "id": "test-fetch-success",
+      "name": "fetchSuccess updates data and resets retry count",
+      "steps": [
+        { "dispatch": "startRetry" },
+        { "dispatch": "startRetry" },
+        { "assert": { "ref": "retryCount", "eq": 2 } },
+        { "dispatch": "fetchSuccess", "params": { "result": { "id": 1, "name": "Test" } } },
+        { "assert": { "ref": "data", "type": "object" } },
+        { "assert": { "ref": "retryCount", "eq": 0 } },
+        { "assert": { "ref": "loading", "eq": false } },
+        { "assert": { "ref": "isRetrying", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-fetch-error",
+      "name": "fetchError sets error state",
+      "steps": [
+        { "dispatch": "fetchError", "params": { "err": { "message": "Network error" } } },
+        { "assert": { "ref": "hasError", "eq": true } },
+        { "assert": { "ref": "loading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-retry-increment",
+      "name": "startRetry increments retry count",
+      "steps": [
+        { "assert": { "ref": "retryCount", "eq": 0 } },
+        { "dispatch": "startRetry" },
+        { "assert": { "ref": "retryCount", "eq": 1 } },
+        { "assert": { "ref": "isRetrying", "eq": true } },
+        { "dispatch": "startRetry" },
+        { "assert": { "ref": "retryCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-exponential-backoff",
+      "name": "retry delay increases exponentially",
+      "steps": [
+        { "assert": { "ref": "nextRetryDelay", "eq": 1000 } },
+        { "dispatch": "startRetry" },
+        { "assert": { "ref": "nextRetryDelay", "eq": 2000 } },
+        { "dispatch": "startRetry" },
+        { "assert": { "ref": "nextRetryDelay", "eq": 4000 } }
+      ]
+    },
+    {
+      "id": "test-max-retries",
+      "name": "canRetry becomes false after max retries",
+      "steps": [
+        { "dispatch": "startRetry" },
+        { "dispatch": "startRetry" },
+        { "dispatch": "startRetry" },
+        { "assert": { "ref": "retryCount", "eq": 3 } },
+        { "assert": { "ref": "canRetry", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-reset",
+      "name": "reset clears all state",
+      "steps": [
+        { "dispatch": "fetchSuccess", "params": { "result": { "test": true } } },
+        { "dispatch": "startRetry" },
+        { "dispatch": "reset" },
+        { "assert": { "ref": "data", "eq": null } },
+        { "assert": { "ref": "retryCount", "eq": 0 } },
+        { "assert": { "ref": "isRetrying", "eq": false } },
+        { "assert": { "ref": "error", "eq": null } }
+      ]
+    }
+  ]
+}

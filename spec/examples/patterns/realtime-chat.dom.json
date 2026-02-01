@@ -1,0 +1,451 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "realtime-chat",
+  "target": "dom",
+
+  "state": {
+    "currentUser": {
+      "type": "object",
+      "initial": { "id": 1, "name": "You", "avatar": "👤" }
+    },
+    "messages": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "userId": 2, "user": "Alice", "avatar": "👩", "text": "Hey everyone! How's it going?", "timestamp": "10:30 AM" },
+        { "id": 2, "userId": 3, "user": "Bob", "avatar": "👨", "text": "Pretty good! Working on the new feature.", "timestamp": "10:31 AM" },
+        { "id": 3, "userId": 2, "user": "Alice", "avatar": "👩", "text": "Nice! Let me know if you need help.", "timestamp": "10:32 AM" }
+      ]
+    },
+    "newMessage": { "type": "string", "initial": "" },
+    "nextMessageId": { "type": "number", "initial": 4 },
+    "isTyping": { "type": "array", "initial": [] },
+    "onlineUsers": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "name": "You", "avatar": "👤", "status": "online" },
+        { "id": 2, "name": "Alice", "avatar": "👩", "status": "online" },
+        { "id": 3, "name": "Bob", "avatar": "👨", "status": "away" },
+        { "id": 4, "name": "Carol", "avatar": "👩‍💼", "status": "offline" }
+      ]
+    },
+    "showEmojiPicker": { "type": "boolean", "initial": false },
+    "selectedEmoji": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "messageCount": {
+      "deps": ["messages"],
+      "fn": { "op": "length", "args": [{ "ref": "messages" }] }
+    },
+    "onlineCount": {
+      "deps": ["onlineUsers"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "onlineUsers" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "online"] }] }
+        ]
+      }
+    },
+    "isTypingText": {
+      "deps": ["isTyping"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "isTyping" }] }, 0] },
+          { "op": "concat", "args": [{ "op": "join", "args": [{ "ref": "isTyping" }, ", "] }, " is typing..."] },
+          ""
+        ]
+      }
+    },
+    "canSend": {
+      "deps": ["newMessage"],
+      "fn": { "op": "isNotEmpty", "args": [{ "ref": "newMessage" }] }
+    }
+  },
+
+  "actions": {
+    "setNewMessage": {
+      "params": ["value"],
+      "mutations": [{ "target": "newMessage", "op": "set", "value": { "param": "value" } }]
+    },
+    "sendMessage": {
+      "mutations": [
+        {
+          "target": "messages",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextMessageId" },
+            "userId": { "op": "get", "args": [{ "ref": "currentUser" }, "id"] },
+            "user": { "op": "get", "args": [{ "ref": "currentUser" }, "name"] },
+            "avatar": { "op": "get", "args": [{ "ref": "currentUser" }, "avatar"] },
+            "text": { "ref": "newMessage" },
+            "timestamp": "Just now"
+          }
+        },
+        { "target": "nextMessageId", "op": "add", "value": 1 },
+        { "target": "newMessage", "op": "set", "value": "" }
+      ]
+    },
+    "addTypingUser": {
+      "params": ["name"],
+      "mutations": [
+        {
+          "target": "isTyping",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "includes", "args": [{ "ref": "isTyping" }, { "param": "name" }] },
+              { "ref": "isTyping" },
+              { "op": "concat", "args": [{ "ref": "isTyping" }, [{ "param": "name" }]] }
+            ]
+          }
+        }
+      ]
+    },
+    "removeTypingUser": {
+      "params": ["name"],
+      "mutations": [
+        {
+          "target": "isTyping",
+          "op": "set",
+          "value": { "op": "filter", "args": [{ "ref": "isTyping" }, { "op": "neq", "args": [{ "ref": "$item" }, { "param": "name" }] }] }
+        }
+      ]
+    },
+    "receiveMessage": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "messages", "op": "push", "value": { "param": "message" } },
+        { "target": "nextMessageId", "op": "add", "value": 1 }
+      ]
+    },
+    "toggleEmojiPicker": {
+      "mutations": [
+        { "target": "showEmojiPicker", "op": "set", "value": { "op": "not", "args": [{ "ref": "showEmojiPicker" }] } }
+      ]
+    },
+    "insertEmoji": {
+      "params": ["emoji"],
+      "mutations": [
+        { "target": "newMessage", "op": "set", "value": { "op": "concat", "args": [{ "ref": "newMessage" }, { "param": "emoji" }] } },
+        { "target": "showEmojiPicker", "op": "set", "value": false }
+      ]
+    },
+    "updateUserStatus": {
+      "params": ["userId", "status"],
+      "mutations": [
+        {
+          "target": "onlineUsers",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "onlineUsers" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "userId" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": { "param": "status" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-4xl mx-auto h-screen flex flex-col p-4" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-t-lg shadow-md p-4 border-b flex justify-between items-center" },
+        "children": [
+          {
+            "type": "div",
+            "children": [
+              { "type": "h1", "props": { "className": "text-xl font-bold" }, "children": [{ "text": "Team Chat" }] },
+              {
+                "type": "p",
+                "props": { "className": "text-sm text-gray-500" },
+                "children": [{ "bind": "onlineCount" }, { "text": " online" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex -space-x-2" },
+            "each": { "items": "onlineUsers", "as": "user" },
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": "relative",
+                  "title": { "op": "get", "args": [{ "ref": "user" }, "name"] }
+                },
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "inline-block w-10 h-10 bg-gray-200 rounded-full text-center leading-10 text-xl border-2 border-white" },
+                    "children": [{ "bind": "user.avatar" }]
+                  },
+                  {
+                    "type": "span",
+                    "props": {
+                      "className": {
+                        "op": "concat",
+                        "args": [
+                          "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ",
+                          {
+                            "op": "switch",
+                            "args": [
+                              { "op": "get", "args": [{ "ref": "user" }, "status"] },
+                              { "online": "bg-green-500", "away": "bg-yellow-500", "offline": "bg-gray-400" },
+                              "bg-gray-400"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "flex-1 bg-gray-50 overflow-y-auto p-4 space-y-4" },
+        "children": [
+          {
+            "type": "div",
+            "each": { "items": "messages", "as": "message", "key": { "op": "get", "args": [{ "ref": "message" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "message" }, "userId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                      "flex justify-end",
+                      "flex justify-start"
+                    ]
+                  }
+                },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "message" }, "userId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                          "max-w-xs md:max-w-md",
+                          "max-w-xs md:max-w-md flex gap-2"
+                        ]
+                      }
+                    },
+                    "children": [
+                      {
+                        "if": { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "message" }, "userId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                        "then": {
+                          "type": "span",
+                          "props": { "className": "w-8 h-8 bg-gray-200 rounded-full text-center leading-8 flex-shrink-0" },
+                          "children": [{ "bind": "message.avatar" }]
+                        }
+                      },
+                      {
+                        "type": "div",
+                        "children": [
+                          {
+                            "if": { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "message" }, "userId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                            "then": {
+                              "type": "p",
+                              "props": { "className": "text-xs text-gray-500 mb-1" },
+                              "children": [{ "bind": "message.user" }]
+                            }
+                          },
+                          {
+                            "type": "div",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "message" }, "userId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                                  "bg-blue-500 text-white px-4 py-2 rounded-2xl rounded-br-md",
+                                  "bg-white px-4 py-2 rounded-2xl rounded-bl-md shadow"
+                                ]
+                              }
+                            },
+                            "children": [{ "bind": "message.text" }]
+                          },
+                          {
+                            "type": "p",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "message" }, "userId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                                  "text-xs text-gray-400 mt-1 text-right",
+                                  "text-xs text-gray-400 mt-1"
+                                ]
+                              }
+                            },
+                            "children": [{ "bind": "message.timestamp" }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "if": { "op": "isNotEmpty", "args": [{ "ref": "isTypingText" }] },
+            "then": {
+              "type": "div",
+              "props": { "className": "flex items-center gap-2 text-gray-500 text-sm" },
+              "children": [
+                {
+                  "type": "span",
+                  "props": { "className": "flex gap-1" },
+                  "children": [
+                    { "type": "span", "props": { "className": "w-2 h-2 bg-gray-400 rounded-full animate-bounce" } },
+                    { "type": "span", "props": { "className": "w-2 h-2 bg-gray-400 rounded-full animate-bounce", "style": { "animation-delay": "0.1s" } } },
+                    { "type": "span", "props": { "className": "w-2 h-2 bg-gray-400 rounded-full animate-bounce", "style": { "animation-delay": "0.2s" } } }
+                  ]
+                },
+                { "bind": "isTypingText" }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-b-lg shadow-md p-4 border-t" },
+        "children": [
+          {
+            "if": { "ref": "showEmojiPicker" },
+            "then": {
+              "type": "div",
+              "props": { "className": "flex gap-2 mb-3 flex-wrap" },
+              "children": [
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["😀"] } }, "children": [{ "text": "😀" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["😂"] } }, "children": [{ "text": "😂" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["❤️"] } }, "children": [{ "text": "❤️" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["👍"] } }, "children": [{ "text": "👍" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["🎉"] } }, "children": [{ "text": "🎉" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["🔥"] } }, "children": [{ "text": "🔥" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["💯"] } }, "children": [{ "text": "💯" }] },
+                { "type": "button", "props": { "className": "text-2xl hover:bg-gray-100 p-1 rounded" }, "events": { "click": { "action": "insertEmoji", "args": ["🙏"] } }, "children": [{ "text": "🙏" }] }
+              ]
+            }
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded" },
+                "events": { "click": { "action": "toggleEmojiPicker" } },
+                "children": [{ "text": "😊" }]
+              },
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "placeholder": "Type a message...",
+                  "className": "flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "value": { "ref": "newMessage" }
+                },
+                "events": { "input": { "action": "setNewMessage", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "canSend" },
+                      "p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600",
+                      "p-2 bg-gray-200 text-gray-400 rounded-full cursor-not-allowed"
+                    ]
+                  },
+                  "disabled": { "op": "not", "args": [{ "ref": "canSend" }] }
+                },
+                "events": { "click": { "action": "sendMessage" } },
+                "children": [{ "text": "➤" }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-messages",
+      "name": "Has initial messages",
+      "steps": [
+        { "assert": { "ref": "messageCount", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-send-message",
+      "name": "Can send a message",
+      "steps": [
+        { "dispatch": "setNewMessage", "args": ["Hello everyone!"] },
+        { "assert": { "ref": "canSend", "eq": true } },
+        { "dispatch": "sendMessage" },
+        { "assert": { "ref": "messageCount", "eq": 4 } },
+        { "assert": { "ref": "newMessage", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-empty-message-blocked",
+      "name": "Cannot send empty message",
+      "steps": [
+        { "assert": { "ref": "newMessage", "eq": "" } },
+        { "assert": { "ref": "canSend", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-typing-indicator",
+      "name": "Typing indicator works",
+      "steps": [
+        { "dispatch": "addTypingUser", "args": ["Alice"] },
+        { "assert": { "ref": "isTypingText", "contains": "Alice" } },
+        { "dispatch": "removeTypingUser", "args": ["Alice"] },
+        { "assert": { "ref": "isTypingText", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-emoji-insert",
+      "name": "Can insert emoji",
+      "steps": [
+        { "dispatch": "setNewMessage", "args": ["Hello "] },
+        { "dispatch": "insertEmoji", "args": ["😀"] },
+        { "assert": { "ref": "newMessage", "eq": "Hello 😀" } }
+      ]
+    },
+    {
+      "id": "test-online-count",
+      "name": "Counts online users correctly",
+      "steps": [
+        { "assert": { "ref": "onlineCount", "eq": 2 } },
+        { "dispatch": "updateUserStatus", "args": [3, "online"] },
+        { "assert": { "ref": "onlineCount", "eq": 3 } }
+      ]
+    }
+  ]
+}

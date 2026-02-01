@@ -1,0 +1,353 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "error_handling",
+  "target": "dom",
+  "state": {
+    "dividend": { "type": "number", "initial": 100 },
+    "divisor": { "type": "number", "initial": 10 },
+    "result": { "type": "object", "initial": null, "nullable": true },
+    "fetchError": { "type": "object", "initial": null, "nullable": true },
+    "fetchData": { "type": "object", "initial": null, "nullable": true },
+    "loading": { "type": "boolean", "initial": false },
+    "username": {
+      "type": "string",
+      "initial": "",
+      "constraints": {
+        "minLength": 3,
+        "maxLength": 20,
+        "pattern": "^[a-zA-Z0-9_]+$",
+        "message": "Username must be 3-20 alphanumeric characters"
+      }
+    },
+    "constraintError": { "type": "object", "initial": null, "nullable": true },
+    "balance": {
+      "type": "number",
+      "initial": 100,
+      "constraints": {
+        "min": 0,
+        "message": "Balance cannot be negative"
+      }
+    }
+  },
+  "computed": {
+    "hasError": {
+      "deps": ["result"],
+      "fn": { "op": "and", "args": [
+        { "op": "neq", "args": [{ "ref": "result" }, null] },
+        { "op": "get", "args": [{ "ref": "result" }, "error"] }
+      ]}
+    },
+    "divisionResult": {
+      "deps": ["result"],
+      "fn": { "op": "if", "args": [
+        { "op": "and", "args": [
+          { "op": "neq", "args": [{ "ref": "result" }, null] },
+          { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "result" }, "error"] }] }
+        ]},
+        { "op": "get", "args": [{ "ref": "result" }, "value"] },
+        null
+      ]}
+    }
+  },
+  "actions": {
+    "setDividend": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "dividend", "op": "set", "value": { "param": "value" } },
+        { "target": "result", "op": "set", "value": null }
+      ]
+    },
+    "setDivisor": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "divisor", "op": "set", "value": { "param": "value" } },
+        { "target": "result", "op": "set", "value": null }
+      ]
+    },
+    "divide": {
+      "mutations": [
+        {
+          "target": "result",
+          "op": "set",
+          "value": {
+            "op": "if", "args": [
+              { "op": "eq", "args": [{ "ref": "divisor" }, 0] },
+              { "error": true, "code": "DIVISION_BY_ZERO", "message": "Cannot divide by zero" },
+              { "value": { "op": "divide", "args": [{ "ref": "dividend" }, { "ref": "divisor" }] } }
+            ]
+          }
+        }
+      ]
+    },
+    "setUsername": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "username", "op": "set", "value": { "param": "value" } },
+        { "target": "constraintError", "op": "set", "value": null }
+      ]
+    },
+    "setConstraintError": {
+      "params": ["error"],
+      "mutations": [
+        { "target": "constraintError", "op": "set", "value": { "param": "error" } }
+      ]
+    },
+    "withdraw": {
+      "params": ["amount"],
+      "mutations": [
+        { "target": "balance", "op": "subtract", "value": { "param": "amount" } }
+      ]
+    },
+    "setLoading": {
+      "params": ["value"],
+      "mutations": [{ "target": "loading", "op": "set", "value": { "param": "value" } }]
+    },
+    "setFetchData": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "fetchData", "op": "set", "value": { "param": "data" } },
+        { "target": "fetchError", "op": "set", "value": null }
+      ]
+    },
+    "setFetchError": {
+      "params": ["error"],
+      "mutations": [
+        { "target": "fetchError", "op": "set", "value": { "param": "error" } },
+        { "target": "fetchData", "op": "set", "value": null }
+      ]
+    }
+  },
+  "effects": [
+    {
+      "id": "fetchWithErrorHandling",
+      "trigger": "mount",
+      "do": { "op": "fetch", "args": ["https://jsonplaceholder.typicode.com/users/1"] },
+      "onStart": { "action": "setLoading", "params": { "value": true } },
+      "onSuccess": { "action": "setFetchData", "params": { "data": { "param": "result" } } },
+      "onError": { "action": "setFetchError", "params": { "error": { "param": "error" } } }
+    }
+  ],
+  "root": {
+    "type": "div",
+    "props": { "style": "font-family: system-ui; max-width: 600px; margin: 0 auto; padding: 20px;" },
+    "children": [
+      { "type": "h1", "children": [{ "text": "Error Handling Patterns" }] },
+
+      {
+        "type": "section",
+        "props": { "style": "margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;" },
+        "children": [
+          { "type": "h2", "children": [{ "text": "1. Division by Zero" }] },
+          { "type": "p", "props": { "style": "color: #666;" }, "children": [
+            { "text": "ddjex returns structured error objects instead of Infinity" }
+          ]},
+          {
+            "type": "div",
+            "props": { "style": "display: flex; gap: 10px; align-items: center; margin: 10px 0;" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "number", "value": { "ref": "dividend" }, "style": "width: 80px; padding: 8px;" },
+                "events": { "input": { "action": "setDividend", "params": { "value": { "op": "toNumber", "args": [{ "op": "eventValue" }] } } } }
+              },
+              { "type": "span", "children": [{ "text": " ÷ " }] },
+              {
+                "type": "input",
+                "props": { "type": "number", "value": { "ref": "divisor" }, "style": "width: 80px; padding: 8px;" },
+                "events": { "input": { "action": "setDivisor", "params": { "value": { "op": "toNumber", "args": [{ "op": "eventValue" }] } } } }
+              },
+              {
+                "type": "button",
+                "props": { "style": "padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;" },
+                "events": { "click": { "action": "divide" } },
+                "children": [{ "text": "Calculate" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "neq", "args": [{ "ref": "result" }, null] },
+            "then": {
+              "type": "div",
+              "props": {
+                "style": {
+                  "op": "if", "args": [
+                    { "ref": "hasError" },
+                    "padding: 10px; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c00;",
+                    "padding: 10px; background: #efe; border: 1px solid #cfc; border-radius: 4px; color: #060;"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "if": { "ref": "hasError" },
+                  "then": {
+                    "type": "div",
+                    "children": [
+                      { "type": "strong", "children": [{ "text": "Error: " }] },
+                      { "bind": "result.message" },
+                      { "type": "div", "props": { "style": "font-size: 12px; color: #666; margin-top: 5px;" }, "children": [
+                        { "text": "Code: " }, { "bind": "result.code" }
+                      ]}
+                    ]
+                  },
+                  "else": {
+                    "type": "div",
+                    "children": [
+                      { "type": "strong", "children": [{ "text": "Result: " }] },
+                      { "bind": "divisionResult" }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "style": "margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;" },
+        "children": [
+          { "type": "h2", "children": [{ "text": "2. Constraint Violations" }] },
+          { "type": "p", "props": { "style": "color: #666;" }, "children": [
+            { "text": "State constraints are validated at runtime" }
+          ]},
+          {
+            "type": "div",
+            "props": { "style": "margin: 10px 0;" },
+            "children": [
+              { "type": "label", "props": { "style": "display: block; margin-bottom: 5px;" }, "children": [
+                { "text": "Username (3-20 alphanumeric chars):" }
+              ]},
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "value": { "ref": "username" },
+                  "placeholder": "Enter username",
+                  "style": "padding: 8px; width: 200px;"
+                },
+                "events": { "input": { "action": "setUsername", "params": { "value": { "op": "eventValue" } } } }
+              }
+            ]
+          },
+          {
+            "if": { "op": "neq", "args": [{ "ref": "constraintError" }, null] },
+            "then": {
+              "type": "div",
+              "props": { "style": "padding: 10px; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c00; margin-top: 10px;" },
+              "children": [
+                { "type": "strong", "children": [{ "text": "Constraint Violation: " }] },
+                { "bind": "constraintError.message" },
+                { "type": "div", "props": { "style": "font-size: 12px; margin-top: 5px;" }, "children": [
+                  { "text": "State: " }, { "bind": "constraintError.state" },
+                  { "text": " | Constraint: " }, { "bind": "constraintError.constraint" }
+                ]}
+              ]
+            }
+          },
+          {
+            "type": "div",
+            "props": { "style": "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;" },
+            "children": [
+              { "type": "label", "props": { "style": "display: block; margin-bottom: 5px;" }, "children": [
+                { "text": "Balance: $" }, { "bind": "balance" }, { "text": " (min: 0)" }
+              ]},
+              {
+                "type": "button",
+                "props": { "style": "padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;" },
+                "events": { "click": { "action": "withdraw", "params": { "amount": 150 } } },
+                "children": [{ "text": "Withdraw $150 (will fail if balance < 150)" }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "style": "margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;" },
+        "children": [
+          { "type": "h2", "children": [{ "text": "3. Async Effect Errors" }] },
+          { "type": "p", "props": { "style": "color: #666;" }, "children": [
+            { "text": "Effects have onSuccess/onError callbacks for handling async results" }
+          ]},
+          {
+            "if": { "ref": "loading" },
+            "then": {
+              "type": "div",
+              "props": { "style": "padding: 10px; background: #f0f0f0; border-radius: 4px;" },
+              "children": [{ "text": "Loading..." }]
+            },
+            "else": {
+              "type": "div",
+              "children": [
+                {
+                  "if": { "op": "neq", "args": [{ "ref": "fetchError" }, null] },
+                  "then": {
+                    "type": "div",
+                    "props": { "style": "padding: 10px; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c00;" },
+                    "children": [
+                      { "type": "strong", "children": [{ "text": "Fetch Error: " }] },
+                      { "bind": "fetchError.message" }
+                    ]
+                  }
+                },
+                {
+                  "if": { "op": "neq", "args": [{ "ref": "fetchData" }, null] },
+                  "then": {
+                    "type": "div",
+                    "props": { "style": "padding: 10px; background: #efe; border: 1px solid #cfc; border-radius: 4px;" },
+                    "children": [
+                      { "type": "strong", "children": [{ "text": "Fetched User: " }] },
+                      { "bind": "fetchData.name" },
+                      { "type": "div", "props": { "style": "font-size: 12px; color: #666;" }, "children": [
+                        { "text": "Email: " }, { "bind": "fetchData.email" }
+                      ]}
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "style": "padding: 15px; background: #f8f9fa; border-radius: 8px;" },
+        "children": [
+          { "type": "h2", "children": [{ "text": "Error Format Reference" }] },
+          {
+            "type": "pre",
+            "props": { "style": "background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 13px;" },
+            "children": [{ "text": "{\n  \"error\": true,\n  \"code\": \"DIVISION_BY_ZERO\",\n  \"message\": \"Cannot divide by zero\",\n  \"operation\": \"divide\",\n  \"args\": [100, 0]\n}\n\n// Constraint violation:\n{\n  \"error\": true,\n  \"code\": \"CONSTRAINT_VIOLATION\",\n  \"state\": \"balance\",\n  \"constraint\": \"min\",\n  \"value\": -50,\n  \"limit\": 0,\n  \"message\": \"Balance cannot be negative\"\n}" }]
+          }
+        ]
+      }
+    ]
+  },
+  "tests": [
+    {
+      "id": "test_division_success",
+      "name": "Division returns result object on success",
+      "steps": [
+        { "dispatch": "setDividend", "params": { "value": 100 } },
+        { "dispatch": "setDivisor", "params": { "value": 4 } },
+        { "dispatch": "divide" },
+        { "assert": { "ref": "divisionResult", "eq": 25 } },
+        { "assert": { "ref": "hasError", "falsy": true } }
+      ]
+    },
+    {
+      "id": "test_division_by_zero",
+      "name": "Division by zero returns error object",
+      "steps": [
+        { "dispatch": "setDivisor", "params": { "value": 0 } },
+        { "dispatch": "divide" },
+        { "assert": { "ref": "hasError", "truthy": true } },
+        { "assert": { "ref": "result.code", "eq": "DIVISION_BY_ZERO" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "api_server",
+  "target": "server",
+
+  "state": {
+    "users": { "type": "array", "initial": [], "itemType": "object" },
+    "nextId": { "type": "number", "initial": 1 }
+  },
+
+  "actions": {
+    "createUser": {
+      "params": ["name", "email"],
+      "mutations": [
+        {
+          "target": "users",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "name": { "param": "name" },
+            "email": { "param": "email" },
+            "createdAt": { "op": "now" }
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 }
+      ]
+    },
+    "updateUser": {
+      "params": ["id", "updates"],
+      "mutations": [
+        {
+          "target": "users",
+          "op": "map",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "param": "id" }] },
+              { "op": "merge", "args": [{ "param": "item" }, { "param": "updates" }] },
+              { "param": "item" }
+            ]
+          }
+        }
+      ]
+    },
+    "deleteUser": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "users",
+          "op": "filter",
+          "value": { "op": "neq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "param": "id" }] }
+        }
+      ]
+    }
+  },
+
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "handler": [],
+      "response": {
+        "status": 200,
+        "body": { "ref": "users" }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id",
+      "params": ["id"],
+      "handler": [
+        {
+          "op": "find",
+          "args": [
+            { "ref": "users" },
+            { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "op": "parseInt", "args": [{ "param": "id" }] }] }
+          ],
+          "as": "user"
+        }
+      ],
+      "response": {
+        "op": "if",
+        "args": [
+          { "ref": "user" },
+          { "status": 200, "body": { "ref": "user" } },
+          { "status": 404, "body": { "error": "User not found" } }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/users",
+      "handler": [
+        {
+          "op": "validate",
+          "args": [
+            { "ref": "body" },
+            {
+              "name": { "type": "string", "required": true },
+              "email": { "type": "string", "required": true, "format": "email" }
+            }
+          ],
+          "as": "validated"
+        },
+        {
+          "action": "createUser",
+          "args": [{ "op": "get", "args": [{ "ref": "validated" }, "name"] }, { "op": "get", "args": [{ "ref": "validated" }, "email"] }]
+        }
+      ],
+      "response": {
+        "status": 201,
+        "body": {
+          "op": "last",
+          "args": [{ "ref": "users" }]
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/users/:id",
+      "params": ["id"],
+      "handler": [
+        {
+          "action": "updateUser",
+          "args": [{ "op": "parseInt", "args": [{ "param": "id" }] }, { "ref": "body" }]
+        }
+      ],
+      "response": {
+        "status": 200,
+        "body": {
+          "op": "find",
+          "args": [
+            { "ref": "users" },
+            { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "op": "parseInt", "args": [{ "param": "id" }] }] }
+          ]
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/users/:id",
+      "params": ["id"],
+      "handler": [
+        {
+          "action": "deleteUser",
+          "args": [{ "op": "parseInt", "args": [{ "param": "id" }] }]
+        }
+      ],
+      "response": {
+        "status": 204,
+        "body": null
+      }
+    }
+  ]
+}

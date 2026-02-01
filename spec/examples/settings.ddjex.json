@@ -1,0 +1,64 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "settings",
+  "target": "dom",
+
+  "state": {
+    "theme": { "type": "string", "initial": "light" },
+    "notifications": { "type": "boolean", "initial": true }
+  },
+
+  "actions": {
+    "setTheme": {
+      "params": ["theme"],
+      "mutations": [{ "target": "theme", "op": "set", "value": { "param": "theme" } }]
+    },
+    "toggleNotifications": {
+      "mutations": [{ "target": "notifications", "op": "toggle" }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "settings" },
+    "children": [
+      { "type": "h2", "children": [{ "text": "Settings" }] },
+      { "type": "p", "children": [{ "text": "This settings page was lazy-loaded!" }] },
+      {
+        "type": "div",
+        "props": { "className": "setting-row" },
+        "children": [
+          { "type": "label", "children": [{ "text": "Theme: " }] },
+          {
+            "type": "select",
+            "events": { "change": { "action": "setTheme", "args": [{ "op": "eventValue" }] } },
+            "children": [
+              { "type": "option", "props": { "value": "light" }, "children": [{ "text": "Light" }] },
+              { "type": "option", "props": { "value": "dark" }, "children": [{ "text": "Dark" }] },
+              { "type": "option", "props": { "value": "system" }, "children": [{ "text": "System" }] }
+            ]
+          },
+          { "type": "span", "children": [{ "text": " Current: " }, { "bind": "theme" }] }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "setting-row" },
+        "children": [
+          { "type": "label", "children": [{ "text": "Notifications: " }] },
+          {
+            "type": "button",
+            "events": { "click": { "action": "toggleNotifications" } },
+            "children": [
+              {
+                "if": { "op": "eq", "args": [{ "ref": "notifications" }, true] },
+                "then": { "text": "Enabled ✓" },
+                "else": { "text": "Disabled ✗" }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

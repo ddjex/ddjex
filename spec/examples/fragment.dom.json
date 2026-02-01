@@ -1,0 +1,109 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "fragment_demo",
+  "target": "dom",
+
+  "state": {
+    "items": { "type": "array", "initial": ["Apple", "Banana", "Cherry"] }
+  },
+
+  "components": {
+    "TableRow": {
+      "props": {
+        "label": { "type": "string", "required": true },
+        "value": { "type": "string", "required": true }
+      },
+      "render": {
+        "fragment": [
+          {
+            "type": "td",
+            "children": [{ "bind": "label" }]
+          },
+          {
+            "type": "td",
+            "children": [{ "bind": "value" }]
+          }
+        ]
+      }
+    },
+    "ListItems": {
+      "render": {
+        "fragment": [
+          { "type": "li", "children": [{ "text": "First item" }] },
+          { "type": "li", "children": [{ "text": "Second item" }] },
+          { "type": "li", "children": [{ "text": "Third item" }] }
+        ]
+      }
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "fragment-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Fragment Demo" }]
+      },
+      {
+        "type": "p",
+        "children": [{ "text": "Fragments allow components to return multiple elements without a wrapper." }]
+      },
+      {
+        "type": "h2",
+        "children": [{ "text": "Table with Fragment Rows" }]
+      },
+      {
+        "type": "table",
+        "props": { "border": "1" },
+        "children": [
+          {
+            "type": "thead",
+            "children": [
+              {
+                "type": "tr",
+                "children": [
+                  { "type": "th", "children": [{ "text": "Property" }] },
+                  { "type": "th", "children": [{ "text": "Value" }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "tbody",
+            "children": [
+              {
+                "type": "tr",
+                "children": [
+                  { "component": "TableRow", "props": { "label": "Name", "value": "John Doe" } }
+                ]
+              },
+              {
+                "type": "tr",
+                "children": [
+                  { "component": "TableRow", "props": { "label": "Email", "value": "john@example.com" } }
+                ]
+              },
+              {
+                "type": "tr",
+                "children": [
+                  { "component": "TableRow", "props": { "label": "Role", "value": "Admin" } }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "h2",
+        "children": [{ "text": "List with Fragment Items" }]
+      },
+      {
+        "type": "ul",
+        "children": [
+          { "component": "ListItems" }
+        ]
+      }
+    ]
+  }
+}

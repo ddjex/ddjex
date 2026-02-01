@@ -1,0 +1,409 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-shopping-cart",
+  "target": "dom",
+
+  "state": {
+    "products": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "name": "Wireless Headphones", "price": 79.99, "image": "🎧" },
+        { "id": 2, "name": "Smart Watch", "price": 199.99, "image": "⌚" },
+        { "id": 3, "name": "Laptop Stand", "price": 49.99, "image": "💻" },
+        { "id": 4, "name": "USB-C Hub", "price": 39.99, "image": "🔌" },
+        { "id": 5, "name": "Mechanical Keyboard", "price": 129.99, "image": "⌨️" },
+        { "id": 6, "name": "Mouse Pad", "price": 19.99, "image": "🖱️" }
+      ]
+    },
+    "cart": { "type": "array", "initial": [] },
+    "isCartOpen": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "cartItems": {
+      "deps": ["cart", "products"],
+      "fn": {
+        "op": "map",
+        "args": [
+          { "ref": "cart" },
+          {
+            "op": "merge",
+            "args": [
+              { "op": "find", "args": [{ "ref": "products" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "op": "get", "args": [{ "ref": "$item" }, "productId"] }] }] },
+              { "quantity": { "op": "get", "args": [{ "ref": "$item" }, "quantity"] } }
+            ]
+          }
+        ]
+      }
+    },
+    "cartCount": {
+      "deps": ["cart"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "cart" },
+          { "op": "add", "args": [{ "ref": "$item" }, { "op": "get", "args": [{ "ref": "$item" }, "quantity"] }] },
+          0
+        ]
+      }
+    },
+    "subtotal": {
+      "deps": ["cartItems"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "cartItems" },
+          { "op": "add", "args": [{ "ref": "$item" }, { "op": "multiply", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "price"] }, { "op": "get", "args": [{ "ref": "$item" }, "quantity"] }] }] },
+          0
+        ]
+      }
+    },
+    "tax": {
+      "deps": ["subtotal"],
+      "fn": { "op": "round", "args": [{ "op": "multiply", "args": [{ "ref": "subtotal" }, 0.1] }] }
+    },
+    "total": {
+      "deps": ["subtotal", "tax"],
+      "fn": { "op": "add", "args": [{ "ref": "subtotal" }, { "ref": "tax" }] }
+    },
+    "isEmpty": {
+      "deps": ["cart"],
+      "fn": { "op": "eq", "args": [{ "op": "length", "args": [{ "ref": "cart" }] }, 0] }
+    }
+  },
+
+  "actions": {
+    "addToCart": {
+      "params": ["productId"],
+      "mutations": [
+        {
+          "target": "cart",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "some", "args": [{ "ref": "cart" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "productId"] }, { "param": "productId" }] }] },
+              {
+                "op": "map",
+                "args": [
+                  { "ref": "cart" },
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "productId"] }, { "param": "productId" }] },
+                      { "op": "merge", "args": [{ "ref": "$item" }, { "quantity": { "op": "add", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "quantity"] }, 1] } }] },
+                      { "ref": "$item" }
+                    ]
+                  }
+                ]
+              },
+              { "op": "push", "args": [{ "ref": "cart" }, { "productId": { "param": "productId" }, "quantity": 1 }] }
+            ]
+          }
+        }
+      ]
+    },
+    "removeFromCart": {
+      "params": ["productId"],
+      "mutations": [
+        {
+          "target": "cart",
+          "op": "set",
+          "value": { "op": "filter", "args": [{ "ref": "cart" }, { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "productId"] }, { "param": "productId" }] }] }
+        }
+      ]
+    },
+    "updateQuantity": {
+      "params": ["productId", "quantity"],
+      "mutations": [
+        {
+          "target": "cart",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "lte", "args": [{ "param": "quantity" }, 0] },
+              { "op": "filter", "args": [{ "ref": "cart" }, { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "productId"] }, { "param": "productId" }] }] },
+              {
+                "op": "map",
+                "args": [
+                  { "ref": "cart" },
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "productId"] }, { "param": "productId" }] },
+                      { "op": "merge", "args": [{ "ref": "$item" }, { "quantity": { "param": "quantity" } }] },
+                      { "ref": "$item" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "toggleCart": {
+      "mutations": [{ "target": "isCartOpen", "op": "toggle" }]
+    },
+    "clearCart": {
+      "mutations": [{ "target": "cart", "op": "set", "value": [] }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "bg-white shadow-sm sticky top-0 z-10" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "max-w-6xl mx-auto px-4 py-4 flex justify-between items-center" },
+            "children": [
+              { "type": "h1", "props": { "className": "text-xl font-bold" }, "children": [{ "text": "🛍️ Shop" }] },
+              {
+                "type": "button",
+                "props": { "className": "relative px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" },
+                "events": { "click": { "action": "toggleCart" } },
+                "children": [
+                  { "text": "Cart" },
+                  {
+                    "if": { "op": "gt", "args": [{ "ref": "cartCount" }, 0] },
+                    "then": {
+                      "type": "span",
+                      "props": { "className": "absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center" },
+                      "children": [{ "bind": "cartCount" }]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "main",
+        "props": { "className": "max-w-6xl mx-auto p-4" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Products" }] },
+          {
+            "type": "div",
+            "props": { "className": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
+            "each": { "items": "products", "as": "product", "key": { "op": "get", "args": [{ "ref": "product" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow" },
+                "children": [
+                  { "type": "div", "props": { "className": "text-6xl text-center mb-4" }, "children": [{ "bind": "product.image" }] },
+                  { "type": "h3", "props": { "className": "font-semibold text-lg mb-2" }, "children": [{ "bind": "product.name" }] },
+                  { "type": "p", "props": { "className": "text-2xl font-bold text-blue-600 mb-4" }, "children": [{ "text": "$" }, { "bind": "product.price" }] },
+                  {
+                    "type": "button",
+                    "props": { "className": "w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" },
+                    "events": { "click": { "action": "addToCart", "args": [{ "op": "get", "args": [{ "ref": "product" }, "id"] }] } },
+                    "children": [{ "text": "Add to Cart" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "ref": "isCartOpen" },
+        "then": {
+          "portal": {
+            "target": "body",
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "fixed inset-0 z-50" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "absolute inset-0 bg-black bg-opacity-50" },
+                    "events": { "click": { "action": "toggleCart" } }
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl flex flex-col" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "p-4 border-b flex justify-between items-center" },
+                        "children": [
+                          { "type": "h2", "props": { "className": "text-xl font-bold" }, "children": [{ "text": "Shopping Cart" }] },
+                          {
+                            "type": "button",
+                            "props": { "className": "text-gray-500 hover:text-gray-700 text-2xl" },
+                            "events": { "click": { "action": "toggleCart" } },
+                            "children": [{ "text": "×" }]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "flex-1 overflow-y-auto p-4" },
+                        "children": [
+                          {
+                            "if": { "ref": "isEmpty" },
+                            "then": {
+                              "type": "div",
+                              "props": { "className": "text-center py-12 text-gray-500" },
+                              "children": [
+                                { "type": "p", "props": { "className": "text-4xl mb-2" }, "children": [{ "text": "🛒" }] },
+                                { "type": "p", "children": [{ "text": "Your cart is empty" }] }
+                              ]
+                            },
+                            "else": {
+                              "type": "div",
+                              "props": { "className": "space-y-4" },
+                              "each": { "items": "cartItems", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+                              "children": [
+                                {
+                                  "type": "div",
+                                  "props": { "className": "flex items-center gap-4 p-4 bg-gray-50 rounded-lg" },
+                                  "children": [
+                                    { "type": "span", "props": { "className": "text-3xl" }, "children": [{ "bind": "item.image" }] },
+                                    {
+                                      "type": "div",
+                                      "props": { "className": "flex-1" },
+                                      "children": [
+                                        { "type": "h3", "props": { "className": "font-medium" }, "children": [{ "bind": "item.name" }] },
+                                        { "type": "p", "props": { "className": "text-blue-600" }, "children": [{ "text": "$" }, { "bind": "item.price" }] }
+                                      ]
+                                    },
+                                    {
+                                      "type": "div",
+                                      "props": { "className": "flex items-center gap-2" },
+                                      "children": [
+                                        {
+                                          "type": "button",
+                                          "props": { "className": "w-8 h-8 rounded bg-gray-200 hover:bg-gray-300" },
+                                          "events": { "click": { "action": "updateQuantity", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }, { "op": "subtract", "args": [{ "op": "get", "args": [{ "ref": "item" }, "quantity"] }, 1] }] } },
+                                          "children": [{ "text": "-" }]
+                                        },
+                                        { "type": "span", "props": { "className": "w-8 text-center" }, "children": [{ "bind": "item.quantity" }] },
+                                        {
+                                          "type": "button",
+                                          "props": { "className": "w-8 h-8 rounded bg-gray-200 hover:bg-gray-300" },
+                                          "events": { "click": { "action": "updateQuantity", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }, { "op": "add", "args": [{ "op": "get", "args": [{ "ref": "item" }, "quantity"] }, 1] }] } },
+                                          "children": [{ "text": "+" }]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "button",
+                                      "props": { "className": "text-red-500 hover:text-red-700" },
+                                      "events": { "click": { "action": "removeFromCart", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }] } },
+                                      "children": [{ "text": "🗑️" }]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "if": { "op": "not", "args": [{ "ref": "isEmpty" }] },
+                        "then": {
+                          "type": "div",
+                          "props": { "className": "p-4 border-t" },
+                          "children": [
+                            {
+                              "type": "div",
+                              "props": { "className": "flex justify-between mb-2" },
+                              "children": [
+                                { "type": "span", "children": [{ "text": "Subtotal" }] },
+                                { "type": "span", "children": [{ "text": "$" }, { "bind": "subtotal" }] }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "props": { "className": "flex justify-between mb-2 text-gray-600" },
+                              "children": [
+                                { "type": "span", "children": [{ "text": "Tax (10%)" }] },
+                                { "type": "span", "children": [{ "text": "$" }, { "bind": "tax" }] }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "props": { "className": "flex justify-between text-xl font-bold mb-4" },
+                              "children": [
+                                { "type": "span", "children": [{ "text": "Total" }] },
+                                { "type": "span", "children": [{ "text": "$" }, { "bind": "total" }] }
+                              ]
+                            },
+                            {
+                              "type": "button",
+                              "props": { "className": "w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium" },
+                              "children": [{ "text": "Checkout" }]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-empty-cart",
+      "name": "Cart starts empty",
+      "steps": [
+        { "assert": { "ref": "isEmpty", "eq": true } },
+        { "assert": { "ref": "cartCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-add-to-cart",
+      "name": "Can add items to cart",
+      "steps": [
+        { "dispatch": "addToCart", "args": [1] },
+        { "assert": { "ref": "cartCount", "eq": 1 } },
+        { "assert": { "ref": "isEmpty", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-add-same-item",
+      "name": "Adding same item increases quantity",
+      "steps": [
+        { "dispatch": "addToCart", "args": [1] },
+        { "dispatch": "addToCart", "args": [1] },
+        { "assert": { "ref": "cartCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-remove-from-cart",
+      "name": "Can remove items from cart",
+      "steps": [
+        { "dispatch": "addToCart", "args": [1] },
+        { "dispatch": "addToCart", "args": [2] },
+        { "dispatch": "removeFromCart", "args": [1] },
+        { "assert": { "ref": "cartCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-clear-cart",
+      "name": "Can clear cart",
+      "steps": [
+        { "dispatch": "addToCart", "args": [1] },
+        { "dispatch": "addToCart", "args": [2] },
+        { "dispatch": "clearCart" },
+        { "assert": { "ref": "isEmpty", "eq": true } }
+      ]
+    }
+  ]
+}

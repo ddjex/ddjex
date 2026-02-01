@@ -1,0 +1,202 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-accordion",
+  "target": "dom",
+
+  "state": {
+    "items": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "title": "What is ddjex?", "content": "ddjex is an AI-native JavaScript runtime that uses JSON for all code. It's designed for LLM code generation with zero human ergonomics - just pure machine-readable JSON." },
+        { "id": 2, "title": "How does it work?", "content": "You define your application as a JSON object with state, computed values, actions, and a UI tree. The runtime handles reactivity, rendering, and updates automatically." },
+        { "id": 3, "title": "What are the 6 primitives?", "content": "ddjex has exactly 6 primitives: value (immutable data), state (mutable data), computed (derived values), effect (side effects), action (state mutations), and component (composition unit)." },
+        { "id": 4, "title": "Why JSON instead of JavaScript?", "content": "JSON is unambiguous, easy to parse, and perfect for LLM generation. There's exactly one way to express each concept, making it ideal for AI-generated code that works the first time." },
+        { "id": 5, "title": "Can I use it in production?", "content": "ddjex is currently in v0.4.0. It's suitable for experimentation and prototyping. Check the roadmap for production readiness timeline." }
+      ]
+    },
+    "openItems": { "type": "array", "initial": [] },
+    "allowMultiple": { "type": "boolean", "initial": true }
+  },
+
+  "computed": {
+    "openCount": {
+      "deps": ["openItems"],
+      "fn": { "op": "length", "args": [{ "ref": "openItems" }] }
+    }
+  },
+
+  "actions": {
+    "toggleItem": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "openItems",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "includes", "args": [{ "ref": "openItems" }, { "param": "id" }] },
+              { "op": "filter", "args": [{ "ref": "openItems" }, { "op": "neq", "args": [{ "ref": "$item" }, { "param": "id" }] }] },
+              {
+                "op": "if",
+                "args": [
+                  { "ref": "allowMultiple" },
+                  { "op": "push", "args": [{ "ref": "openItems" }, { "param": "id" }] },
+                  [{ "param": "id" }]
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expandAll": {
+      "mutations": [
+        {
+          "target": "openItems",
+          "op": "set",
+          "value": { "op": "map", "args": [{ "ref": "items" }, { "op": "get", "args": [{ "ref": "$item" }, "id"] }] }
+        }
+      ]
+    },
+    "collapseAll": {
+      "mutations": [{ "target": "openItems", "op": "set", "value": [] }]
+    },
+    "toggleMultiple": {
+      "mutations": [
+        { "target": "allowMultiple", "op": "toggle" },
+        { "target": "openItems", "op": "set", "value": [] }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8 max-w-2xl mx-auto" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-2" }, "children": [{ "text": "FAQ Accordion" }] },
+      {
+        "type": "div",
+        "props": { "className": "flex items-center justify-between mb-6" },
+        "children": [
+          {
+            "type": "label",
+            "props": { "className": "flex items-center gap-2 cursor-pointer" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "checkbox", "checked": { "ref": "allowMultiple" }, "className": "w-4 h-4" },
+                "events": { "change": { "action": "toggleMultiple" } }
+              },
+              { "type": "span", "props": { "className": "text-gray-600" }, "children": [{ "text": "Allow multiple open" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300" },
+                "events": { "click": { "action": "expandAll" } },
+                "children": [{ "text": "Expand All" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300" },
+                "events": { "click": { "action": "collapseAll" } },
+                "children": [{ "text": "Collapse All" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden divide-y" },
+        "each": { "items": "items", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+        "children": [
+          {
+            "type": "div",
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50" },
+                "events": { "click": { "action": "toggleItem", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }] } },
+                "children": [
+                  { "type": "span", "props": { "className": "font-medium" }, "children": [{ "bind": "item.title" }] },
+                  {
+                    "type": "span",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "includes", "args": [{ "ref": "openItems" }, { "op": "get", "args": [{ "ref": "item" }, "id"] }] },
+                          "transform rotate-180 transition-transform",
+                          "transform rotate-0 transition-transform"
+                        ]
+                      }
+                    },
+                    "children": [{ "text": "▼" }]
+                  }
+                ]
+              },
+              {
+                "if": { "op": "includes", "args": [{ "ref": "openItems" }, { "op": "get", "args": [{ "ref": "item" }, "id"] }] },
+                "then": {
+                  "type": "div",
+                  "props": { "className": "px-6 pb-4 text-gray-600" },
+                  "children": [{ "bind": "item.content" }]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "p",
+        "props": { "className": "mt-4 text-sm text-gray-500 text-center" },
+        "children": [{ "bind": "openCount" }, { "text": " item(s) expanded" }]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-closed",
+      "name": "All items start closed",
+      "steps": [
+        { "assert": { "ref": "openItems", "length": 0 } }
+      ]
+    },
+    {
+      "id": "test-toggle-item",
+      "name": "Can toggle an item",
+      "steps": [
+        { "dispatch": "toggleItem", "args": [1] },
+        { "assert": { "value": { "op": "includes", "args": [{ "ref": "openItems" }, 1] }, "eq": true } },
+        { "dispatch": "toggleItem", "args": [1] },
+        { "assert": { "value": { "op": "includes", "args": [{ "ref": "openItems" }, 1] }, "eq": false } }
+      ]
+    },
+    {
+      "id": "test-multiple-open",
+      "name": "Multiple items can be open when allowed",
+      "steps": [
+        { "dispatch": "toggleItem", "args": [1] },
+        { "dispatch": "toggleItem", "args": [2] },
+        { "assert": { "ref": "openItems", "length": 2 } }
+      ]
+    },
+    {
+      "id": "test-expand-collapse-all",
+      "name": "Expand and collapse all works",
+      "steps": [
+        { "dispatch": "expandAll" },
+        { "assert": { "ref": "openItems", "length": 5 } },
+        { "dispatch": "collapseAll" },
+        { "assert": { "ref": "openItems", "length": 0 } }
+      ]
+    }
+  ]
+}

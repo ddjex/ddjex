@@ -1,0 +1,352 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-kanban",
+  "target": "dom",
+
+  "state": {
+    "columns": {
+      "type": "array",
+      "initial": [
+        { "id": "todo", "title": "To Do", "color": "gray" },
+        { "id": "progress", "title": "In Progress", "color": "blue" },
+        { "id": "review", "title": "Review", "color": "yellow" },
+        { "id": "done", "title": "Done", "color": "green" }
+      ]
+    },
+    "tasks": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "title": "Design homepage", "column": "todo", "priority": "high" },
+        { "id": 2, "title": "Setup database", "column": "todo", "priority": "medium" },
+        { "id": 3, "title": "Write API docs", "column": "progress", "priority": "low" },
+        { "id": 4, "title": "Code review PR #42", "column": "review", "priority": "high" },
+        { "id": 5, "title": "Deploy to staging", "column": "done", "priority": "medium" }
+      ]
+    },
+    "newTaskTitle": { "type": "string", "initial": "" },
+    "newTaskColumn": { "type": "string", "initial": "todo" },
+    "newTaskPriority": { "type": "string", "initial": "medium" },
+    "nextId": { "type": "number", "initial": 6 },
+    "showAddForm": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "tasksByColumn": {
+      "deps": ["tasks"],
+      "fn": {
+        "op": "merge",
+        "args": [
+          {},
+          {
+            "todo": { "op": "filter", "args": [{ "ref": "tasks" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "column"] }, "todo"] }] },
+            "progress": { "op": "filter", "args": [{ "ref": "tasks" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "column"] }, "progress"] }] },
+            "review": { "op": "filter", "args": [{ "ref": "tasks" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "column"] }, "review"] }] },
+            "done": { "op": "filter", "args": [{ "ref": "tasks" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "column"] }, "done"] }] }
+          }
+        ]
+      }
+    },
+    "totalTasks": {
+      "deps": ["tasks"],
+      "fn": { "op": "length", "args": [{ "ref": "tasks" }] }
+    },
+    "completedTasks": {
+      "deps": ["tasksByColumn"],
+      "fn": { "op": "length", "args": [{ "op": "get", "args": [{ "ref": "tasksByColumn" }, "done"] }] }
+    }
+  },
+
+  "actions": {
+    "moveTask": {
+      "params": ["taskId", "newColumn"],
+      "mutations": [
+        {
+          "target": "tasks",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "tasks" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "taskId" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "column": { "param": "newColumn" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "addTask": {
+      "mutations": [
+        {
+          "target": "tasks",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "title": { "ref": "newTaskTitle" },
+            "column": { "ref": "newTaskColumn" },
+            "priority": { "ref": "newTaskPriority" }
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 },
+        { "target": "newTaskTitle", "op": "set", "value": "" },
+        { "target": "showAddForm", "op": "set", "value": false }
+      ]
+    },
+    "deleteTask": {
+      "params": ["taskId"],
+      "mutations": [
+        {
+          "target": "tasks",
+          "op": "set",
+          "value": { "op": "filter", "args": [{ "ref": "tasks" }, { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "taskId" }] }] }
+        }
+      ]
+    },
+    "setNewTaskTitle": {
+      "params": ["value"],
+      "mutations": [{ "target": "newTaskTitle", "op": "set", "value": { "param": "value" } }]
+    },
+    "setNewTaskColumn": {
+      "params": ["value"],
+      "mutations": [{ "target": "newTaskColumn", "op": "set", "value": { "param": "value" } }]
+    },
+    "setNewTaskPriority": {
+      "params": ["value"],
+      "mutations": [{ "target": "newTaskPriority", "op": "set", "value": { "param": "value" } }]
+    },
+    "toggleAddForm": {
+      "mutations": [{ "target": "showAddForm", "op": "toggle" }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100 p-4" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "mb-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex justify-between items-center" },
+            "children": [
+              {
+                "type": "div",
+                "children": [
+                  { "type": "h1", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "📋 Kanban Board" }] },
+                  {
+                    "type": "p",
+                    "props": { "className": "text-gray-600" },
+                    "children": [{ "bind": "completedTasks" }, { "text": " of " }, { "bind": "totalTasks" }, { "text": " tasks completed" }]
+                  }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" },
+                "events": { "click": { "action": "toggleAddForm" } },
+                "children": [{ "text": "+ Add Task" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "ref": "showAddForm" },
+        "then": {
+          "type": "div",
+          "props": { "className": "mb-6 p-4 bg-white rounded-lg shadow-md" },
+          "children": [
+            { "type": "h3", "props": { "className": "font-semibold mb-3" }, "children": [{ "text": "New Task" }] },
+            {
+              "type": "div",
+              "props": { "className": "grid grid-cols-1 md:grid-cols-4 gap-3" },
+              "children": [
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "text",
+                    "placeholder": "Task title",
+                    "className": "md:col-span-2 px-3 py-2 border rounded",
+                    "value": { "ref": "newTaskTitle" }
+                  },
+                  "events": { "input": { "action": "setNewTaskTitle", "args": [{ "op": "eventValue" }] } }
+                },
+                {
+                  "type": "select",
+                  "props": { "className": "px-3 py-2 border rounded", "value": { "ref": "newTaskPriority" } },
+                  "events": { "change": { "action": "setNewTaskPriority", "args": [{ "op": "eventValue" }] } },
+                  "children": [
+                    { "type": "option", "props": { "value": "low" }, "children": [{ "text": "Low" }] },
+                    { "type": "option", "props": { "value": "medium" }, "children": [{ "text": "Medium" }] },
+                    { "type": "option", "props": { "value": "high" }, "children": [{ "text": "High" }] }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "props": {
+                    "className": {
+                      "op": "if",
+                      "args": [
+                        { "op": "isNotEmpty", "args": [{ "ref": "newTaskTitle" }] },
+                        "px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600",
+                        "px-4 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                      ]
+                    },
+                    "disabled": { "op": "isEmpty", "args": [{ "ref": "newTaskTitle" }] }
+                  },
+                  "events": { "click": { "action": "addTask" } },
+                  "children": [{ "text": "Add" }]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "div",
+        "props": { "className": "grid grid-cols-1 md:grid-cols-4 gap-4" },
+        "each": { "items": "columns", "as": "column", "key": { "op": "get", "args": [{ "ref": "column" }, "id"] } },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "bg-gray-200 rounded-lg p-3" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex items-center justify-between mb-3" },
+                "children": [
+                  { "type": "h2", "props": { "className": "font-semibold" }, "children": [{ "bind": "column.title" }] },
+                  {
+                    "type": "span",
+                    "props": { "className": "text-sm text-gray-500 bg-white px-2 py-1 rounded" },
+                    "children": [
+                      { "op": "length", "args": [{ "op": "get", "args": [{ "ref": "tasksByColumn" }, { "op": "get", "args": [{ "ref": "column" }, "id"] }] }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "space-y-2 min-h-[100px]" },
+                "each": {
+                  "items": { "op": "get", "args": [{ "ref": "tasksByColumn" }, { "op": "get", "args": [{ "ref": "column" }, "id"] }] },
+                  "as": "task",
+                  "key": { "op": "get", "args": [{ "ref": "task" }, "id"] }
+                },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "bg-white p-3 rounded shadow-sm hover:shadow-md transition-shadow" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "flex items-start justify-between" },
+                        "children": [
+                          { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "task.title" }] },
+                          {
+                            "type": "button",
+                            "props": { "className": "text-gray-400 hover:text-red-500" },
+                            "events": { "click": { "action": "deleteTask", "args": [{ "op": "get", "args": [{ "ref": "task" }, "id"] }] } },
+                            "children": [{ "text": "×" }]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "mt-2 flex items-center justify-between" },
+                        "children": [
+                          {
+                            "type": "span",
+                            "props": {
+                              "className": {
+                                "op": "switch",
+                                "args": [
+                                  { "op": "get", "args": [{ "ref": "task" }, "priority"] },
+                                  {
+                                    "high": "text-xs px-2 py-1 bg-red-100 text-red-700 rounded",
+                                    "medium": "text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded",
+                                    "low": "text-xs px-2 py-1 bg-green-100 text-green-700 rounded"
+                                  },
+                                  "text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded"
+                                ]
+                              }
+                            },
+                            "children": [{ "bind": "task.priority" }]
+                          },
+                          {
+                            "type": "select",
+                            "props": {
+                              "className": "text-xs border rounded px-1",
+                              "value": { "op": "get", "args": [{ "ref": "task" }, "column"] }
+                            },
+                            "events": {
+                              "change": {
+                                "action": "moveTask",
+                                "args": [
+                                  { "op": "get", "args": [{ "ref": "task" }, "id"] },
+                                  { "op": "eventValue" }
+                                ]
+                              }
+                            },
+                            "children": [
+                              { "type": "option", "props": { "value": "todo" }, "children": [{ "text": "To Do" }] },
+                              { "type": "option", "props": { "value": "progress" }, "children": [{ "text": "Progress" }] },
+                              { "type": "option", "props": { "value": "review" }, "children": [{ "text": "Review" }] },
+                              { "type": "option", "props": { "value": "done" }, "children": [{ "text": "Done" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-tasks",
+      "name": "Has initial tasks",
+      "steps": [
+        { "assert": { "ref": "totalTasks", "eq": 5 } }
+      ]
+    },
+    {
+      "id": "test-add-task",
+      "name": "Can add a task",
+      "steps": [
+        { "dispatch": "setNewTaskTitle", "args": ["New task"] },
+        { "dispatch": "addTask" },
+        { "assert": { "ref": "totalTasks", "eq": 6 } }
+      ]
+    },
+    {
+      "id": "test-move-task",
+      "name": "Can move task to different column",
+      "steps": [
+        { "dispatch": "moveTask", "args": [1, "done"] },
+        { "assert": { "ref": "completedTasks", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-delete-task",
+      "name": "Can delete a task",
+      "steps": [
+        { "dispatch": "deleteTask", "args": [1] },
+        { "assert": { "ref": "totalTasks", "eq": 4 } }
+      ]
+    }
+  ]
+}

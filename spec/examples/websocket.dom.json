@@ -1,0 +1,141 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "websocket_chat",
+  "target": "dom",
+
+  "state": {
+    "messages": { "type": "array", "initial": [] },
+    "inputText": { "type": "string", "initial": "" },
+    "connected": { "type": "boolean", "initial": false },
+    "status": { "type": "string", "initial": "Disconnected" }
+  },
+
+  "actions": {
+    "setInput": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "inputText", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "addMessage": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "messages", "op": "push", "value": { "param": "message" } }
+      ]
+    },
+    "clearInput": {
+      "mutations": [
+        { "target": "inputText", "op": "set", "value": "" }
+      ]
+    },
+    "setConnected": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "connected", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "setStatus": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "status", "op": "set", "value": { "param": "value" } }
+      ]
+    }
+  },
+
+  "websockets": [
+    {
+      "id": "chat",
+      "url": "wss://echo.websocket.org",
+      "autoConnect": true,
+      "reconnect": true,
+      "onOpen": { "action": "setConnected", "args": [true] },
+      "onClose": { "action": "setConnected", "args": [false] },
+      "onMessage": {
+        "action": "addMessage",
+        "args": [{
+          "type": "received",
+          "text": { "param": "data" },
+          "time": { "op": "now" }
+        }]
+      },
+      "onError": { "action": "setStatus", "args": ["Error"] }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "chat-app" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "WebSocket Chat" }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "status" },
+        "children": [
+          { "text": "Status: " },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "connected" }, true] },
+            "then": {
+              "type": "span",
+              "props": { "className": "connected" },
+              "children": [{ "text": "Connected" }]
+            },
+            "else": {
+              "type": "span",
+              "props": { "className": "disconnected" },
+              "children": [{ "text": "Disconnected" }]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "messages" },
+        "each": { "items": "messages", "as": "msg", "index": "i" },
+        "children": [
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": ["message ", { "op": "get", "args": [{ "ref": "msg" }, "type"] }]
+              }
+            },
+            "children": [
+              { "bind": "msg.text" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "input-area" },
+        "children": [
+          {
+            "type": "input",
+            "props": {
+              "type": "text",
+              "placeholder": "Type a message...",
+              "value": { "ref": "inputText" },
+              "disabled": { "op": "not", "args": [{ "ref": "connected" }] }
+            },
+            "events": {
+              "input": { "action": "setInput", "args": [{ "op": "eventValue" }] },
+              "keydown": { "action": "sendMessage", "args": [] }
+            }
+          },
+          {
+            "type": "button",
+            "props": {
+              "disabled": { "op": "not", "args": [{ "ref": "connected" }] }
+            },
+            "events": { "click": { "action": "sendMessage" } },
+            "children": [{ "text": "Send" }]
+          }
+        ]
+      }
+    ]
+  }
+}

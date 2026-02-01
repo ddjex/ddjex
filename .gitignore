@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+
+# Internal development files (not for public GitHub)
+CLAUDE.md
+DEPLOY.md
+.claude/
+index.html

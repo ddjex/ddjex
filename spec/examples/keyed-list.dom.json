@@ -1,0 +1,248 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "keyed_list_demo",
+  "target": "dom",
+
+  "state": {
+    "todos": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "text": "Learn ddjex", "done": false },
+        { "id": 2, "text": "Build an app", "done": false },
+        { "id": 3, "text": "Ship to production", "done": false }
+      ]
+    },
+    "nextId": { "type": "number", "initial": 4 },
+    "newTodo": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "activeTodos": {
+      "deps": ["todos"],
+      "fn": { "op": "filter", "args": [{ "ref": "todos" }, { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "done"] }] }] }
+    },
+    "completedTodos": {
+      "deps": ["todos"],
+      "fn": { "op": "filter", "args": [{ "ref": "todos" }, { "op": "get", "args": [{ "ref": "$item" }, "done"] }] }
+    },
+    "activeCount": {
+      "deps": ["activeTodos"],
+      "fn": { "op": "length", "args": [{ "ref": "activeTodos" }] }
+    }
+  },
+
+  "actions": {
+    "addTodo": {
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "push",
+          "value": {
+            "op": "merge",
+            "args": [
+              { "id": { "ref": "nextId" }, "text": { "ref": "newTodo" }, "done": false }
+            ]
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 },
+        { "target": "newTodo", "op": "set", "value": "" }
+      ]
+    },
+    "removeTodo": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "todos" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "toggleTodo": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "todos" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "set", "args": [{ "ref": "$item" }, "done", { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "done"] }] }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "setNewTodo": {
+      "params": ["text"],
+      "mutations": [
+        { "target": "newTodo", "op": "set", "value": { "param": "text" } }
+      ]
+    },
+    "clearCompleted": {
+      "mutations": [
+        {
+          "target": "todos",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "todos" },
+              { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "done"] }] }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "todo-app" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Keyed List Demo" }]
+      },
+
+      {
+        "type": "p",
+        "props": { "className": "description" },
+        "children": [
+          { "text": "This list uses keyed diffing (key: item.id) for efficient updates." }
+        ]
+      },
+
+      {
+        "type": "div",
+        "props": { "className": "add-todo" },
+        "children": [
+          {
+            "type": "input",
+            "props": {
+              "type": "text",
+              "placeholder": "Add a new todo...",
+              "value": { "ref": "newTodo" }
+            },
+            "events": {
+              "input": { "action": "setNewTodo", "args": [{ "op": "eventValue" }] },
+              "keydown": { "action": "addTodo" }
+            }
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "addTodo" } },
+            "children": [{ "text": "Add" }]
+          }
+        ]
+      },
+
+      {
+        "type": "div",
+        "props": { "className": "stats" },
+        "children": [
+          { "text": "Active: " },
+          { "bind": "activeCount" },
+          { "text": " | Total: " },
+          { "op": "length", "args": [{ "ref": "todos" }] }
+        ]
+      },
+
+      {
+        "type": "ul",
+        "props": { "className": "todo-list" },
+        "each": {
+          "items": "todos",
+          "as": "todo",
+          "index": "i",
+          "key": { "op": "get", "args": [{ "ref": "todo" }, "id"] }
+        },
+        "children": [
+          {
+            "type": "li",
+            "props": {
+              "className": {
+                "op": "if",
+                "args": [
+                  { "op": "get", "args": [{ "ref": "todo" }, "done"] },
+                  "todo-item done",
+                  "todo-item"
+                ]
+              }
+            },
+            "children": [
+              {
+                "type": "input",
+                "props": {
+                  "type": "checkbox",
+                  "checked": { "op": "get", "args": [{ "ref": "todo" }, "done"] }
+                },
+                "events": {
+                  "change": {
+                    "action": "toggleTodo",
+                    "args": [{ "op": "get", "args": [{ "ref": "todo" }, "id"] }]
+                  }
+                }
+              },
+              {
+                "type": "span",
+                "props": { "className": "todo-text" },
+                "children": [
+                  { "bind": "todo.text" }
+                ]
+              },
+              {
+                "type": "span",
+                "props": { "className": "todo-id" },
+                "children": [
+                  { "text": " (id: " },
+                  { "op": "get", "args": [{ "ref": "todo" }, "id"] },
+                  { "text": ")" }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "remove-btn" },
+                "events": {
+                  "click": {
+                    "action": "removeTodo",
+                    "args": [{ "op": "get", "args": [{ "ref": "todo" }, "id"] }]
+                  }
+                },
+                "children": [{ "text": "×" }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "if": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "completedTodos" }] }, 0] },
+        "then": {
+          "type": "button",
+          "props": { "className": "clear-btn" },
+          "events": { "click": { "action": "clearCompleted" } },
+          "children": [
+            { "text": "Clear completed (" },
+            { "op": "length", "args": [{ "ref": "completedTodos" }] },
+            { "text": ")" }
+          ]
+        }
+      }
+    ]
+  }
+}

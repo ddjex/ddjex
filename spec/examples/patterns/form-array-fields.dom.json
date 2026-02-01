@@ -1,0 +1,570 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-array-fields-pattern",
+  "target": "dom",
+  "description": "Pattern for repeatable field groups (e.g., multiple addresses, phone numbers)",
+
+  "state": {
+    "contacts": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "type": "email", "value": "", "primary": true }
+      ],
+      "itemType": "object"
+    },
+    "nextId": { "type": "number", "initial": 2 },
+    "errors": { "type": "object", "initial": {} },
+    "maxContacts": { "type": "number", "initial": 5 }
+  },
+
+  "computed": {
+    "contactCount": {
+      "deps": ["contacts"],
+      "fn": { "op": "length", "args": [{ "ref": "contacts" }] }
+    },
+    "canAddMore": {
+      "deps": ["contactCount", "maxContacts"],
+      "fn": { "op": "lt", "args": [{ "ref": "contactCount" }, { "ref": "maxContacts" }] }
+    },
+    "canRemove": {
+      "deps": ["contactCount"],
+      "fn": { "op": "gt", "args": [{ "ref": "contactCount" }, 1] }
+    },
+    "primaryContact": {
+      "deps": ["contacts"],
+      "fn": { "op": "find", "args": [{ "ref": "contacts" }, { "op": "get", "args": ["$item", "primary"] }] }
+    },
+    "hasErrors": {
+      "deps": ["errors"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "keys", "args": [{ "ref": "errors" }] }] }, 0] }
+    },
+    "isValid": {
+      "deps": ["contacts", "hasErrors"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "not", "args": [{ "ref": "hasErrors" }] },
+          {
+            "op": "every",
+            "args": [
+              { "ref": "contacts" },
+              { "op": "neq", "args": [{ "op": "get", "args": ["$item", "value"] }, ""] }
+            ]
+          }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "addContact": {
+      "params": ["contactType"],
+      "guard": { "ref": "canAddMore" },
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "type": { "param": "contactType" },
+            "value": "",
+            "primary": false
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 }
+      ]
+    },
+    "removeContact": {
+      "params": ["contactId"],
+      "guard": { "ref": "canRemove" },
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "filter",
+          "predicate": { "op": "neq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "contactId" }] }
+        },
+        {
+          "target": "errors",
+          "op": "omit",
+          "keys": [{ "op": "concat", "args": ["contact-", { "param": "contactId" }] }]
+        }
+      ]
+    },
+    "updateContactValue": {
+      "params": ["contactId", "newValue"],
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "contactId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "value": { "param": "newValue" } }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "updateContactType": {
+      "params": ["contactId", "newType"],
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "contactId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "type": { "param": "newType" }, "value": "" }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "setPrimary": {
+      "params": ["contactId"],
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "map",
+          "transform": {
+            "op": "merge",
+            "args": [
+              { "$item": true },
+              { "primary": { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "contactId" }] } }
+            ]
+          }
+        }
+      ]
+    },
+    "validateContact": {
+      "params": ["contactId", "contactType", "contactValue"],
+      "mutations": [
+        {
+          "target": "errors",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              {
+                "op": "or",
+                "args": [
+                  { "op": "eq", "args": [{ "param": "contactValue" }, ""] },
+                  {
+                    "op": "and",
+                    "args": [
+                      { "op": "eq", "args": [{ "param": "contactType" }, "email"] },
+                      { "op": "not", "args": [{ "op": "isEmail", "args": [{ "param": "contactValue" }] }] }
+                    ]
+                  },
+                  {
+                    "op": "and",
+                    "args": [
+                      { "op": "eq", "args": [{ "param": "contactType" }, "phone"] },
+                      { "op": "not", "args": [{ "op": "matches", "args": [{ "param": "contactValue" }, "^[+]?[0-9\\s-]{7,}$"] }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "merge",
+                "args": [
+                  { "ref": "errors" },
+                  {
+                    "op": "fromEntries",
+                    "args": [[
+                      [{ "op": "concat", "args": ["contact-", { "param": "contactId" }] }, "Invalid value"]
+                    ]]
+                  }
+                ]
+              },
+              { "op": "omit", "args": [{ "ref": "errors" }, [{ "op": "concat", "args": ["contact-", { "param": "contactId" }] }]] }
+            ]
+          }
+        }
+      ]
+    },
+    "moveUp": {
+      "params": ["index"],
+      "guard": { "op": "gt", "args": [{ "param": "index" }, 0] },
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "swap",
+          "indices": [{ "param": "index" }, { "op": "subtract", "args": [{ "param": "index" }, 1] }]
+        }
+      ]
+    },
+    "moveDown": {
+      "params": ["index"],
+      "guard": { "op": "lt", "args": [{ "param": "index" }, { "op": "subtract", "args": [{ "ref": "contactCount" }, 1] }] },
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "swap",
+          "indices": [{ "param": "index" }, { "op": "add", "args": [{ "param": "index" }, 1] }]
+        }
+      ]
+    },
+    "reset": {
+      "mutations": [
+        {
+          "target": "contacts",
+          "op": "set",
+          "value": [{ "id": 1, "type": "email", "value": "", "primary": true }]
+        },
+        { "target": "nextId", "op": "set", "value": 2 },
+        { "target": "errors", "op": "set", "value": {} }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "array-fields-form" },
+    "children": [
+      {
+        "type": "h2",
+        "children": [{ "text": "Contact Information" }]
+      },
+      {
+        "type": "p",
+        "props": { "className": "form-description" },
+        "children": [
+          { "text": "Add up to " },
+          { "bind": "maxContacts" },
+          { "text": " contact methods. One must be primary." }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "contacts-list" },
+        "each": { "items": "contacts", "as": "contact", "indexAs": "idx" },
+        "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+        "children": [
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "contact-row",
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "get", "args": [{ "ref": "contact" }, "primary"] },
+                      " primary",
+                      ""
+                    ]
+                  }
+                ]
+              }
+            },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "contact-number" },
+                "children": [
+                  { "op": "add", "args": [{ "ref": "idx" }, 1] }
+                ]
+              },
+              {
+                "type": "select",
+                "props": {
+                  "className": "contact-type-select",
+                  "value": { "op": "get", "args": [{ "ref": "contact" }, "type"] }
+                },
+                "events": {
+                  "change": {
+                    "action": "updateContactType",
+                    "params": {
+                      "contactId": { "op": "get", "args": [{ "ref": "contact" }, "id"] },
+                      "newType": "$event.target.value"
+                    }
+                  }
+                },
+                "children": [
+                  { "type": "option", "props": { "value": "email" }, "children": [{ "text": "Email" }] },
+                  { "type": "option", "props": { "value": "phone" }, "children": [{ "text": "Phone" }] },
+                  { "type": "option", "props": { "value": "website" }, "children": [{ "text": "Website" }] }
+                ]
+              },
+              {
+                "type": "input",
+                "props": {
+                  "type": {
+                    "op": "switch",
+                    "args": [
+                      { "op": "get", "args": [{ "ref": "contact" }, "type"] },
+                      { "email": "email", "phone": "tel", "website": "url" },
+                      "text"
+                    ]
+                  },
+                  "className": {
+                    "op": "concat",
+                    "args": [
+                      "contact-input",
+                      {
+                        "op": "if",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "errors" }, { "op": "concat", "args": ["contact-", { "op": "get", "args": [{ "ref": "contact" }, "id"] }] }] },
+                          " error",
+                          ""
+                        ]
+                      }
+                    ]
+                  },
+                  "placeholder": {
+                    "op": "switch",
+                    "args": [
+                      { "op": "get", "args": [{ "ref": "contact" }, "type"] },
+                      { "email": "email@example.com", "phone": "+1 555 123 4567", "website": "https://example.com" },
+                      "Enter value"
+                    ]
+                  },
+                  "value": { "op": "get", "args": [{ "ref": "contact" }, "value"] }
+                },
+                "events": {
+                  "input": {
+                    "action": "updateContactValue",
+                    "params": {
+                      "contactId": { "op": "get", "args": [{ "ref": "contact" }, "id"] },
+                      "newValue": "$event.target.value"
+                    }
+                  },
+                  "blur": {
+                    "action": "validateContact",
+                    "params": {
+                      "contactId": { "op": "get", "args": [{ "ref": "contact" }, "id"] },
+                      "contactType": { "op": "get", "args": [{ "ref": "contact" }, "type"] },
+                      "contactValue": { "op": "get", "args": [{ "ref": "contact" }, "value"] }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "label",
+                "props": { "className": "primary-label" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "radio",
+                      "name": "primary-contact",
+                      "checked": { "op": "get", "args": [{ "ref": "contact" }, "primary"] }
+                    },
+                    "events": {
+                      "change": {
+                        "action": "setPrimary",
+                        "params": { "contactId": { "op": "get", "args": [{ "ref": "contact" }, "id"] } }
+                      }
+                    }
+                  },
+                  { "text": "Primary" }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "contact-actions" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": "btn-icon",
+                      "disabled": { "op": "eq", "args": [{ "ref": "idx" }, 0] },
+                      "title": "Move up"
+                    },
+                    "events": { "click": { "action": "moveUp", "params": { "index": { "ref": "idx" } } } },
+                    "children": [{ "text": "↑" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": "btn-icon",
+                      "disabled": { "op": "eq", "args": [{ "ref": "idx" }, { "op": "subtract", "args": [{ "ref": "contactCount" }, 1] }] },
+                      "title": "Move down"
+                    },
+                    "events": { "click": { "action": "moveDown", "params": { "index": { "ref": "idx" } } } },
+                    "children": [{ "text": "↓" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": "btn-remove",
+                      "disabled": { "op": "not", "args": [{ "ref": "canRemove" }] },
+                      "title": "Remove"
+                    },
+                    "events": {
+                      "click": {
+                        "action": "removeContact",
+                        "params": { "contactId": { "op": "get", "args": [{ "ref": "contact" }, "id"] } }
+                      }
+                    },
+                    "children": [{ "text": "×" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "add-contact-section" },
+        "children": [
+          {
+            "type": "button",
+            "props": {
+              "className": "btn-add",
+              "disabled": { "op": "not", "args": [{ "ref": "canAddMore" }] }
+            },
+            "events": { "click": { "action": "addContact", "params": { "contactType": "email" } } },
+            "children": [
+              { "text": "+ Add Contact (" },
+              { "bind": "contactCount" },
+              { "text": "/" },
+              { "bind": "maxContacts" },
+              { "text": ")" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "form-summary" },
+        "children": [
+          {
+            "type": "div",
+            "when": { "ref": "primaryContact" },
+            "children": [
+              { "text": "Primary: " },
+              { "op": "get", "args": [{ "ref": "primaryContact" }, "type"] },
+              { "text": " - " },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "primaryContact" }, "value"] }, ""] },
+                  "(not set)",
+                  { "op": "get", "args": [{ "ref": "primaryContact" }, "value"] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "if",
+                "args": [{ "ref": "isValid" }, "valid-status", "invalid-status"]
+              }
+            },
+            "children": [
+              {
+                "op": "if",
+                "args": [
+                  { "ref": "isValid" },
+                  "✓ Form is valid",
+                  "✗ Please fill in all fields correctly"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "form-actions" },
+        "children": [
+          {
+            "type": "button",
+            "props": { "className": "btn-secondary" },
+            "events": { "click": { "action": "reset" } },
+            "children": [{ "text": "Reset" }]
+          },
+          {
+            "type": "button",
+            "props": {
+              "className": "btn-primary",
+              "disabled": { "op": "not", "args": [{ "ref": "isValid" }] }
+            },
+            "children": [{ "text": "Save Contacts" }]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with one contact",
+      "steps": [
+        { "assert": { "ref": "contactCount", "eq": 1 } },
+        { "assert": { "ref": "canAddMore", "eq": true } },
+        { "assert": { "ref": "canRemove", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-add-contact",
+      "name": "addContact adds new entry",
+      "steps": [
+        { "dispatch": "addContact", "params": { "contactType": "phone" } },
+        { "assert": { "ref": "contactCount", "eq": 2 } },
+        { "assert": { "ref": "nextId", "eq": 3 } },
+        { "assert": { "ref": "canRemove", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-remove-contact",
+      "name": "removeContact removes entry",
+      "steps": [
+        { "dispatch": "addContact", "params": { "contactType": "email" } },
+        { "assert": { "ref": "contactCount", "eq": 2 } },
+        { "dispatch": "removeContact", "params": { "contactId": 2 } },
+        { "assert": { "ref": "contactCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-max-contacts",
+      "name": "cannot add more than maxContacts",
+      "steps": [
+        { "dispatch": "addContact", "params": { "contactType": "phone" } },
+        { "dispatch": "addContact", "params": { "contactType": "website" } },
+        { "dispatch": "addContact", "params": { "contactType": "email" } },
+        { "dispatch": "addContact", "params": { "contactType": "phone" } },
+        { "assert": { "ref": "contactCount", "eq": 5 } },
+        { "assert": { "ref": "canAddMore", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-set-primary",
+      "name": "setPrimary changes primary contact",
+      "steps": [
+        { "dispatch": "addContact", "params": { "contactType": "phone" } },
+        { "dispatch": "setPrimary", "params": { "contactId": 2 } }
+      ]
+    },
+    {
+      "id": "test-update-value",
+      "name": "updateContactValue updates contact value",
+      "steps": [
+        { "dispatch": "updateContactValue", "params": { "contactId": 1, "newValue": "test@example.com" } }
+      ]
+    },
+    {
+      "id": "test-reset",
+      "name": "reset returns to initial state",
+      "steps": [
+        { "dispatch": "addContact", "params": { "contactType": "phone" } },
+        { "dispatch": "addContact", "params": { "contactType": "website" } },
+        { "assert": { "ref": "contactCount", "eq": 3 } },
+        { "dispatch": "reset" },
+        { "assert": { "ref": "contactCount", "eq": 1 } },
+        { "assert": { "ref": "nextId", "eq": 2 } }
+      ]
+    }
+  ]
+}

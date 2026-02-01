@@ -1,0 +1,176 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-toast",
+  "target": "dom",
+
+  "state": {
+    "toasts": { "type": "array", "initial": [] },
+    "nextId": { "type": "number", "initial": 1 }
+  },
+
+  "actions": {
+    "showToast": {
+      "params": ["message", "type"],
+      "mutations": [
+        {
+          "target": "toasts",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "message": { "param": "message" },
+            "type": { "op": "coalesce", "args": [{ "param": "type" }, "info"] }
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 }
+      ]
+    },
+    "removeToast": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "toasts",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "toasts" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "clearAll": {
+      "mutations": [{ "target": "toasts", "op": "set", "value": [] }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Toast Notifications" }] },
+      {
+        "type": "div",
+        "props": { "className": "flex flex-wrap gap-2 mb-4" },
+        "children": [
+          {
+            "type": "button",
+            "props": { "className": "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" },
+            "events": { "click": { "action": "showToast", "args": ["This is an info message", "info"] } },
+            "children": [{ "text": "Info" }]
+          },
+          {
+            "type": "button",
+            "props": { "className": "bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" },
+            "events": { "click": { "action": "showToast", "args": ["Operation successful!", "success"] } },
+            "children": [{ "text": "Success" }]
+          },
+          {
+            "type": "button",
+            "props": { "className": "bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600" },
+            "events": { "click": { "action": "showToast", "args": ["Warning: Check your input", "warning"] } },
+            "children": [{ "text": "Warning" }]
+          },
+          {
+            "type": "button",
+            "props": { "className": "bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600" },
+            "events": { "click": { "action": "showToast", "args": ["Error: Something went wrong", "error"] } },
+            "children": [{ "text": "Error" }]
+          },
+          {
+            "type": "button",
+            "props": { "className": "bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" },
+            "events": { "click": { "action": "clearAll" } },
+            "children": [{ "text": "Clear All" }]
+          }
+        ]
+      },
+      {
+        "portal": {
+          "target": "body",
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": "fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm" },
+              "children": [
+                {
+                  "type": "div",
+                  "each": { "items": "toasts", "as": "toast", "key": { "op": "get", "args": [{ "ref": "toast" }, "id"] } },
+                  "children": [
+                    {
+                      "type": "div",
+                      "props": {
+                        "className": {
+                          "op": "switch",
+                          "args": [
+                            { "op": "get", "args": [{ "ref": "toast" }, "type"] },
+                            {
+                              "info": "bg-blue-500 text-white p-4 rounded-lg shadow-lg flex items-center justify-between",
+                              "success": "bg-green-500 text-white p-4 rounded-lg shadow-lg flex items-center justify-between",
+                              "warning": "bg-yellow-500 text-white p-4 rounded-lg shadow-lg flex items-center justify-between",
+                              "error": "bg-red-500 text-white p-4 rounded-lg shadow-lg flex items-center justify-between"
+                            },
+                            "bg-gray-500 text-white p-4 rounded-lg shadow-lg flex items-center justify-between"
+                          ]
+                        }
+                      },
+                      "children": [
+                        { "type": "span", "children": [{ "bind": "toast.message" }] },
+                        {
+                          "type": "button",
+                          "props": { "className": "ml-4 text-white hover:text-gray-200 font-bold" },
+                          "events": { "click": { "action": "removeToast", "args": [{ "op": "get", "args": [{ "ref": "toast" }, "id"] }] } },
+                          "children": [{ "text": "×" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-empty",
+      "name": "Starts with no toasts",
+      "steps": [
+        { "assert": { "ref": "toasts", "length": 0 } }
+      ]
+    },
+    {
+      "id": "test-add-toast",
+      "name": "Can add a toast",
+      "steps": [
+        { "dispatch": "showToast", "args": ["Test message", "info"] },
+        { "assert": { "ref": "toasts", "length": 1 } }
+      ]
+    },
+    {
+      "id": "test-remove-toast",
+      "name": "Can remove a toast",
+      "steps": [
+        { "dispatch": "showToast", "args": ["Test", "info"] },
+        { "dispatch": "removeToast", "args": [1] },
+        { "assert": { "ref": "toasts", "length": 0 } }
+      ]
+    },
+    {
+      "id": "test-clear-all",
+      "name": "Can clear all toasts",
+      "steps": [
+        { "dispatch": "showToast", "args": ["One", "info"] },
+        { "dispatch": "showToast", "args": ["Two", "success"] },
+        { "dispatch": "showToast", "args": ["Three", "error"] },
+        { "assert": { "ref": "toasts", "length": 3 } },
+        { "dispatch": "clearAll" },
+        { "assert": { "ref": "toasts", "length": 0 } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,610 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-blog-pattern",
+  "target": "dom",
+  "description": "Blog application with posts, categories, tags, and comments",
+
+  "state": {
+    "posts": { "type": "array", "initial": [], "itemType": "object" },
+    "categories": {
+      "type": "array",
+      "initial": ["Technology", "Design", "Business", "Lifestyle"],
+      "itemType": "string"
+    },
+    "selectedCategory": { "type": "string", "initial": "all" },
+    "selectedPost": { "type": "object", "initial": null, "nullable": true },
+    "searchQuery": { "type": "string", "initial": "" },
+    "sortBy": { "type": "string", "initial": "date" },
+    "currentPage": { "type": "number", "initial": 1 },
+    "postsPerPage": { "type": "number", "initial": 5 },
+    "loading": { "type": "boolean", "initial": false },
+    "newComment": { "type": "string", "initial": "" },
+    "commentAuthor": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "filteredPosts": {
+      "deps": ["posts", "selectedCategory", "searchQuery"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "posts" },
+          {
+            "op": "and",
+            "args": [
+              {
+                "op": "or",
+                "args": [
+                  { "op": "eq", "args": [{ "ref": "selectedCategory" }, "all"] },
+                  { "op": "eq", "args": [{ "op": "get", "args": ["$item", "category"] }, { "ref": "selectedCategory" }] }
+                ]
+              },
+              {
+                "op": "or",
+                "args": [
+                  { "op": "eq", "args": [{ "ref": "searchQuery" }, ""] },
+                  { "op": "includes", "args": [{ "op": "toLowerCase", "args": [{ "op": "get", "args": ["$item", "title"] }] }, { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "sortedPosts": {
+      "deps": ["filteredPosts", "sortBy"],
+      "fn": { "op": "sort", "args": [{ "ref": "filteredPosts" }, { "ref": "sortBy" }, "desc"] }
+    },
+    "totalPages": {
+      "deps": ["sortedPosts", "postsPerPage"],
+      "fn": { "op": "ceil", "args": [{ "op": "divide", "args": [{ "op": "length", "args": [{ "ref": "sortedPosts" }] }, { "ref": "postsPerPage" }] }] }
+    },
+    "paginatedPosts": {
+      "deps": ["sortedPosts", "currentPage", "postsPerPage"],
+      "fn": {
+        "op": "slice",
+        "args": [
+          { "ref": "sortedPosts" },
+          { "op": "multiply", "args": [{ "op": "subtract", "args": [{ "ref": "currentPage" }, 1] }, { "ref": "postsPerPage" }] },
+          { "op": "multiply", "args": [{ "ref": "currentPage" }, { "ref": "postsPerPage" }] }
+        ]
+      }
+    },
+    "totalPosts": {
+      "deps": ["posts"],
+      "fn": { "op": "length", "args": [{ "ref": "posts" }] }
+    },
+    "isViewingPost": {
+      "deps": ["selectedPost"],
+      "fn": { "op": "neq", "args": [{ "ref": "selectedPost" }, null] }
+    },
+    "selectedPostComments": {
+      "deps": ["selectedPost"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "selectedPost" },
+          { "op": "get", "args": [{ "ref": "selectedPost" }, "comments"] },
+          []
+        ]
+      }
+    },
+    "canComment": {
+      "deps": ["newComment", "commentAuthor"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "trim", "args": [{ "ref": "newComment" }] }] }, 0] },
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "trim", "args": [{ "ref": "commentAuthor" }] }] }, 0] }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "loadPosts": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true }
+      ]
+    },
+    "postsLoaded": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "posts", "op": "set", "value": { "param": "data" } },
+        { "target": "loading", "op": "set", "value": false }
+      ]
+    },
+    "setCategory": {
+      "params": ["category"],
+      "mutations": [
+        { "target": "selectedCategory", "op": "set", "value": { "param": "category" } },
+        { "target": "currentPage", "op": "set", "value": 1 }
+      ]
+    },
+    "setSearch": {
+      "params": ["query"],
+      "mutations": [
+        { "target": "searchQuery", "op": "set", "value": { "param": "query" } },
+        { "target": "currentPage", "op": "set", "value": 1 }
+      ]
+    },
+    "setSortBy": {
+      "params": ["field"],
+      "mutations": [
+        { "target": "sortBy", "op": "set", "value": { "param": "field" } }
+      ]
+    },
+    "goToPage": {
+      "params": ["page"],
+      "mutations": [
+        { "target": "currentPage", "op": "set", "value": { "param": "page" } }
+      ]
+    },
+    "nextPage": {
+      "guard": { "op": "lt", "args": [{ "ref": "currentPage" }, { "ref": "totalPages" }] },
+      "mutations": [
+        { "target": "currentPage", "op": "add", "value": 1 }
+      ]
+    },
+    "prevPage": {
+      "guard": { "op": "gt", "args": [{ "ref": "currentPage" }, 1] },
+      "mutations": [
+        { "target": "currentPage", "op": "subtract", "value": 1 }
+      ]
+    },
+    "viewPost": {
+      "params": ["post"],
+      "mutations": [
+        { "target": "selectedPost", "op": "set", "value": { "param": "post" } },
+        { "target": "newComment", "op": "set", "value": "" }
+      ]
+    },
+    "closePost": {
+      "mutations": [
+        { "target": "selectedPost", "op": "set", "value": null }
+      ]
+    },
+    "setCommentAuthor": {
+      "params": ["author"],
+      "mutations": [
+        { "target": "commentAuthor", "op": "set", "value": { "param": "author" } }
+      ]
+    },
+    "setNewComment": {
+      "params": ["text"],
+      "mutations": [
+        { "target": "newComment", "op": "set", "value": { "param": "text" } }
+      ]
+    },
+    "addComment": {
+      "guard": { "ref": "canComment" },
+      "mutations": [
+        {
+          "target": "selectedPost",
+          "op": "merge",
+          "value": {
+            "comments": {
+              "op": "concat",
+              "args": [
+                { "ref": "selectedPostComments" },
+                [{
+                  "id": { "op": "uuid" },
+                  "author": { "op": "trim", "args": [{ "ref": "commentAuthor" }] },
+                  "text": { "op": "trim", "args": [{ "ref": "newComment" }] },
+                  "date": { "op": "now" }
+                }]
+              ]
+            }
+          }
+        },
+        { "target": "newComment", "op": "set", "value": "" }
+      ]
+    },
+    "likePost": {
+      "params": ["postId"],
+      "mutations": [
+        {
+          "target": "posts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "postId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "likes": { "op": "add", "args": [{ "op": "get", "args": ["$item", "likes"] }, 1] } }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "load-posts",
+      "trigger": { "type": "mount" },
+      "do": { "action": "loadPosts" }
+    },
+    {
+      "id": "fetch-posts",
+      "watch": ["loading"],
+      "condition": { "ref": "loading" },
+      "do": { "op": "fetch", "url": "/api/posts", "method": "GET" },
+      "onSuccess": { "action": "postsLoaded", "params": { "data": "$result" } }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "blog-app" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "blog-header" },
+        "children": [
+          { "type": "h1", "children": [{ "text": "My Blog" }] },
+          {
+            "type": "div",
+            "props": { "className": "header-stats" },
+            "children": [
+              { "bind": "totalPosts" },
+              { "text": " posts" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "not", "args": [{ "ref": "isViewingPost" }] },
+        "props": { "className": "blog-list-view" },
+        "children": [
+          {
+            "type": "aside",
+            "props": { "className": "sidebar" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "search-box" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": { "type": "search", "placeholder": "Search posts...", "value": { "ref": "searchQuery" } },
+                    "events": { "input": { "action": "setSearch", "params": { "query": "$event.target.value" } } }
+                  }
+                ]
+              },
+              {
+                "type": "nav",
+                "props": { "className": "categories" },
+                "children": [
+                  { "type": "h3", "children": [{ "text": "Categories" }] },
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedCategory" }, "all"] }, "active", ""] } },
+                    "events": { "click": { "action": "setCategory", "params": { "category": "all" } } },
+                    "children": [{ "text": "All" }]
+                  },
+                  {
+                    "type": "fragment",
+                    "each": { "items": "categories", "as": "cat" },
+                    "children": [
+                      {
+                        "type": "button",
+                        "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedCategory" }, { "ref": "cat" }] }, "active", ""] } },
+                        "events": { "click": { "action": "setCategory", "params": { "category": { "ref": "cat" } } } },
+                        "children": [{ "bind": "cat" }]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "sort-options" },
+                "children": [
+                  { "type": "h3", "children": [{ "text": "Sort by" }] },
+                  {
+                    "type": "select",
+                    "props": { "value": { "ref": "sortBy" } },
+                    "events": { "change": { "action": "setSortBy", "params": { "field": "$event.target.value" } } },
+                    "children": [
+                      { "type": "option", "props": { "value": "date" }, "children": [{ "text": "Date" }] },
+                      { "type": "option", "props": { "value": "likes" }, "children": [{ "text": "Popularity" }] },
+                      { "type": "option", "props": { "value": "title" }, "children": [{ "text": "Title" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "main",
+            "props": { "className": "posts-list" },
+            "children": [
+              {
+                "type": "div",
+                "when": { "ref": "loading" },
+                "props": { "className": "loading" },
+                "children": [{ "text": "Loading posts..." }]
+              },
+              {
+                "type": "div",
+                "when": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "loading" }] }, { "op": "eq", "args": [{ "op": "length", "args": [{ "ref": "paginatedPosts" }] }, 0] }] },
+                "props": { "className": "no-posts" },
+                "children": [{ "text": "No posts found." }]
+              },
+              {
+                "type": "article",
+                "each": { "items": "paginatedPosts", "as": "post" },
+                "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+                "props": { "className": "post-card" },
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "post-category" },
+                    "children": [{ "op": "get", "args": [{ "ref": "post" }, "category"] }]
+                  },
+                  {
+                    "type": "h2",
+                    "props": { "className": "post-title" },
+                    "events": { "click": { "action": "viewPost", "params": { "post": { "ref": "post" } } } },
+                    "children": [{ "op": "get", "args": [{ "ref": "post" }, "title"] }]
+                  },
+                  {
+                    "type": "p",
+                    "props": { "className": "post-excerpt" },
+                    "children": [{ "op": "get", "args": [{ "ref": "post" }, "excerpt"] }]
+                  },
+                  {
+                    "type": "footer",
+                    "props": { "className": "post-meta" },
+                    "children": [
+                      {
+                        "type": "span",
+                        "children": [{ "op": "get", "args": [{ "ref": "post" }, "author"] }]
+                      },
+                      {
+                        "type": "span",
+                        "children": [{ "op": "get", "args": [{ "ref": "post" }, "date"] }]
+                      },
+                      {
+                        "type": "button",
+                        "props": { "className": "like-btn" },
+                        "events": { "click": { "action": "likePost", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] } } } },
+                        "children": [
+                          { "text": "♥ " },
+                          { "op": "get", "args": [{ "ref": "post" }, "likes"] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "nav",
+                "when": { "op": "gt", "args": [{ "ref": "totalPages" }, 1] },
+                "props": { "className": "pagination" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "disabled": { "op": "eq", "args": [{ "ref": "currentPage" }, 1] } },
+                    "events": { "click": { "action": "prevPage" } },
+                    "children": [{ "text": "← Prev" }]
+                  },
+                  {
+                    "type": "span",
+                    "children": [
+                      { "text": "Page " },
+                      { "bind": "currentPage" },
+                      { "text": " of " },
+                      { "bind": "totalPages" }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "disabled": { "op": "eq", "args": [{ "ref": "currentPage" }, { "ref": "totalPages" }] } },
+                    "events": { "click": { "action": "nextPage" } },
+                    "children": [{ "text": "Next →" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "isViewingPost" },
+        "props": { "className": "post-detail-view" },
+        "children": [
+          {
+            "type": "button",
+            "props": { "className": "back-btn" },
+            "events": { "click": { "action": "closePost" } },
+            "children": [{ "text": "← Back to posts" }]
+          },
+          {
+            "type": "article",
+            "props": { "className": "post-full" },
+            "children": [
+              {
+                "type": "header",
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "post-category" },
+                    "children": [{ "op": "get", "args": [{ "ref": "selectedPost" }, "category"] }]
+                  },
+                  {
+                    "type": "h1",
+                    "children": [{ "op": "get", "args": [{ "ref": "selectedPost" }, "title"] }]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "post-info" },
+                    "children": [
+                      { "text": "By " },
+                      { "op": "get", "args": [{ "ref": "selectedPost" }, "author"] },
+                      { "text": " • " },
+                      { "op": "get", "args": [{ "ref": "selectedPost" }, "date"] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "post-content" },
+                "children": [{ "op": "get", "args": [{ "ref": "selectedPost" }, "content"] }]
+              },
+              {
+                "type": "div",
+                "props": { "className": "post-tags" },
+                "each": { "items": { "op": "get", "args": [{ "ref": "selectedPost" }, "tags"] }, "as": "tag" },
+                "children": [
+                  { "type": "span", "props": { "className": "tag" }, "children": [{ "bind": "tag" }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "section",
+            "props": { "className": "comments-section" },
+            "children": [
+              {
+                "type": "h3",
+                "children": [
+                  { "text": "Comments (" },
+                  { "op": "length", "args": [{ "ref": "selectedPostComments" }] },
+                  { "text": ")" }
+                ]
+              },
+              {
+                "type": "form",
+                "props": { "className": "comment-form" },
+                "events": { "submit": { "action": "addComment", "preventDefault": true } },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": { "type": "text", "placeholder": "Your name", "value": { "ref": "commentAuthor" } },
+                    "events": { "input": { "action": "setCommentAuthor", "params": { "author": "$event.target.value" } } }
+                  },
+                  {
+                    "type": "textarea",
+                    "props": { "placeholder": "Write a comment...", "value": { "ref": "newComment" } },
+                    "events": { "input": { "action": "setNewComment", "params": { "text": "$event.target.value" } } }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "type": "submit", "disabled": { "op": "not", "args": [{ "ref": "canComment" }] } },
+                    "children": [{ "text": "Post Comment" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "comments-list" },
+                "each": { "items": "selectedPostComments", "as": "comment" },
+                "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "comment" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "comment-header" },
+                        "children": [
+                          {
+                            "type": "strong",
+                            "children": [{ "op": "get", "args": [{ "ref": "comment" }, "author"] }]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "p",
+                        "children": [{ "op": "get", "args": [{ "ref": "comment" }, "text"] }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with empty posts",
+      "steps": [
+        { "assert": { "ref": "totalPosts", "eq": 0 } },
+        { "assert": { "ref": "selectedCategory", "eq": "all" } },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-load-posts",
+      "name": "loadPosts sets loading state",
+      "steps": [
+        { "dispatch": "loadPosts" },
+        { "assert": { "ref": "loading", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-posts-loaded",
+      "name": "postsLoaded updates posts",
+      "steps": [
+        { "dispatch": "postsLoaded", "params": { "data": [{ "id": 1, "title": "Test", "category": "Tech", "likes": 0, "comments": [] }] } },
+        { "assert": { "ref": "totalPosts", "eq": 1 } },
+        { "assert": { "ref": "loading", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-filter-category",
+      "name": "setCategory filters posts",
+      "steps": [
+        { "dispatch": "setCategory", "params": { "category": "Technology" } },
+        { "assert": { "ref": "selectedCategory", "eq": "Technology" } },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-search",
+      "name": "setSearch updates query",
+      "steps": [
+        { "dispatch": "setSearch", "params": { "query": "test" } },
+        { "assert": { "ref": "searchQuery", "eq": "test" } }
+      ]
+    },
+    {
+      "id": "test-view-post",
+      "name": "viewPost selects post",
+      "steps": [
+        { "dispatch": "viewPost", "params": { "post": { "id": 1, "title": "Test", "comments": [] } } },
+        { "assert": { "ref": "isViewingPost", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-close-post",
+      "name": "closePost clears selection",
+      "steps": [
+        { "dispatch": "viewPost", "params": { "post": { "id": 1, "title": "Test", "comments": [] } } },
+        { "dispatch": "closePost" },
+        { "assert": { "ref": "isViewingPost", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-pagination",
+      "name": "pagination works",
+      "steps": [
+        { "dispatch": "goToPage", "params": { "page": 2 } },
+        { "assert": { "ref": "currentPage", "eq": 2 } },
+        { "dispatch": "prevPage" },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    }
+  ]
+}

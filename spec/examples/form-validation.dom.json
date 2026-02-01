@@ -1,0 +1,294 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form_validation_demo",
+  "target": "dom",
+
+  "state": {
+    "email": { "type": "string", "initial": "" },
+    "password": { "type": "string", "initial": "" },
+    "confirmPassword": { "type": "string", "initial": "" },
+    "age": { "type": "string", "initial": "" },
+    "emailError": { "type": "string", "initial": "" },
+    "passwordError": { "type": "string", "initial": "" },
+    "confirmError": { "type": "string", "initial": "" },
+    "ageError": { "type": "string", "initial": "" },
+    "submitted": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "isFormValid": {
+      "deps": ["email", "password", "confirmPassword", "age"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "isEmail", "args": [{ "ref": "email" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "email" }] },
+          { "op": "hasMinLength", "args": [{ "ref": "password" }, 8] },
+          { "op": "areEqual", "args": [{ "ref": "password" }, { "ref": "confirmPassword" }] },
+          { "op": "isNumeric", "args": [{ "ref": "age" }] },
+          { "op": "isNotEmpty", "args": [{ "ref": "age" }] }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setEmail": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "email", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "validateEmail": {
+      "mutations": [
+        {
+          "target": "emailError",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "isEmpty", "args": [{ "ref": "email" }] },
+              "Email is required",
+              {
+                "op": "if",
+                "args": [
+                  { "op": "not", "args": [{ "op": "isEmail", "args": [{ "ref": "email" }] }] },
+                  "Invalid email format",
+                  ""
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "setPassword": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "password", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "validatePassword": {
+      "mutations": [
+        {
+          "target": "passwordError",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "not", "args": [{ "op": "hasMinLength", "args": [{ "ref": "password" }, 8] }] },
+              "Password must be at least 8 characters",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    "setConfirmPassword": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "confirmPassword", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "validateConfirm": {
+      "mutations": [
+        {
+          "target": "confirmError",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "not", "args": [{ "op": "areEqual", "args": [{ "ref": "password" }, { "ref": "confirmPassword" }] }] },
+              "Passwords do not match",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    "setAge": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "age", "op": "set", "value": { "param": "value" } }
+      ]
+    },
+    "validateAge": {
+      "mutations": [
+        {
+          "target": "ageError",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "isEmpty", "args": [{ "ref": "age" }] },
+              "Age is required",
+              {
+                "op": "if",
+                "args": [
+                  { "op": "not", "args": [{ "op": "isNumeric", "args": [{ "ref": "age" }] }] },
+                  "Age must be a number",
+                  ""
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "submit": {
+      "mutations": [
+        { "target": "submitted", "op": "set", "value": true }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "form-container" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Registration Form" }]
+      },
+      {
+        "if": { "op": "eq", "args": [{ "ref": "submitted" }, true] },
+        "then": {
+          "type": "div",
+          "props": { "className": "success" },
+          "children": [{ "text": "Form submitted successfully!" }]
+        },
+        "else": {
+          "type": "form",
+          "props": { "className": "form" },
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": "field" },
+              "children": [
+                { "type": "label", "children": [{ "text": "Email" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "email",
+                    "value": { "ref": "email" },
+                    "placeholder": "Enter email"
+                  },
+                  "events": {
+                    "input": { "action": "setEmail", "args": [{ "op": "eventValue" }] },
+                    "blur": { "action": "validateEmail" }
+                  }
+                },
+                {
+                  "if": { "op": "isNotEmpty", "args": [{ "ref": "emailError" }] },
+                  "then": {
+                    "type": "span",
+                    "props": { "className": "error" },
+                    "children": [{ "bind": "emailError" }]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "field" },
+              "children": [
+                { "type": "label", "children": [{ "text": "Password" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "password",
+                    "value": { "ref": "password" },
+                    "placeholder": "Min 8 characters"
+                  },
+                  "events": {
+                    "input": { "action": "setPassword", "args": [{ "op": "eventValue" }] },
+                    "blur": { "action": "validatePassword" }
+                  }
+                },
+                {
+                  "if": { "op": "isNotEmpty", "args": [{ "ref": "passwordError" }] },
+                  "then": {
+                    "type": "span",
+                    "props": { "className": "error" },
+                    "children": [{ "bind": "passwordError" }]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "field" },
+              "children": [
+                { "type": "label", "children": [{ "text": "Confirm Password" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "password",
+                    "value": { "ref": "confirmPassword" },
+                    "placeholder": "Repeat password"
+                  },
+                  "events": {
+                    "input": { "action": "setConfirmPassword", "args": [{ "op": "eventValue" }] },
+                    "blur": { "action": "validateConfirm" }
+                  }
+                },
+                {
+                  "if": { "op": "isNotEmpty", "args": [{ "ref": "confirmError" }] },
+                  "then": {
+                    "type": "span",
+                    "props": { "className": "error" },
+                    "children": [{ "bind": "confirmError" }]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "field" },
+              "children": [
+                { "type": "label", "children": [{ "text": "Age" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "text",
+                    "value": { "ref": "age" },
+                    "placeholder": "Enter age"
+                  },
+                  "events": {
+                    "input": { "action": "setAge", "args": [{ "op": "eventValue" }] },
+                    "blur": { "action": "validateAge" }
+                  }
+                },
+                {
+                  "if": { "op": "isNotEmpty", "args": [{ "ref": "ageError" }] },
+                  "then": {
+                    "type": "span",
+                    "props": { "className": "error" },
+                    "children": [{ "bind": "ageError" }]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "button",
+              "props": {
+                "type": "button",
+                "disabled": { "op": "not", "args": [{ "ref": "isFormValid" }] },
+                "className": {
+                  "op": "if",
+                  "args": [
+                    { "ref": "isFormValid" },
+                    "btn btn-primary",
+                    "btn btn-disabled"
+                  ]
+                }
+              },
+              "events": { "click": { "action": "submit" } },
+              "children": [{ "text": "Register" }]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

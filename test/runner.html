@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DDJEX Test Runner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; padding: 40px 20px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin-bottom: 30px; }
+    .badge { background: #166534; color: #4ade80; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 12px; vertical-align: middle; }
+    .controls { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; }
+    button { background: #4a4a6a; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1rem; transition: all 0.2s; }
+    button:hover { background: #5a5a8a; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary { background: #4ade80; color: #000; }
+    button.primary:hover { background: #22c55e; }
+    .status { padding: 20px; background: #252542; border-radius: 12px; margin-bottom: 20px; }
+    .status.running { border-left: 4px solid #fbbf24; }
+    .status.success { border-left: 4px solid #4ade80; }
+    .status.failed { border-left: 4px solid #f87171; }
+    .status h2 { font-size: 1.2rem; margin-bottom: 10px; }
+    .status .info { color: #888; }
+    .results { display: grid; gap: 20px; }
+    .result { background: #252542; border-radius: 12px; overflow: hidden; }
+    .result-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3a3a5a; }
+    .result-header h3 { font-size: 1.1rem; }
+    .result-header .result-badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: 600; }
+    .result-badge.pass { background: #166534; color: #4ade80; }
+    .result-badge.fail { background: #7f1d1d; color: #f87171; }
+    .result-stats { padding: 16px 20px; display: flex; gap: 30px; border-bottom: 1px solid #3a3a5a; }
+    .stat { text-align: center; }
+    .stat .num { font-size: 1.5rem; font-weight: bold; }
+    .stat .num.passed { color: #4ade80; }
+    .stat .num.failed { color: #f87171; }
+    .stat .label { font-size: 0.8rem; color: #888; margin-top: 4px; }
+    .result-output { max-height: 400px; overflow: auto; }
+    .result-output pre { padding: 16px 20px; font-family: 'SF Mono', Consolas, monospace; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+    .toggle-output { padding: 12px 20px; background: #1a1a2e; border: none; color: #6eb5ff; cursor: pointer; width: 100%; text-align: left; font-size: 0.9rem; border-radius: 0; }
+    .toggle-output:hover { background: #2a2a4e; }
+    .hidden { display: none; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #4a4a6a; border-top-color: #fbbf24; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .links { margin-top: 30px; padding-top: 20px; border-top: 1px solid #3a3a5a; }
+    .links a { color: #6eb5ff; margin-right: 20px; text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="/dist/ddjex.browser.js"></script>
+  <script>
+    const program = {
+      "$ddjex": "0.4.0",
+      "id": "ddjex_test_runner",
+      "target": "dom",
+
+      "state": {
+        "running": { "type": "boolean", "initial": false },
+        "statusType": { "type": "string", "initial": "hidden" },
+        "statusTitle": { "type": "string", "initial": "Ready" },
+        "statusInfo": { "type": "string", "initial": "" },
+        "results": { "type": "array", "initial": [], "itemType": "object" },
+        "testType": { "type": "string", "initial": "" },
+        "totalPassed": { "type": "number", "initial": 0 },
+        "totalFailed": { "type": "number", "initial": 0 },
+        "unitTests": { "type": "string", "initial": "..." },
+        "browserTests": { "type": "string", "initial": "..." },
+        "hmrTests": { "type": "string", "initial": "..." }
+      },
+
+      "computed": {
+        "showStatus": {
+          "deps": ["statusType"],
+          "fn": { "op": "neq", "args": [{ "ref": "statusType" }, "hidden"] }
+        },
+        "isRunning": {
+          "deps": ["statusType"],
+          "fn": { "op": "eq", "args": [{ "ref": "statusType" }, "running"] }
+        },
+        "statusClass": {
+          "deps": ["statusType"],
+          "fn": { "op": "concat", "args": ["status ", { "ref": "statusType" }] }
+        }
+      },
+
+      "effects": [
+        {
+          "id": "loadStats",
+          "trigger": "mount",
+          "do": { "op": "fetch", "args": ["/api/stats"] },
+          "onSuccess": { "action": "setStats", "args": [{ "param": "result" }] }
+        },
+        {
+          "id": "runTestsEffect",
+          "trigger": "watch",
+          "watch": ["testType"],
+          "do": {
+            "op": "if",
+            "args": [
+              { "op": "neq", "args": [{ "ref": "testType" }, ""] },
+              { "op": "fetch", "args": [{ "op": "concat", "args": ["/api/run-", { "ref": "testType" }, "-tests"] }] },
+              null
+            ]
+          },
+          "onStart": { "action": "onTestStart" },
+          "onSuccess": { "action": "onTestSuccess", "args": [{ "param": "result" }] },
+          "onError": { "action": "onTestError", "args": [{ "param": "error" }] }
+        }
+      ],
+
+      "actions": {
+        "setStats": {
+          "params": ["response"],
+          "mutations": [
+            { "target": "unitTests", "op": "set", "value": { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "unitTests"] } },
+            { "target": "browserTests", "op": "set", "value": { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "browserTests"] } },
+            { "target": "hmrTests", "op": "set", "value": { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "hmrTests"] } }
+          ]
+        },
+        "runTests": {
+          "params": ["type"],
+          "mutations": [
+            { "target": "testType", "op": "set", "value": "" },
+            { "target": "testType", "op": "set", "value": { "param": "type" } }
+          ]
+        },
+        "onTestStart": {
+          "mutations": [
+            { "target": "running", "op": "set", "value": true },
+            { "target": "statusType", "op": "set", "value": "running" },
+            { "target": "statusTitle", "op": "set", "value": "Running tests..." },
+            { "target": "statusInfo", "op": "set", "value": "Please wait..." },
+            { "target": "results", "op": "set", "value": [] }
+          ]
+        },
+        "onTestSuccess": {
+          "params": ["response"],
+          "mutations": [
+            { "target": "running", "op": "set", "value": false },
+            {
+              "target": "statusType",
+              "op": "set",
+              "value": {
+                "op": "if",
+                "args": [
+                  { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "success"] },
+                  "success",
+                  "failed"
+                ]
+              }
+            },
+            {
+              "target": "statusTitle",
+              "op": "set",
+              "value": {
+                "op": "if",
+                "args": [
+                  { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "success"] },
+                  "All Tests Passed",
+                  "Some Tests Failed"
+                ]
+              }
+            },
+            {
+              "target": "totalPassed",
+              "op": "set",
+              "value": { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "totalPassed"] }
+            },
+            {
+              "target": "totalFailed",
+              "op": "set",
+              "value": { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "totalFailed"] }
+            },
+            {
+              "target": "statusInfo",
+              "op": "set",
+              "value": {
+                "op": "concat",
+                "args": [
+                  { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "totalPassed"] },
+                  " passed, ",
+                  { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "totalFailed"] },
+                  " failed"
+                ]
+              }
+            },
+            {
+              "target": "results",
+              "op": "set",
+              "value": {
+                "op": "map",
+                "args": [
+                  { "op": "get", "args": [{ "op": "get", "args": [{ "param": "response" }, "data"] }, "tests"] },
+                  {
+                    "op": "merge",
+                    "args": [
+                      { "param": "item" },
+                      { "showOutput": false, "id": { "op": "now" } }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "onTestError": {
+          "params": ["error"],
+          "mutations": [
+            { "target": "running", "op": "set", "value": false },
+            { "target": "statusType", "op": "set", "value": "failed" },
+            { "target": "statusTitle", "op": "set", "value": "Error" },
+            { "target": "statusInfo", "op": "set", "value": { "op": "get", "args": [{ "param": "error" }, "message"] } }
+          ]
+        },
+        "toggleOutput": {
+          "params": ["resultId"],
+          "mutations": [
+            {
+              "target": "results",
+              "op": "map",
+              "value": {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "param": "resultId" }] },
+                  {
+                    "op": "merge",
+                    "args": [
+                      { "param": "item" },
+                      { "showOutput": { "op": "not", "args": [{ "op": "get", "args": [{ "param": "item" }, "showOutput"] }] } }
+                    ]
+                  },
+                  { "param": "item" }
+                ]
+              }
+            }
+          ]
+        },
+        "hmrReload": {
+          "mutations": [],
+          "effects": [{ "op": "reload" }]
+        }
+      },
+
+      "root": {
+        "type": "div",
+        "props": { "className": "container" },
+        "children": [
+          {
+            "type": "h1",
+            "children": [
+              { "text": "DDJEX Test Runner" },
+              { "type": "span", "props": { "className": "badge" }, "children": [{ "text": "DDJEX-powered" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "controls" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": "primary",
+                  "disabled": { "ref": "running" }
+                },
+                "events": { "click": { "action": "runTests", "args": ["all"] } },
+                "children": [{ "text": "Run All Tests" }]
+              },
+              {
+                "type": "button",
+                "props": { "disabled": { "ref": "running" } },
+                "events": { "click": { "action": "runTests", "args": ["unit"] } },
+                "children": [{ "op": "concat", "args": ["Unit Tests (", { "ref": "unitTests" }, ")"] }]
+              },
+              {
+                "type": "button",
+                "props": { "disabled": { "ref": "running" } },
+                "events": { "click": { "action": "runTests", "args": ["hmr"] } },
+                "children": [{ "op": "concat", "args": ["HMR Tests (", { "ref": "hmrTests" }, ")"] }]
+              },
+              {
+                "type": "a",
+                "props": { "href": "/test/browser.html" },
+                "children": [
+                  {
+                    "type": "button",
+                    "children": [{ "op": "concat", "args": ["Browser Tests (", { "ref": "browserTests" }, ")"] }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "showStatus" }, true] },
+            "then": {
+              "type": "div",
+              "props": { "className": { "ref": "statusClass" } },
+              "children": [
+                {
+                  "type": "h2",
+                  "children": [
+                    {
+                      "if": { "op": "eq", "args": [{ "ref": "isRunning" }, true] },
+                      "then": { "type": "span", "props": { "className": "spinner" }, "children": [] },
+                      "else": { "text": "" }
+                    },
+                    { "bind": "statusTitle" }
+                  ]
+                },
+                {
+                  "type": "p",
+                  "props": { "className": "info" },
+                  "children": [{ "bind": "statusInfo" }]
+                }
+              ]
+            }
+          },
+          {
+            "type": "div",
+            "props": { "className": "results" },
+            "each": { "items": "results", "as": "result" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "result" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "result-header" },
+                    "children": [
+                      { "type": "h3", "children": [{ "bind": "result.name" }] },
+                      {
+                        "type": "span",
+                        "props": {
+                          "className": {
+                            "op": "if",
+                            "args": [
+                              { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "result" }, "exitCode"] }, 0] },
+                              "result-badge pass",
+                              "result-badge fail"
+                            ]
+                          }
+                        },
+                        "children": [
+                          {
+                            "op": "if",
+                            "args": [
+                              { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "result" }, "exitCode"] }, 0] },
+                              "PASSED",
+                              "FAILED"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "result-stats" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "stat" },
+                        "children": [
+                          { "type": "div", "props": { "className": "num passed" }, "children": [{ "bind": "result.passed" }] },
+                          { "type": "div", "props": { "className": "label" }, "children": [{ "text": "Passed" }] }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "stat" },
+                        "children": [
+                          { "type": "div", "props": { "className": "num failed" }, "children": [{ "bind": "result.failed" }] },
+                          { "type": "div", "props": { "className": "label" }, "children": [{ "text": "Failed" }] }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "toggle-output" },
+                    "events": {
+                      "click": { "action": "toggleOutput", "args": [{ "op": "get", "args": [{ "ref": "result" }, "id"] }] }
+                    },
+                    "children": [
+                      {
+                        "op": "if",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "result" }, "showOutput"] },
+                          "Hide Output",
+                          "Show Output"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "if": { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "result" }, "showOutput"] }, true] },
+                    "then": {
+                      "type": "div",
+                      "props": { "className": "result-output" },
+                      "children": [
+                        { "type": "pre", "children": [{ "bind": "result.output" }] }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "links" },
+            "children": [
+              { "type": "a", "props": { "href": "/" }, "children": [{ "text": "Back to Home" }] },
+              { "type": "a", "props": { "href": "/test/browser.html" }, "children": [{ "text": "Browser Tests" }] }
+            ]
+          }
+        ]
+      }
+    };
+
+    DDJEX.run(program, { container: '#app' });
+  </script>
+</body>
+</html>

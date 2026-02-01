@@ -1,0 +1,547 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "realtime-presence",
+  "target": "dom",
+
+  "state": {
+    "currentUser": {
+      "type": "object",
+      "initial": { "id": 1, "name": "You", "avatar": "👤", "status": "online" }
+    },
+    "users": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "name": "You", "avatar": "👤", "status": "online", "lastSeen": null, "activity": "Editing document" },
+        { "id": 2, "name": "Alice", "avatar": "👩", "status": "online", "lastSeen": null, "activity": "Viewing page 3" },
+        { "id": 3, "name": "Bob", "avatar": "👨", "status": "away", "lastSeen": "2 min ago", "activity": null },
+        { "id": 4, "name": "Carol", "avatar": "👩‍💼", "status": "busy", "lastSeen": null, "activity": "In a meeting" },
+        { "id": 5, "name": "David", "avatar": "👨‍💻", "status": "offline", "lastSeen": "1 hour ago", "activity": null }
+      ]
+    },
+    "statusMessage": { "type": "string", "initial": "" },
+    "showStatusMenu": { "type": "boolean", "initial": false },
+    "activeTab": { "type": "string", "initial": "all" }
+  },
+
+  "computed": {
+    "onlineUsers": {
+      "deps": ["users"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "users" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "online"] }
+        ]
+      }
+    },
+    "onlineCount": {
+      "deps": ["onlineUsers"],
+      "fn": { "op": "length", "args": [{ "ref": "onlineUsers" }] }
+    },
+    "awayUsers": {
+      "deps": ["users"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "users" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "away"] }
+        ]
+      }
+    },
+    "awayCount": {
+      "deps": ["awayUsers"],
+      "fn": { "op": "length", "args": [{ "ref": "awayUsers" }] }
+    },
+    "busyUsers": {
+      "deps": ["users"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "users" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "busy"] }
+        ]
+      }
+    },
+    "offlineUsers": {
+      "deps": ["users"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "users" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, "offline"] }
+        ]
+      }
+    },
+    "offlineCount": {
+      "deps": ["offlineUsers"],
+      "fn": { "op": "length", "args": [{ "ref": "offlineUsers" }] }
+    },
+    "filteredUsers": {
+      "deps": ["users", "activeTab"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "activeTab" }, "all"] },
+          { "ref": "users" },
+          {
+            "op": "filter",
+            "args": [
+              { "ref": "users" },
+              { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "status"] }, { "ref": "activeTab" }] }
+            ]
+          }
+        ]
+      }
+    },
+    "filteredCount": {
+      "deps": ["filteredUsers"],
+      "fn": { "op": "length", "args": [{ "ref": "filteredUsers" }] }
+    },
+    "myStatus": {
+      "deps": ["currentUser"],
+      "fn": { "op": "get", "args": [{ "ref": "currentUser" }, "status"] }
+    }
+  },
+
+  "actions": {
+    "setMyStatus": {
+      "params": ["status"],
+      "mutations": [
+        {
+          "target": "currentUser",
+          "op": "set",
+          "value": { "op": "merge", "args": [{ "ref": "currentUser" }, { "status": { "param": "status" } }] }
+        },
+        {
+          "target": "users",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "users" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": { "param": "status" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        },
+        { "target": "showStatusMenu", "op": "set", "value": false }
+      ]
+    },
+    "setStatusMessage": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "statusMessage", "op": "set", "value": { "param": "message" } }
+      ]
+    },
+    "updateActivity": {
+      "params": ["activity"],
+      "mutations": [
+        {
+          "target": "users",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "users" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "activity": { "param": "activity" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "toggleStatusMenu": {
+      "mutations": [
+        { "target": "showStatusMenu", "op": "set", "value": { "op": "not", "args": [{ "ref": "showStatusMenu" }] } }
+      ]
+    },
+    "setActiveTab": {
+      "params": ["tab"],
+      "mutations": [
+        { "target": "activeTab", "op": "set", "value": { "param": "tab" } }
+      ]
+    },
+    "simulateUserOnline": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "users",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "users" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": "online", "lastSeen": null }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "simulateUserOffline": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "users",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "users" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "status": "offline", "lastSeen": "Just now", "activity": null }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-md mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Team Presence" }] },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "p-4 border-b" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex items-center justify-between" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "flex items-center gap-3" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "relative" },
+                        "children": [
+                          { "type": "span", "props": { "className": "text-3xl" }, "children": [{ "bind": "currentUser.avatar" }] },
+                          {
+                            "type": "span",
+                            "props": {
+                              "className": {
+                                "op": "concat",
+                                "args": [
+                                  "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ",
+                                  {
+                                    "op": "switch",
+                                    "args": [
+                                      { "ref": "myStatus" },
+                                      { "online": "bg-green-500", "away": "bg-yellow-500", "busy": "bg-red-500", "offline": "bg-gray-400" },
+                                      "bg-gray-400"
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "children": [
+                          { "type": "p", "props": { "className": "font-semibold" }, "children": [{ "bind": "currentUser.name" }] },
+                          {
+                            "type": "div",
+                            "props": { "className": "relative" },
+                            "children": [
+                              {
+                                "type": "button",
+                                "props": { "className": "text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1" },
+                                "events": { "click": { "action": "toggleStatusMenu" } },
+                                "children": [
+                                  {
+                                    "type": "span",
+                                    "props": {
+                                      "className": {
+                                        "op": "switch",
+                                        "args": [
+                                          { "ref": "myStatus" },
+                                          { "online": "text-green-500", "away": "text-yellow-500", "busy": "text-red-500", "offline": "text-gray-400" },
+                                          "text-gray-400"
+                                        ]
+                                      }
+                                    },
+                                    "children": [{ "text": "●" }]
+                                  },
+                                  { "bind": "myStatus" },
+                                  { "text": " ▾" }
+                                ]
+                              },
+                              {
+                                "if": { "ref": "showStatusMenu" },
+                                "then": {
+                                  "type": "div",
+                                  "props": { "className": "absolute left-0 mt-1 bg-white border rounded-lg shadow-lg py-1 z-10 min-w-32" },
+                                  "children": [
+                                    {
+                                      "type": "button",
+                                      "props": { "className": "w-full px-3 py-1 text-left hover:bg-gray-100 flex items-center gap-2" },
+                                      "events": { "click": { "action": "setMyStatus", "args": ["online"] } },
+                                      "children": [{ "type": "span", "props": { "className": "text-green-500" }, "children": [{ "text": "●" }] }, { "text": "Online" }]
+                                    },
+                                    {
+                                      "type": "button",
+                                      "props": { "className": "w-full px-3 py-1 text-left hover:bg-gray-100 flex items-center gap-2" },
+                                      "events": { "click": { "action": "setMyStatus", "args": ["away"] } },
+                                      "children": [{ "type": "span", "props": { "className": "text-yellow-500" }, "children": [{ "text": "●" }] }, { "text": "Away" }]
+                                    },
+                                    {
+                                      "type": "button",
+                                      "props": { "className": "w-full px-3 py-1 text-left hover:bg-gray-100 flex items-center gap-2" },
+                                      "events": { "click": { "action": "setMyStatus", "args": ["busy"] } },
+                                      "children": [{ "type": "span", "props": { "className": "text-red-500" }, "children": [{ "text": "●" }] }, { "text": "Busy" }]
+                                    },
+                                    {
+                                      "type": "button",
+                                      "props": { "className": "w-full px-3 py-1 text-left hover:bg-gray-100 flex items-center gap-2" },
+                                      "events": { "click": { "action": "setMyStatus", "args": ["offline"] } },
+                                      "children": [{ "type": "span", "props": { "className": "text-gray-400" }, "children": [{ "text": "●" }] }, { "text": "Offline" }]
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "text-right text-sm" },
+                    "children": [
+                      { "type": "p", "props": { "className": "text-green-600" }, "children": [{ "bind": "onlineCount" }, { "text": " online" }] },
+                      { "type": "p", "props": { "className": "text-gray-400" }, "children": [{ "bind": "offlineCount" }, { "text": " offline" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex border-b" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activeTab" }, "all"] },
+                      "flex-1 py-2 text-sm font-medium text-blue-500 border-b-2 border-blue-500",
+                      "flex-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActiveTab", "args": ["all"] } },
+                "children": [{ "text": "All" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activeTab" }, "online"] },
+                      "flex-1 py-2 text-sm font-medium text-blue-500 border-b-2 border-blue-500",
+                      "flex-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActiveTab", "args": ["online"] } },
+                "children": [{ "text": "Online" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activeTab" }, "offline"] },
+                      "flex-1 py-2 text-sm font-medium text-blue-500 border-b-2 border-blue-500",
+                      "flex-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActiveTab", "args": ["offline"] } },
+                "children": [{ "text": "Offline" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "divide-y max-h-80 overflow-y-auto" },
+            "each": { "items": "filteredUsers", "as": "user", "key": { "op": "get", "args": [{ "ref": "user" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "p-3 flex items-center gap-3 hover:bg-gray-50" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "relative" },
+                    "children": [
+                      { "type": "span", "props": { "className": "text-2xl" }, "children": [{ "bind": "user.avatar" }] },
+                      {
+                        "type": "span",
+                        "props": {
+                          "className": {
+                            "op": "concat",
+                            "args": [
+                              "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ",
+                              {
+                                "op": "switch",
+                                "args": [
+                                  { "op": "get", "args": [{ "ref": "user" }, "status"] },
+                                  { "online": "bg-green-500", "away": "bg-yellow-500", "busy": "bg-red-500", "offline": "bg-gray-400" },
+                                  "bg-gray-400"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "flex-1" },
+                    "children": [
+                      { "type": "p", "props": { "className": "font-medium text-sm" }, "children": [{ "bind": "user.name" }] },
+                      {
+                        "if": { "op": "get", "args": [{ "ref": "user" }, "activity"] },
+                        "then": {
+                          "type": "p",
+                          "props": { "className": "text-xs text-gray-500" },
+                          "children": [{ "bind": "user.activity" }]
+                        },
+                        "else": {
+                          "if": { "op": "get", "args": [{ "ref": "user" }, "lastSeen"] },
+                          "then": {
+                            "type": "p",
+                            "props": { "className": "text-xs text-gray-400" },
+                            "children": [{ "text": "Last seen " }, { "bind": "user.lastSeen" }]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "span",
+                    "props": {
+                      "className": {
+                        "op": "switch",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "user" }, "status"] },
+                          { "online": "text-xs text-green-500", "away": "text-xs text-yellow-500", "busy": "text-xs text-red-500", "offline": "text-xs text-gray-400" },
+                          "text-xs text-gray-400"
+                        ]
+                      }
+                    },
+                    "children": [{ "bind": "user.status" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "mt-4 flex gap-2" },
+        "children": [
+          {
+            "type": "button",
+            "props": { "className": "flex-1 px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600" },
+            "events": { "click": { "action": "simulateUserOnline", "args": [5] } },
+            "children": [{ "text": "David comes online" }]
+          },
+          {
+            "type": "button",
+            "props": { "className": "flex-1 px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600" },
+            "events": { "click": { "action": "simulateUserOffline", "args": [2] } },
+            "children": [{ "text": "Alice goes offline" }]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-counts",
+      "name": "Counts users by status",
+      "steps": [
+        { "assert": { "ref": "onlineCount", "eq": 2 } },
+        { "assert": { "ref": "offlineCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-set-status",
+      "name": "Can change my status",
+      "steps": [
+        { "dispatch": "setMyStatus", "args": ["away"] },
+        { "assert": { "ref": "myStatus", "eq": "away" } }
+      ]
+    },
+    {
+      "id": "test-filter-tab",
+      "name": "Tabs filter users",
+      "steps": [
+        { "dispatch": "setActiveTab", "args": ["online"] },
+        { "assert": { "ref": "filteredCount", "eq": 2 } },
+        { "dispatch": "setActiveTab", "args": ["offline"] },
+        { "assert": { "ref": "filteredCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-user-online",
+      "name": "Can simulate user coming online",
+      "steps": [
+        { "dispatch": "simulateUserOnline", "args": [5] },
+        { "assert": { "ref": "onlineCount", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-user-offline",
+      "name": "Can simulate user going offline",
+      "steps": [
+        { "dispatch": "simulateUserOffline", "args": [2] },
+        { "assert": { "ref": "offlineCount", "eq": 2 } }
+      ]
+    }
+  ]
+}

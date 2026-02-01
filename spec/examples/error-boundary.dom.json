@@ -1,0 +1,84 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "error_boundary_demo",
+  "target": "dom",
+
+  "state": {
+    "shouldError": { "type": "boolean", "initial": false },
+    "errorCount": { "type": "number", "initial": 0 }
+  },
+
+  "actions": {
+    "toggleError": {
+      "mutations": [
+        { "target": "shouldError", "op": "toggle" }
+      ]
+    },
+    "incrementErrorCount": {
+      "mutations": [
+        { "target": "errorCount", "op": "add", "value": 1 }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "app" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Error Boundary Demo" }]
+      },
+      {
+        "type": "button",
+        "events": { "click": { "action": "toggleError" } },
+        "children": [{ "text": "Toggle Error State" }]
+      },
+      {
+        "type": "p",
+        "children": [
+          { "text": "Error count: " },
+          { "bind": "errorCount" }
+        ]
+      },
+      {
+        "errorBoundary": {
+          "id": "main",
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": "content" },
+              "children": [
+                {
+                  "if": { "op": "eq", "args": [{ "ref": "shouldError" }, true] },
+                  "then": {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "get",
+                        "args": [null, "nonexistent"]
+                      }
+                    },
+                    "children": [{ "text": "This will error" }]
+                  },
+                  "else": {
+                    "type": "div",
+                    "children": [{ "text": "Content is working fine!" }]
+                  }
+                }
+              ]
+            }
+          ],
+          "fallback": {
+            "type": "div",
+            "props": { "className": "error-fallback" },
+            "children": [
+              { "text": "Something went wrong: " },
+              { "bind": "error.message" }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

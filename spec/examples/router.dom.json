@@ -1,0 +1,205 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "router_demo",
+  "target": "dom",
+
+  "router": {
+    "mode": "hash",
+    "routes": [
+      {
+        "path": "/",
+        "name": "home",
+        "render": {
+          "type": "div",
+          "children": [
+            { "type": "h2", "children": [{ "text": "Home Page" }] },
+            { "type": "p", "children": [{ "text": "Welcome to the router demo!" }] }
+          ]
+        }
+      },
+      {
+        "path": "/about",
+        "name": "about",
+        "render": {
+          "type": "div",
+          "children": [
+            { "type": "h2", "children": [{ "text": "About Page" }] },
+            { "type": "p", "children": [{ "text": "This is the about page." }] }
+          ]
+        }
+      },
+      {
+        "path": "/users",
+        "name": "users",
+        "component": "UserList"
+      },
+      {
+        "path": "/users/:id",
+        "name": "user",
+        "component": "UserDetail"
+      },
+      {
+        "path": "/redirect-test",
+        "redirect": "/about"
+      }
+    ],
+    "notFound": {
+      "type": "div",
+      "props": { "className": "not-found" },
+      "children": [
+        { "type": "h2", "children": [{ "text": "404 - Page Not Found" }] },
+        { "type": "p", "children": [{ "text": "The page you requested does not exist." }] }
+      ]
+    }
+  },
+
+  "state": {
+    "users": {
+      "type": "array",
+      "initial": [
+        { "id": "1", "name": "Alice", "email": "alice@example.com" },
+        { "id": "2", "name": "Bob", "email": "bob@example.com" },
+        { "id": "3", "name": "Charlie", "email": "charlie@example.com" }
+      ]
+    }
+  },
+
+  "computed": {
+    "currentUserId": {
+      "deps": ["$route"],
+      "fn": { "op": "get", "args": [{ "op": "get", "args": [{ "ref": "$route" }, "params"] }, "id"] }
+    },
+    "currentUser": {
+      "deps": ["users", "currentUserId"],
+      "fn": {
+        "op": "find",
+        "args": [
+          { "ref": "users" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "ref": "currentUserId" }] }
+        ]
+      }
+    }
+  },
+
+  "components": {
+    "UserList": {
+      "render": {
+        "type": "div",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Users" }] },
+          {
+            "type": "ul",
+            "each": { "items": "users", "as": "user" },
+            "children": [
+              {
+                "type": "li",
+                "children": [
+                  {
+                    "routerLink": {
+                      "to": { "op": "concat", "args": ["/users/", { "op": "get", "args": [{ "ref": "user" }, "id"] }] },
+                      "children": [{ "bind": "user.name" }]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "UserDetail": {
+      "render": {
+        "type": "div",
+        "children": [
+          {
+            "if": { "op": "neq", "args": [{ "ref": "currentUser" }, null] },
+            "then": {
+              "type": "div",
+              "children": [
+                { "type": "h2", "children": [{ "text": "User Details" }] },
+                { "type": "p", "children": [{ "text": "Name: " }, { "bind": "currentUser.name" }] },
+                { "type": "p", "children": [{ "text": "Email: " }, { "bind": "currentUser.email" }] },
+                {
+                  "routerLink": {
+                    "to": "/users",
+                    "children": [{ "text": "Back to list" }]
+                  }
+                }
+              ]
+            },
+            "else": {
+              "type": "p",
+              "children": [{ "text": "User not found" }]
+            }
+          }
+        ]
+      }
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "router-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Router Demo" }]
+      },
+      {
+        "type": "nav",
+        "children": [
+          {
+            "routerLink": {
+              "to": "/",
+              "activeClass": "nav-active",
+              "exactActiveClass": "nav-exact",
+              "children": [{ "text": "Home" }]
+            }
+          },
+          { "text": " | " },
+          {
+            "routerLink": {
+              "to": "/about",
+              "activeClass": "nav-active",
+              "children": [{ "text": "About" }]
+            }
+          },
+          { "text": " | " },
+          {
+            "routerLink": {
+              "to": "/users",
+              "activeClass": "nav-active",
+              "children": [{ "text": "Users" }]
+            }
+          },
+          { "text": " | " },
+          {
+            "routerLink": {
+              "to": "/nonexistent",
+              "children": [{ "text": "404 Test" }]
+            }
+          }
+        ]
+      },
+      {
+        "type": "hr"
+      },
+      {
+        "type": "div",
+        "props": { "className": "route-info" },
+        "children": [
+          { "type": "small", "children": [
+            { "text": "Current path: " },
+            { "bind": "$route.path" }
+          ]}
+        ]
+      },
+      {
+        "type": "main",
+        "children": [
+          { "routerOutlet": {} }
+        ]
+      }
+    ]
+  }
+}

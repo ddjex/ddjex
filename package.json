@@ -1,0 +1,62 @@
+{
+  "name": "@ddjex/ddjex",
+  "version": "0.4.0",
+  "description": "Declarative Deterministic JSON Execution - Runtime for LLM code generation",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "ddjex-compile": "./bin/ddjex-compile.js",
+    "ddjex-dev": "./bin/ddjex-dev.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./core": "./src/core/runtime.js",
+    "./dom": "./src/targets/dom.js",
+    "./server": "./src/targets/server.js",
+    "./cli": "./src/targets/cli.js",
+    "./ssr": "./src/targets/ssr.js",
+    "./dev": "./src/dev/server.js"
+  },
+  "scripts": {
+    "test": "node test/run.js",
+    "test:spec": "node test/spec-conformance/run.js",
+    "test:browser": "node test/browser-runner.js",
+    "test:hmr": "node test/hmr-integration.js",
+    "dev": "node bin/ddjex-dev.js"
+  },
+  "optionalDependencies": {
+    "ws": "^8.19.0"
+  },
+  "keywords": [
+    "ddjex",
+    "declarative",
+    "deterministic",
+    "json",
+    "runtime",
+    "llm",
+    "reactive",
+    "framework"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "src/",
+    "dist/",
+    "bin/",
+    "spec/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ddjex/ddjex.git"
+  },
+  "homepage": "https://ddjex.com",
+  "bugs": {
+    "url": "https://github.com/ddjex/ddjex/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

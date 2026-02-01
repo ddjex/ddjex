@@ -1,0 +1,647 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-checkout-pattern",
+  "target": "dom",
+  "description": "E-commerce checkout flow with cart, shipping, payment, and confirmation",
+
+  "state": {
+    "step": { "type": "number", "initial": 1, "constraints": { "min": 1, "max": 4 } },
+    "cart": {
+      "type": "array",
+      "initial": [],
+      "itemType": "object"
+    },
+    "shipping": {
+      "type": "object",
+      "initial": {
+        "firstName": "",
+        "lastName": "",
+        "email": "",
+        "phone": "",
+        "address": "",
+        "city": "",
+        "state": "",
+        "zip": "",
+        "country": "US"
+      }
+    },
+    "shippingMethod": { "type": "string", "initial": "standard" },
+    "payment": {
+      "type": "object",
+      "initial": {
+        "cardNumber": "",
+        "cardName": "",
+        "expiry": "",
+        "cvv": ""
+      }
+    },
+    "billingAddress": { "type": "string", "initial": "same" },
+    "promoCode": { "type": "string", "initial": "" },
+    "promoApplied": { "type": "object", "initial": null, "nullable": true },
+    "processing": { "type": "boolean", "initial": false },
+    "orderComplete": { "type": "boolean", "initial": false },
+    "orderId": { "type": "string", "initial": "" },
+    "errors": { "type": "object", "initial": {} }
+  },
+
+  "computed": {
+    "subtotal": {
+      "deps": ["cart"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "cart" },
+          { "op": "add", "args": ["$acc", { "op": "multiply", "args": [{ "op": "get", "args": ["$item", "price"] }, { "op": "get", "args": ["$item", "quantity"] }] }] },
+          0
+        ]
+      }
+    },
+    "discount": {
+      "deps": ["subtotal", "promoApplied"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "promoApplied" },
+          {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "promoApplied" }, "type"] }, "percent"] },
+              { "op": "multiply", "args": [{ "ref": "subtotal" }, { "op": "divide", "args": [{ "op": "get", "args": [{ "ref": "promoApplied" }, "value"] }, 100] }] },
+              { "op": "get", "args": [{ "ref": "promoApplied" }, "value"] }
+            ]
+          },
+          0
+        ]
+      }
+    },
+    "shippingCost": {
+      "deps": ["shippingMethod", "subtotal"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "shippingMethod" },
+          { "standard": 5.99, "express": 12.99, "overnight": 24.99, "free": 0 },
+          5.99
+        ]
+      }
+    },
+    "tax": {
+      "deps": ["subtotal", "discount"],
+      "fn": { "op": "multiply", "args": [{ "op": "subtract", "args": [{ "ref": "subtotal" }, { "ref": "discount" }] }, 0.08] }
+    },
+    "total": {
+      "deps": ["subtotal", "discount", "shippingCost", "tax"],
+      "fn": { "op": "add", "args": [{ "op": "subtract", "args": [{ "ref": "subtotal" }, { "ref": "discount" }] }, { "ref": "shippingCost" }, { "ref": "tax" }] }
+    },
+    "itemCount": {
+      "deps": ["cart"],
+      "fn": { "op": "reduce", "args": [{ "ref": "cart" }, { "op": "add", "args": ["$acc", { "op": "get", "args": ["$item", "quantity"] }] }, 0] }
+    },
+    "isCartEmpty": {
+      "deps": ["cart"],
+      "fn": { "op": "eq", "args": [{ "op": "length", "args": [{ "ref": "cart" }] }, 0] }
+    },
+    "shippingValid": {
+      "deps": ["shipping"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "shipping" }, "firstName"] }] }, 0] },
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "shipping" }, "lastName"] }] }, 0] },
+          { "op": "isEmail", "args": [{ "op": "get", "args": [{ "ref": "shipping" }, "email"] }] },
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "shipping" }, "address"] }] }, 0] },
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "shipping" }, "city"] }] }, 0] },
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "shipping" }, "zip"] }] }, 0] }
+        ]
+      }
+    },
+    "paymentValid": {
+      "deps": ["payment"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "gte", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "payment" }, "cardNumber"] }] }, 16] },
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "get", "args": [{ "ref": "payment" }, "cardName"] }] }, 0] },
+          { "op": "matches", "args": [{ "op": "get", "args": [{ "ref": "payment" }, "expiry"] }, "^(0[1-9]|1[0-2])/[0-9]{2}$"] },
+          { "op": "matches", "args": [{ "op": "get", "args": [{ "ref": "payment" }, "cvv"] }, "^[0-9]{3,4}$"] }
+        ]
+      }
+    },
+    "canProceed": {
+      "deps": ["step", "isCartEmpty", "shippingValid", "paymentValid"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "step" },
+          {
+            "1": { "op": "not", "args": [{ "ref": "isCartEmpty" }] },
+            "2": { "ref": "shippingValid" },
+            "3": { "ref": "paymentValid" }
+          },
+          false
+        ]
+      }
+    },
+    "stepLabels": {
+      "deps": [],
+      "fn": ["Cart", "Shipping", "Payment", "Confirmation"]
+    }
+  },
+
+  "actions": {
+    "updateQuantity": {
+      "params": ["itemId", "quantity"],
+      "mutations": [
+        {
+          "target": "cart",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "itemId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "quantity": { "op": "max", "args": [1, { "param": "quantity" }] } }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "removeItem": {
+      "params": ["itemId"],
+      "mutations": [
+        { "target": "cart", "op": "filter", "predicate": { "op": "neq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "itemId" }] } }
+      ]
+    },
+    "updateShipping": {
+      "params": ["field", "value"],
+      "mutations": [
+        { "target": "shipping", "op": "merge", "value": { "op": "fromEntries", "args": [[[{ "param": "field" }, { "param": "value" }]]] } }
+      ]
+    },
+    "setShippingMethod": {
+      "params": ["method"],
+      "mutations": [
+        { "target": "shippingMethod", "op": "set", "value": { "param": "method" } }
+      ]
+    },
+    "updatePayment": {
+      "params": ["field", "value"],
+      "mutations": [
+        { "target": "payment", "op": "merge", "value": { "op": "fromEntries", "args": [[[{ "param": "field" }, { "param": "value" }]]] } }
+      ]
+    },
+    "setBillingAddress": {
+      "params": ["type"],
+      "mutations": [
+        { "target": "billingAddress", "op": "set", "value": { "param": "type" } }
+      ]
+    },
+    "setPromoCode": {
+      "params": ["code"],
+      "mutations": [
+        { "target": "promoCode", "op": "set", "value": { "param": "code" } }
+      ]
+    },
+    "applyPromo": {
+      "mutations": [
+        {
+          "target": "promoApplied",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "toUpperCase", "args": [{ "ref": "promoCode" }] }, "SAVE10"] },
+              { "code": "SAVE10", "type": "percent", "value": 10 },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "toUpperCase", "args": [{ "ref": "promoCode" }] }, "FLAT20"] },
+                  { "code": "FLAT20", "type": "fixed", "value": 20 },
+                  null
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "removePromo": {
+      "mutations": [
+        { "target": "promoApplied", "op": "set", "value": null },
+        { "target": "promoCode", "op": "set", "value": "" }
+      ]
+    },
+    "nextStep": {
+      "guard": { "ref": "canProceed" },
+      "mutations": [
+        { "target": "step", "op": "add", "value": 1 }
+      ]
+    },
+    "prevStep": {
+      "guard": { "op": "gt", "args": [{ "ref": "step" }, 1] },
+      "mutations": [
+        { "target": "step", "op": "subtract", "value": 1 }
+      ]
+    },
+    "goToStep": {
+      "params": ["stepNum"],
+      "guard": { "op": "lte", "args": [{ "param": "stepNum" }, { "ref": "step" }] },
+      "mutations": [
+        { "target": "step", "op": "set", "value": { "param": "stepNum" } }
+      ]
+    },
+    "placeOrder": {
+      "guard": { "op": "and", "args": [{ "ref": "paymentValid" }, { "op": "not", "args": [{ "ref": "processing" }] }] },
+      "mutations": [
+        { "target": "processing", "op": "set", "value": true }
+      ]
+    },
+    "orderSuccess": {
+      "params": ["orderId"],
+      "mutations": [
+        { "target": "processing", "op": "set", "value": false },
+        { "target": "orderComplete", "op": "set", "value": true },
+        { "target": "orderId", "op": "set", "value": { "param": "orderId" } },
+        { "target": "step", "op": "set", "value": 4 }
+      ]
+    },
+    "orderError": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "processing", "op": "set", "value": false },
+        { "target": "errors", "op": "merge", "value": { "order": { "param": "message" } } }
+      ]
+    },
+    "loadCart": {
+      "params": ["items"],
+      "mutations": [
+        { "target": "cart", "op": "set", "value": { "param": "items" } }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "process-order",
+      "watch": ["processing"],
+      "condition": { "ref": "processing" },
+      "do": {
+        "op": "fetch",
+        "url": "/api/orders",
+        "method": "POST",
+        "body": {
+          "cart": { "ref": "cart" },
+          "shipping": { "ref": "shipping" },
+          "shippingMethod": { "ref": "shippingMethod" },
+          "payment": { "ref": "payment" },
+          "total": { "ref": "total" }
+        }
+      },
+      "onSuccess": { "action": "orderSuccess", "params": { "orderId": "$result.orderId" } },
+      "onError": { "action": "orderError", "params": { "message": "Payment failed" } }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "checkout-page" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "checkout-header" },
+        "children": [
+          { "type": "h1", "children": [{ "text": "Checkout" }] },
+          {
+            "type": "nav",
+            "props": { "className": "checkout-steps" },
+            "children": [
+              {
+                "type": "fragment",
+                "each": { "items": "stepLabels", "as": "label", "indexAs": "i" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": {
+                        "op": "concat",
+                        "args": [
+                          "step-btn",
+                          { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "step" }, { "op": "add", "args": [{ "ref": "i" }, 1] }] }, " active", ""] },
+                          { "op": "if", "args": [{ "op": "gt", "args": [{ "ref": "step" }, { "op": "add", "args": [{ "ref": "i" }, 1] }] }, " completed", ""] }
+                        ]
+                      },
+                      "disabled": { "op": "gt", "args": [{ "op": "add", "args": [{ "ref": "i" }, 1] }, { "ref": "step" }] }
+                    },
+                    "events": { "click": { "action": "goToStep", "params": { "stepNum": { "op": "add", "args": [{ "ref": "i" }, 1] } } } },
+                    "children": [
+                      { "type": "span", "props": { "className": "step-num" }, "children": [{ "op": "add", "args": [{ "ref": "i" }, 1] }] },
+                      { "bind": "label" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "main",
+        "props": { "className": "checkout-content" },
+        "children": [
+          {
+            "type": "section",
+            "when": { "op": "eq", "args": [{ "ref": "step" }, 1] },
+            "props": { "className": "cart-step" },
+            "children": [
+              { "type": "h2", "children": [{ "text": "Your Cart" }] },
+              {
+                "type": "div",
+                "when": { "ref": "isCartEmpty" },
+                "props": { "className": "empty-cart" },
+                "children": [{ "text": "Your cart is empty" }]
+              },
+              {
+                "type": "div",
+                "props": { "className": "cart-items" },
+                "each": { "items": "cart", "as": "item" },
+                "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "cart-item" },
+                    "children": [
+                      { "type": "img", "props": { "src": { "op": "get", "args": [{ "ref": "item" }, "image"] }, "alt": { "op": "get", "args": [{ "ref": "item" }, "name"] } } },
+                      {
+                        "type": "div",
+                        "props": { "className": "item-details" },
+                        "children": [
+                          { "type": "h4", "children": [{ "op": "get", "args": [{ "ref": "item" }, "name"] }] },
+                          { "type": "span", "props": { "className": "item-price" }, "children": [{ "text": "$" }, { "op": "get", "args": [{ "ref": "item" }, "price"] }] }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "quantity-controls" },
+                        "children": [
+                          {
+                            "type": "button",
+                            "events": { "click": { "action": "updateQuantity", "params": { "itemId": { "op": "get", "args": [{ "ref": "item" }, "id"] }, "quantity": { "op": "subtract", "args": [{ "op": "get", "args": [{ "ref": "item" }, "quantity"] }, 1] } } } },
+                            "children": [{ "text": "-" }]
+                          },
+                          { "type": "span", "children": [{ "op": "get", "args": [{ "ref": "item" }, "quantity"] }] },
+                          {
+                            "type": "button",
+                            "events": { "click": { "action": "updateQuantity", "params": { "itemId": { "op": "get", "args": [{ "ref": "item" }, "id"] }, "quantity": { "op": "add", "args": [{ "op": "get", "args": [{ "ref": "item" }, "quantity"] }, 1] } } } },
+                            "children": [{ "text": "+" }]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "button",
+                        "props": { "className": "remove-btn" },
+                        "events": { "click": { "action": "removeItem", "params": { "itemId": { "op": "get", "args": [{ "ref": "item" }, "id"] } } } },
+                        "children": [{ "text": "Remove" }]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "promo-section" },
+                "children": [
+                  {
+                    "type": "input",
+                    "props": { "type": "text", "placeholder": "Promo code", "value": { "ref": "promoCode" } },
+                    "events": { "input": { "action": "setPromoCode", "params": { "code": "$event.target.value" } } }
+                  },
+                  {
+                    "type": "button",
+                    "events": { "click": { "action": "applyPromo" } },
+                    "children": [{ "text": "Apply" }]
+                  },
+                  {
+                    "type": "span",
+                    "when": { "ref": "promoApplied" },
+                    "props": { "className": "promo-applied" },
+                    "children": [
+                      { "op": "get", "args": [{ "ref": "promoApplied" }, "code"] },
+                      { "text": " applied " },
+                      { "type": "button", "events": { "click": { "action": "removePromo" } }, "children": [{ "text": "×" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "section",
+            "when": { "op": "eq", "args": [{ "ref": "step" }, 2] },
+            "props": { "className": "shipping-step" },
+            "children": [
+              { "type": "h2", "children": [{ "text": "Shipping Information" }] },
+              {
+                "type": "form",
+                "props": { "className": "shipping-form" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "form-row" },
+                    "children": [
+                      { "type": "input", "props": { "placeholder": "First Name", "value": { "op": "get", "args": [{ "ref": "shipping" }, "firstName"] } }, "events": { "input": { "action": "updateShipping", "params": { "field": "firstName", "value": "$event.target.value" } } } },
+                      { "type": "input", "props": { "placeholder": "Last Name", "value": { "op": "get", "args": [{ "ref": "shipping" }, "lastName"] } }, "events": { "input": { "action": "updateShipping", "params": { "field": "lastName", "value": "$event.target.value" } } } }
+                    ]
+                  },
+                  { "type": "input", "props": { "type": "email", "placeholder": "Email", "value": { "op": "get", "args": [{ "ref": "shipping" }, "email"] } }, "events": { "input": { "action": "updateShipping", "params": { "field": "email", "value": "$event.target.value" } } } },
+                  { "type": "input", "props": { "placeholder": "Address", "value": { "op": "get", "args": [{ "ref": "shipping" }, "address"] } }, "events": { "input": { "action": "updateShipping", "params": { "field": "address", "value": "$event.target.value" } } } },
+                  {
+                    "type": "div",
+                    "props": { "className": "form-row" },
+                    "children": [
+                      { "type": "input", "props": { "placeholder": "City", "value": { "op": "get", "args": [{ "ref": "shipping" }, "city"] } }, "events": { "input": { "action": "updateShipping", "params": { "field": "city", "value": "$event.target.value" } } } },
+                      { "type": "input", "props": { "placeholder": "ZIP", "value": { "op": "get", "args": [{ "ref": "shipping" }, "zip"] } }, "events": { "input": { "action": "updateShipping", "params": { "field": "zip", "value": "$event.target.value" } } } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "shipping-methods" },
+                "children": [
+                  { "type": "h3", "children": [{ "text": "Shipping Method" }] },
+                  {
+                    "type": "label",
+                    "children": [
+                      { "type": "input", "props": { "type": "radio", "name": "shipping", "value": "standard", "checked": { "op": "eq", "args": [{ "ref": "shippingMethod" }, "standard"] } }, "events": { "change": { "action": "setShippingMethod", "params": { "method": "standard" } } } },
+                      { "text": "Standard (5-7 days) - $5.99" }
+                    ]
+                  },
+                  {
+                    "type": "label",
+                    "children": [
+                      { "type": "input", "props": { "type": "radio", "name": "shipping", "value": "express", "checked": { "op": "eq", "args": [{ "ref": "shippingMethod" }, "express"] } }, "events": { "change": { "action": "setShippingMethod", "params": { "method": "express" } } } },
+                      { "text": "Express (2-3 days) - $12.99" }
+                    ]
+                  },
+                  {
+                    "type": "label",
+                    "children": [
+                      { "type": "input", "props": { "type": "radio", "name": "shipping", "value": "overnight", "checked": { "op": "eq", "args": [{ "ref": "shippingMethod" }, "overnight"] } }, "events": { "change": { "action": "setShippingMethod", "params": { "method": "overnight" } } } },
+                      { "text": "Overnight - $24.99" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "section",
+            "when": { "op": "eq", "args": [{ "ref": "step" }, 3] },
+            "props": { "className": "payment-step" },
+            "children": [
+              { "type": "h2", "children": [{ "text": "Payment" }] },
+              {
+                "type": "form",
+                "props": { "className": "payment-form" },
+                "children": [
+                  { "type": "input", "props": { "placeholder": "Card Number", "maxLength": 19, "value": { "op": "get", "args": [{ "ref": "payment" }, "cardNumber"] } }, "events": { "input": { "action": "updatePayment", "params": { "field": "cardNumber", "value": "$event.target.value" } } } },
+                  { "type": "input", "props": { "placeholder": "Name on Card", "value": { "op": "get", "args": [{ "ref": "payment" }, "cardName"] } }, "events": { "input": { "action": "updatePayment", "params": { "field": "cardName", "value": "$event.target.value" } } } },
+                  {
+                    "type": "div",
+                    "props": { "className": "form-row" },
+                    "children": [
+                      { "type": "input", "props": { "placeholder": "MM/YY", "maxLength": 5, "value": { "op": "get", "args": [{ "ref": "payment" }, "expiry"] } }, "events": { "input": { "action": "updatePayment", "params": { "field": "expiry", "value": "$event.target.value" } } } },
+                      { "type": "input", "props": { "placeholder": "CVV", "maxLength": 4, "type": "password", "value": { "op": "get", "args": [{ "ref": "payment" }, "cvv"] } }, "events": { "input": { "action": "updatePayment", "params": { "field": "cvv", "value": "$event.target.value" } } } }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "section",
+            "when": { "op": "eq", "args": [{ "ref": "step" }, 4] },
+            "props": { "className": "confirmation-step" },
+            "children": [
+              { "type": "div", "props": { "className": "success-icon" }, "children": [{ "text": "✓" }] },
+              { "type": "h2", "children": [{ "text": "Order Confirmed!" }] },
+              { "type": "p", "children": [{ "text": "Order #" }, { "bind": "orderId" }] },
+              { "type": "p", "children": [{ "text": "A confirmation email has been sent to " }, { "op": "get", "args": [{ "ref": "shipping" }, "email"] }] }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "aside",
+        "when": { "op": "lt", "args": [{ "ref": "step" }, 4] },
+        "props": { "className": "order-summary" },
+        "children": [
+          { "type": "h3", "children": [{ "text": "Order Summary" }] },
+          { "type": "div", "props": { "className": "summary-row" }, "children": [{ "text": "Subtotal" }, { "type": "span", "children": [{ "text": "$" }, { "op": "toFixed", "args": [{ "ref": "subtotal" }, 2] }] }] },
+          { "type": "div", "when": { "op": "gt", "args": [{ "ref": "discount" }, 0] }, "props": { "className": "summary-row discount" }, "children": [{ "text": "Discount" }, { "type": "span", "children": [{ "text": "-$" }, { "op": "toFixed", "args": [{ "ref": "discount" }, 2] }] }] },
+          { "type": "div", "props": { "className": "summary-row" }, "children": [{ "text": "Shipping" }, { "type": "span", "children": [{ "text": "$" }, { "op": "toFixed", "args": [{ "ref": "shippingCost" }, 2] }] }] },
+          { "type": "div", "props": { "className": "summary-row" }, "children": [{ "text": "Tax" }, { "type": "span", "children": [{ "text": "$" }, { "op": "toFixed", "args": [{ "ref": "tax" }, 2] }] }] },
+          { "type": "div", "props": { "className": "summary-row total" }, "children": [{ "text": "Total" }, { "type": "span", "children": [{ "text": "$" }, { "op": "toFixed", "args": [{ "ref": "total" }, 2] }] }] },
+          {
+            "type": "div",
+            "props": { "className": "checkout-actions" },
+            "children": [
+              { "type": "button", "when": { "op": "gt", "args": [{ "ref": "step" }, 1] }, "props": { "className": "btn-secondary" }, "events": { "click": { "action": "prevStep" } }, "children": [{ "text": "Back" }] },
+              {
+                "type": "button",
+                "when": { "op": "lt", "args": [{ "ref": "step" }, 3] },
+                "props": { "className": "btn-primary", "disabled": { "op": "not", "args": [{ "ref": "canProceed" }] } },
+                "events": { "click": { "action": "nextStep" } },
+                "children": [{ "text": "Continue" }]
+              },
+              {
+                "type": "button",
+                "when": { "op": "eq", "args": [{ "ref": "step" }, 3] },
+                "props": { "className": "btn-primary", "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "paymentValid" }] }, { "ref": "processing" }] } },
+                "events": { "click": { "action": "placeOrder" } },
+                "children": [{ "op": "if", "args": [{ "ref": "processing" }, "Processing...", "Place Order"] }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts at step 1",
+      "steps": [
+        { "assert": { "ref": "step", "eq": 1 } },
+        { "assert": { "ref": "isCartEmpty", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-load-cart",
+      "name": "loadCart populates cart",
+      "steps": [
+        { "dispatch": "loadCart", "params": { "items": [{ "id": 1, "name": "Test", "price": 10, "quantity": 2 }] } },
+        { "assert": { "ref": "isCartEmpty", "eq": false } },
+        { "assert": { "ref": "subtotal", "eq": 20 } }
+      ]
+    },
+    {
+      "id": "test-update-quantity",
+      "name": "updateQuantity changes item quantity",
+      "steps": [
+        { "dispatch": "loadCart", "params": { "items": [{ "id": 1, "name": "Test", "price": 10, "quantity": 1 }] } },
+        { "dispatch": "updateQuantity", "params": { "itemId": 1, "quantity": 3 } },
+        { "assert": { "ref": "subtotal", "eq": 30 } }
+      ]
+    },
+    {
+      "id": "test-remove-item",
+      "name": "removeItem removes from cart",
+      "steps": [
+        { "dispatch": "loadCart", "params": { "items": [{ "id": 1, "name": "Test", "price": 10, "quantity": 1 }] } },
+        { "dispatch": "removeItem", "params": { "itemId": 1 } },
+        { "assert": { "ref": "isCartEmpty", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-apply-promo",
+      "name": "applyPromo applies discount",
+      "steps": [
+        { "dispatch": "loadCart", "params": { "items": [{ "id": 1, "name": "Test", "price": 100, "quantity": 1 }] } },
+        { "dispatch": "setPromoCode", "params": { "code": "SAVE10" } },
+        { "dispatch": "applyPromo" },
+        { "assert": { "ref": "discount", "eq": 10 } }
+      ]
+    },
+    {
+      "id": "test-shipping-method",
+      "name": "setShippingMethod changes cost",
+      "steps": [
+        { "dispatch": "setShippingMethod", "params": { "method": "express" } },
+        { "assert": { "ref": "shippingCost", "eq": 12.99 } }
+      ]
+    },
+    {
+      "id": "test-navigation",
+      "name": "step navigation works",
+      "steps": [
+        { "dispatch": "loadCart", "params": { "items": [{ "id": 1, "name": "Test", "price": 10, "quantity": 1 }] } },
+        { "dispatch": "nextStep" },
+        { "assert": { "ref": "step", "eq": 2 } },
+        { "dispatch": "prevStep" },
+        { "assert": { "ref": "step", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-order-success",
+      "name": "orderSuccess completes checkout",
+      "steps": [
+        { "dispatch": "orderSuccess", "params": { "orderId": "ORD-123" } },
+        { "assert": { "ref": "orderComplete", "eq": true } },
+        { "assert": { "ref": "orderId", "eq": "ORD-123" } },
+        { "assert": { "ref": "step", "eq": 4 } }
+      ]
+    }
+  ]
+}

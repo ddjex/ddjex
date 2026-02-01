@@ -1,0 +1,163 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-modal",
+  "target": "dom",
+
+  "state": {
+    "isOpen": { "type": "boolean", "initial": false },
+    "modalTitle": { "type": "string", "initial": "Confirm Action" },
+    "modalMessage": { "type": "string", "initial": "Are you sure you want to proceed?" },
+    "confirmed": { "type": "boolean", "initial": false }
+  },
+
+  "actions": {
+    "openModal": {
+      "mutations": [{ "target": "isOpen", "op": "set", "value": true }]
+    },
+    "closeModal": {
+      "mutations": [{ "target": "isOpen", "op": "set", "value": false }]
+    },
+    "confirm": {
+      "mutations": [
+        { "target": "confirmed", "op": "set", "value": true },
+        { "target": "isOpen", "op": "set", "value": false }
+      ]
+    },
+    "setModalContent": {
+      "params": ["title", "message"],
+      "mutations": [
+        { "target": "modalTitle", "op": "set", "value": { "param": "title" } },
+        { "target": "modalMessage", "op": "set", "value": { "param": "message" } }
+      ]
+    },
+    "reset": {
+      "mutations": [{ "target": "confirmed", "op": "set", "value": false }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Modal Example" }] },
+      {
+        "type": "button",
+        "props": { "className": "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" },
+        "events": { "click": { "action": "openModal" } },
+        "children": [{ "text": "Open Modal" }]
+      },
+      {
+        "if": { "ref": "confirmed" },
+        "then": {
+          "type": "div",
+          "props": { "className": "mt-4 p-4 bg-green-100 text-green-700 rounded" },
+          "children": [
+            { "text": "Action confirmed! " },
+            {
+              "type": "button",
+              "props": { "className": "underline" },
+              "events": { "click": { "action": "reset" } },
+              "children": [{ "text": "Reset" }]
+            }
+          ]
+        }
+      },
+      {
+        "if": { "ref": "isOpen" },
+        "then": {
+          "portal": {
+            "target": "body",
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "fixed inset-0 z-50 flex items-center justify-center" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "fixed inset-0 bg-black bg-opacity-50" },
+                    "events": { "click": { "action": "closeModal" } }
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 z-10" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "flex items-center justify-between p-4 border-b" },
+                        "children": [
+                          { "type": "h3", "props": { "className": "text-lg font-semibold" }, "children": [{ "bind": "modalTitle" }] },
+                          {
+                            "type": "button",
+                            "props": { "className": "text-gray-400 hover:text-gray-600 text-2xl leading-none" },
+                            "events": { "click": { "action": "closeModal" } },
+                            "children": [{ "text": "×" }]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "p-4" },
+                        "children": [
+                          { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "bind": "modalMessage" }] }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "flex justify-end gap-2 p-4 border-t" },
+                        "children": [
+                          {
+                            "type": "button",
+                            "props": { "className": "px-4 py-2 text-gray-600 hover:bg-gray-100 rounded" },
+                            "events": { "click": { "action": "closeModal" } },
+                            "children": [{ "text": "Cancel" }]
+                          },
+                          {
+                            "type": "button",
+                            "props": { "className": "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" },
+                            "events": { "click": { "action": "confirm" } },
+                            "children": [{ "text": "Confirm" }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-closed",
+      "name": "Modal starts closed",
+      "steps": [
+        { "assert": { "ref": "isOpen", "eq": false } },
+        { "assert": { "ref": "confirmed", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-open-close",
+      "name": "Can open and close modal",
+      "steps": [
+        { "dispatch": "openModal" },
+        { "assert": { "ref": "isOpen", "eq": true } },
+        { "dispatch": "closeModal" },
+        { "assert": { "ref": "isOpen", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-confirm",
+      "name": "Confirm closes modal and sets confirmed",
+      "steps": [
+        { "dispatch": "openModal" },
+        { "dispatch": "confirm" },
+        { "assert": { "ref": "isOpen", "eq": false } },
+        { "assert": { "ref": "confirmed", "eq": true } }
+      ]
+    }
+  ]
+}

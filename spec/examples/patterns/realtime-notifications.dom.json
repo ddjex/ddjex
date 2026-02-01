@@ -1,0 +1,574 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "realtime-notifications",
+  "target": "dom",
+
+  "state": {
+    "notifications": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "type": "info", "title": "Welcome!", "message": "You have 3 unread messages", "time": "2 min ago", "read": false },
+        { "id": 2, "type": "success", "title": "Payment received", "message": "Your payment of $99.00 was successful", "time": "1 hour ago", "read": false },
+        { "id": 3, "type": "warning", "title": "Storage almost full", "message": "You've used 90% of your storage", "time": "3 hours ago", "read": true }
+      ]
+    },
+    "nextId": { "type": "number", "initial": 4 },
+    "showPanel": { "type": "boolean", "initial": false },
+    "filter": { "type": "string", "initial": "all" },
+    "toasts": {
+      "type": "array",
+      "initial": []
+    },
+    "soundEnabled": { "type": "boolean", "initial": true },
+    "desktopEnabled": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "unreadCount": {
+      "deps": ["notifications"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "notifications" }, { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "read"] }] }] }
+        ]
+      }
+    },
+    "hasUnread": {
+      "deps": ["unreadCount"],
+      "fn": { "op": "gt", "args": [{ "ref": "unreadCount" }, 0] }
+    },
+    "filteredNotifications": {
+      "deps": ["notifications", "filter"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "filter" }, "all"] },
+          { "ref": "notifications" },
+          {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "ref": "filter" }, "unread"] },
+              { "op": "filter", "args": [{ "ref": "notifications" }, { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "read"] }] }] },
+              { "op": "filter", "args": [{ "ref": "notifications" }, { "op": "get", "args": [{ "ref": "$item" }, "read"] }] }
+            ]
+          }
+        ]
+      }
+    },
+    "filteredCount": {
+      "deps": ["filteredNotifications"],
+      "fn": { "op": "length", "args": [{ "ref": "filteredNotifications" }] }
+    },
+    "totalCount": {
+      "deps": ["notifications"],
+      "fn": { "op": "length", "args": [{ "ref": "notifications" }] }
+    }
+  },
+
+  "actions": {
+    "togglePanel": {
+      "mutations": [
+        { "target": "showPanel", "op": "set", "value": { "op": "not", "args": [{ "ref": "showPanel" }] } }
+      ]
+    },
+    "closePanel": {
+      "mutations": [
+        { "target": "showPanel", "op": "set", "value": false }
+      ]
+    },
+    "setFilter": {
+      "params": ["value"],
+      "mutations": [{ "target": "filter", "op": "set", "value": { "param": "value" } }]
+    },
+    "markAsRead": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "notifications",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "notifications" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "read": true }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "markAllAsRead": {
+      "mutations": [
+        {
+          "target": "notifications",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "notifications" },
+              { "op": "merge", "args": [{ "ref": "$item" }, { "read": true }] }
+            ]
+          }
+        }
+      ]
+    },
+    "deleteNotification": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "notifications",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "notifications" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "clearAll": {
+      "mutations": [
+        { "target": "notifications", "op": "set", "value": [] }
+      ]
+    },
+    "addNotification": {
+      "params": ["notification"],
+      "mutations": [
+        {
+          "target": "notifications",
+          "op": "set",
+          "value": {
+            "op": "concat",
+            "args": [
+              [{ "op": "merge", "args": [{ "param": "notification" }, { "id": { "ref": "nextId" }, "read": false, "time": "Just now" }] }],
+              { "ref": "notifications" }
+            ]
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 }
+      ]
+    },
+    "showToast": {
+      "params": ["toast"],
+      "mutations": [
+        {
+          "target": "toasts",
+          "op": "push",
+          "value": { "op": "merge", "args": [{ "param": "toast" }, { "id": { "ref": "nextId" } }] }
+        },
+        { "target": "nextId", "op": "add", "value": 1 }
+      ]
+    },
+    "dismissToast": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "toasts",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "toasts" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "toggleSound": {
+      "mutations": [
+        { "target": "soundEnabled", "op": "set", "value": { "op": "not", "args": [{ "ref": "soundEnabled" }] } }
+      ]
+    },
+    "toggleDesktop": {
+      "mutations": [
+        { "target": "desktopEnabled", "op": "set", "value": { "op": "not", "args": [{ "ref": "desktopEnabled" }] } }
+      ]
+    },
+    "simulateNewNotification": {
+      "mutations": [
+        {
+          "target": "notifications",
+          "op": "set",
+          "value": {
+            "op": "concat",
+            "args": [
+              [{
+                "id": { "ref": "nextId" },
+                "type": "info",
+                "title": "New notification",
+                "message": "This is a simulated real-time notification",
+                "time": "Just now",
+                "read": false
+              }],
+              { "ref": "notifications" }
+            ]
+          }
+        },
+        { "target": "nextId", "op": "add", "value": 1 },
+        {
+          "target": "toasts",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextId" },
+            "type": "info",
+            "title": "New notification",
+            "message": "This is a simulated real-time notification"
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-md mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Notifications" }] },
+      {
+        "type": "div",
+        "props": { "className": "relative mb-6" },
+        "children": [
+          {
+            "type": "button",
+            "props": { "className": "relative p-2 bg-white rounded-full shadow-md hover:bg-gray-50" },
+            "events": { "click": { "action": "togglePanel" } },
+            "children": [
+              { "type": "span", "props": { "className": "text-2xl" }, "children": [{ "text": "🔔" }] },
+              {
+                "if": { "ref": "hasUnread" },
+                "then": {
+                  "type": "span",
+                  "props": { "className": "absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center" },
+                  "children": [{ "bind": "unreadCount" }]
+                }
+              }
+            ]
+          },
+          {
+            "if": { "ref": "showPanel" },
+            "then": {
+              "type": "div",
+              "props": { "className": "absolute top-full left-0 mt-2 w-96 bg-white rounded-lg shadow-xl border z-50" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "p-4 border-b flex justify-between items-center" },
+                  "children": [
+                    { "type": "h3", "props": { "className": "font-semibold" }, "children": [{ "text": "Notifications" }] },
+                    {
+                      "type": "div",
+                      "props": { "className": "flex gap-2" },
+                      "children": [
+                        {
+                          "if": { "ref": "hasUnread" },
+                          "then": {
+                            "type": "button",
+                            "props": { "className": "text-sm text-blue-500 hover:text-blue-700" },
+                            "events": { "click": { "action": "markAllAsRead" } },
+                            "children": [{ "text": "Mark all read" }]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "flex border-b" },
+                  "children": [
+                    {
+                      "type": "button",
+                      "props": {
+                        "className": {
+                          "op": "if",
+                          "args": [
+                            { "op": "eq", "args": [{ "ref": "filter" }, "all"] },
+                            "flex-1 py-2 text-sm font-medium text-blue-500 border-b-2 border-blue-500",
+                            "flex-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                          ]
+                        }
+                      },
+                      "events": { "click": { "action": "setFilter", "args": ["all"] } },
+                      "children": [{ "text": "All" }]
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "className": {
+                          "op": "if",
+                          "args": [
+                            { "op": "eq", "args": [{ "ref": "filter" }, "unread"] },
+                            "flex-1 py-2 text-sm font-medium text-blue-500 border-b-2 border-blue-500",
+                            "flex-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                          ]
+                        }
+                      },
+                      "events": { "click": { "action": "setFilter", "args": ["unread"] } },
+                      "children": [{ "text": "Unread" }]
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "className": {
+                          "op": "if",
+                          "args": [
+                            { "op": "eq", "args": [{ "ref": "filter" }, "read"] },
+                            "flex-1 py-2 text-sm font-medium text-blue-500 border-b-2 border-blue-500",
+                            "flex-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                          ]
+                        }
+                      },
+                      "events": { "click": { "action": "setFilter", "args": ["read"] } },
+                      "children": [{ "text": "Read" }]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "max-h-80 overflow-y-auto" },
+                  "children": [
+                    {
+                      "if": { "op": "eq", "args": [{ "ref": "filteredCount" }, 0] },
+                      "then": {
+                        "type": "div",
+                        "props": { "className": "p-8 text-center text-gray-500" },
+                        "children": [
+                          { "type": "p", "props": { "className": "text-3xl mb-2" }, "children": [{ "text": "📭" }] },
+                          { "type": "p", "children": [{ "text": "No notifications" }] }
+                        ]
+                      },
+                      "else": {
+                        "type": "div",
+                        "each": { "items": "filteredNotifications", "as": "notif", "key": { "op": "get", "args": [{ "ref": "notif" }, "id"] } },
+                        "children": [
+                          {
+                            "type": "div",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "op": "get", "args": [{ "ref": "notif" }, "read"] },
+                                  "p-4 border-b hover:bg-gray-50 cursor-pointer",
+                                  "p-4 border-b hover:bg-gray-50 cursor-pointer bg-blue-50"
+                                ]
+                              }
+                            },
+                            "events": { "click": { "action": "markAsRead", "args": [{ "op": "get", "args": [{ "ref": "notif" }, "id"] }] } },
+                            "children": [
+                              {
+                                "type": "div",
+                                "props": { "className": "flex items-start gap-3" },
+                                "children": [
+                                  {
+                                    "type": "span",
+                                    "props": { "className": "text-xl" },
+                                    "children": [
+                                      {
+                                        "op": "switch",
+                                        "args": [
+                                          { "op": "get", "args": [{ "ref": "notif" }, "type"] },
+                                          { "info": "ℹ️", "success": "✅", "warning": "⚠️", "error": "❌" },
+                                          "📌"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "div",
+                                    "props": { "className": "flex-1" },
+                                    "children": [
+                                      {
+                                        "type": "div",
+                                        "props": { "className": "flex justify-between items-start" },
+                                        "children": [
+                                          { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "notif.title" }] },
+                                          {
+                                            "type": "button",
+                                            "props": { "className": "text-gray-400 hover:text-red-500" },
+                                            "events": { "click": { "action": "deleteNotification", "args": [{ "op": "get", "args": [{ "ref": "notif" }, "id"] }] } },
+                                            "children": [{ "text": "×" }]
+                                          }
+                                        ]
+                                      },
+                                      { "type": "p", "props": { "className": "text-sm text-gray-600" }, "children": [{ "bind": "notif.message" }] },
+                                      { "type": "p", "props": { "className": "text-xs text-gray-400 mt-1" }, "children": [{ "bind": "notif.time" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "p-3 border-t bg-gray-50 flex justify-between items-center" },
+                  "children": [
+                    {
+                      "type": "div",
+                      "props": { "className": "flex gap-4" },
+                      "children": [
+                        {
+                          "type": "button",
+                          "props": {
+                            "className": { "op": "if", "args": [{ "ref": "soundEnabled" }, "text-blue-500", "text-gray-400"] },
+                            "title": "Toggle sound"
+                          },
+                          "events": { "click": { "action": "toggleSound" } },
+                          "children": [{ "text": "🔊" }]
+                        },
+                        {
+                          "type": "button",
+                          "props": {
+                            "className": { "op": "if", "args": [{ "ref": "desktopEnabled" }, "text-blue-500", "text-gray-400"] },
+                            "title": "Toggle desktop notifications"
+                          },
+                          "events": { "click": { "action": "toggleDesktop" } },
+                          "children": [{ "text": "🖥️" }]
+                        }
+                      ]
+                    },
+                    {
+                      "if": { "op": "gt", "args": [{ "ref": "totalCount" }, 0] },
+                      "then": {
+                        "type": "button",
+                        "props": { "className": "text-sm text-red-500 hover:text-red-700" },
+                        "events": { "click": { "action": "clearAll" } },
+                        "children": [{ "text": "Clear all" }]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "button",
+        "props": { "className": "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 mb-4" },
+        "events": { "click": { "action": "simulateNewNotification" } },
+        "children": [{ "text": "Simulate New Notification" }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "fixed bottom-4 right-4 space-y-2" },
+        "each": { "items": "toasts", "as": "toast", "key": { "op": "get", "args": [{ "ref": "toast" }, "id"] } },
+        "children": [
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "p-4 rounded-lg shadow-lg flex items-start gap-3 min-w-80 ",
+                  {
+                    "op": "switch",
+                    "args": [
+                      { "op": "get", "args": [{ "ref": "toast" }, "type"] },
+                      { "info": "bg-blue-500 text-white", "success": "bg-green-500 text-white", "warning": "bg-yellow-500 text-black", "error": "bg-red-500 text-white" },
+                      "bg-gray-800 text-white"
+                    ]
+                  }
+                ]
+              }
+            },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex-1" },
+                "children": [
+                  { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "toast.title" }] },
+                  { "type": "p", "props": { "className": "text-sm opacity-90" }, "children": [{ "bind": "toast.message" }] }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "opacity-70 hover:opacity-100" },
+                "events": { "click": { "action": "dismissToast", "args": [{ "op": "get", "args": [{ "ref": "toast" }, "id"] }] } },
+                "children": [{ "text": "×" }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-unread",
+      "name": "Has initial unread count",
+      "steps": [
+        { "assert": { "ref": "unreadCount", "eq": 2 } },
+        { "assert": { "ref": "hasUnread", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-mark-as-read",
+      "name": "Can mark notification as read",
+      "steps": [
+        { "dispatch": "markAsRead", "args": [1] },
+        { "assert": { "ref": "unreadCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-mark-all-read",
+      "name": "Can mark all as read",
+      "steps": [
+        { "dispatch": "markAllAsRead" },
+        { "assert": { "ref": "unreadCount", "eq": 0 } },
+        { "assert": { "ref": "hasUnread", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-delete-notification",
+      "name": "Can delete notification",
+      "steps": [
+        { "assert": { "ref": "totalCount", "eq": 3 } },
+        { "dispatch": "deleteNotification", "args": [1] },
+        { "assert": { "ref": "totalCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-filter",
+      "name": "Filter shows correct notifications",
+      "steps": [
+        { "dispatch": "setFilter", "args": ["unread"] },
+        { "assert": { "ref": "filteredCount", "eq": 2 } },
+        { "dispatch": "setFilter", "args": ["read"] },
+        { "assert": { "ref": "filteredCount", "eq": 1 } },
+        { "dispatch": "setFilter", "args": ["all"] },
+        { "assert": { "ref": "filteredCount", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-simulate-notification",
+      "name": "Simulating adds new notification",
+      "steps": [
+        { "dispatch": "simulateNewNotification" },
+        { "assert": { "ref": "totalCount", "eq": 4 } }
+      ]
+    },
+    {
+      "id": "test-clear-all",
+      "name": "Clear all removes all notifications",
+      "steps": [
+        { "dispatch": "clearAll" },
+        { "assert": { "ref": "totalCount", "eq": 0 } }
+      ]
+    }
+  ]
+}

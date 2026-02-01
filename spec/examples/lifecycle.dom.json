@@ -1,0 +1,120 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "lifecycle_demo",
+  "target": "dom",
+
+  "state": {
+    "showTimer": { "type": "boolean", "initial": true },
+    "logs": { "type": "array", "initial": [] },
+    "timerValue": { "type": "number", "initial": 0 }
+  },
+
+  "actions": {
+    "toggleTimer": {
+      "mutations": [
+        { "target": "showTimer", "op": "toggle" }
+      ]
+    },
+    "addLog": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "logs", "op": "push", "value": { "param": "message" } }
+      ]
+    },
+    "incrementTimer": {
+      "mutations": [
+        { "target": "timerValue", "op": "add", "value": 1 }
+      ]
+    },
+    "resetTimer": {
+      "mutations": [
+        { "target": "timerValue", "op": "set", "value": 0 }
+      ]
+    }
+  },
+
+  "components": {
+    "Timer": {
+      "props": {
+        "label": { "type": "string", "default": "Timer" }
+      },
+      "render": {
+        "type": "div",
+        "props": { "className": "timer-component" },
+        "children": [
+          { "type": "h3", "children": [{ "bind": "label" }] },
+          {
+            "type": "p",
+            "children": [
+              { "text": "Value: " },
+              { "bind": "timerValue" }
+            ]
+          }
+        ]
+      },
+      "onMount": {
+        "op": "log",
+        "args": ["Timer component mounted"]
+      },
+      "onUnmount": {
+        "op": "log",
+        "args": ["Timer component unmounted"]
+      },
+      "onUpdate": {
+        "op": "log",
+        "args": ["Timer component updated"]
+      }
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "app" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Lifecycle Hooks Demo" }]
+      },
+      {
+        "type": "div",
+        "props": { "className": "controls" },
+        "children": [
+          {
+            "type": "button",
+            "events": { "click": { "action": "toggleTimer" } },
+            "children": [{ "text": "Toggle Timer Component" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "incrementTimer" } },
+            "children": [{ "text": "Increment" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "resetTimer" } },
+            "children": [{ "text": "Reset" }]
+          }
+        ]
+      },
+      {
+        "type": "p",
+        "children": [
+          { "text": "Component visible: " },
+          { "bind": "showTimer" }
+        ]
+      },
+      {
+        "if": { "op": "eq", "args": [{ "ref": "showTimer" }, true] },
+        "then": {
+          "component": "Timer",
+          "props": { "label": "My Timer" }
+        }
+      },
+      {
+        "type": "p",
+        "props": { "className": "hint" },
+        "children": [{ "text": "Open console to see lifecycle logs" }]
+      }
+    ]
+  }
+}

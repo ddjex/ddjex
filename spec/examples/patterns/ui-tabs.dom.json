@@ -1,0 +1,107 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-tabs",
+  "target": "dom",
+
+  "state": {
+    "activeTab": { "type": "string", "initial": "overview" },
+    "tabs": {
+      "type": "array",
+      "initial": [
+        { "id": "overview", "label": "Overview", "content": "This is the overview tab content. Here you can see a summary of all important information." },
+        { "id": "features", "label": "Features", "content": "Discover all the amazing features we offer. Each feature is designed to help you achieve your goals." },
+        { "id": "pricing", "label": "Pricing", "content": "Choose the plan that fits your needs. We offer flexible pricing options for individuals and teams." },
+        { "id": "support", "label": "Support", "content": "Need help? Our support team is available 24/7 to assist you with any questions or issues." }
+      ]
+    }
+  },
+
+  "computed": {
+    "activeContent": {
+      "deps": ["tabs", "activeTab"],
+      "fn": {
+        "op": "get",
+        "args": [
+          { "op": "find", "args": [{ "ref": "tabs" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "ref": "activeTab" }] }] },
+          "content"
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setTab": {
+      "params": ["tabId"],
+      "mutations": [{ "target": "activeTab", "op": "set", "value": { "param": "tabId" } }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8 max-w-2xl mx-auto" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Tabs Example" }] },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "border-b" },
+            "children": [
+              {
+                "type": "nav",
+                "props": { "className": "flex" },
+                "each": { "items": "tabs", "as": "tab", "key": { "op": "get", "args": [{ "ref": "tab" }, "id"] } },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "tab" }, "id"] }, { "ref": "activeTab" }] },
+                          "px-6 py-3 text-blue-600 border-b-2 border-blue-600 font-medium bg-blue-50",
+                          "px-6 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                        ]
+                      }
+                    },
+                    "events": { "click": { "action": "setTab", "args": [{ "op": "get", "args": [{ "ref": "tab" }, "id"] }] } },
+                    "children": [{ "bind": "tab.label" }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "p-6" },
+            "children": [
+              { "type": "p", "props": { "className": "text-gray-700" }, "children": [{ "bind": "activeContent" }] }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-tab",
+      "name": "First tab is active by default",
+      "steps": [
+        { "assert": { "ref": "activeTab", "eq": "overview" } }
+      ]
+    },
+    {
+      "id": "test-switch-tab",
+      "name": "Can switch between tabs",
+      "steps": [
+        { "dispatch": "setTab", "args": ["features"] },
+        { "assert": { "ref": "activeTab", "eq": "features" } },
+        { "dispatch": "setTab", "args": ["pricing"] },
+        { "assert": { "ref": "activeTab", "eq": "pricing" } }
+      ]
+    }
+  ]
+}

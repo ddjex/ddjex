@@ -1,0 +1,77 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "dashboard",
+  "target": "dom",
+
+  "state": {
+    "count": { "type": "number", "initial": 0 },
+    "stats": {
+      "type": "array",
+      "initial": [
+        { "label": "Users", "value": 1234 },
+        { "label": "Orders", "value": 567 },
+        { "label": "Revenue", "value": 89012 }
+      ]
+    }
+  },
+
+  "actions": {
+    "increment": {
+      "mutations": [{ "target": "count", "op": "add", "value": 1 }]
+    }
+  },
+
+  "components": {
+    "Dashboard": {
+      "props": {
+        "title": { "type": "string", "default": "Dashboard" }
+      },
+      "render": {
+        "type": "div",
+        "props": { "className": "dashboard" },
+        "children": [
+          { "type": "h2", "children": [{ "bind": "title" }] },
+          { "type": "p", "children": [{ "text": "This component was lazy-loaded!" }] },
+          {
+            "type": "div",
+            "props": { "className": "stats" },
+            "each": { "items": "stats", "as": "stat" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "stat-card" },
+                "children": [
+                  { "type": "span", "props": { "className": "stat-label" }, "children": [{ "bind": "stat.label" }] },
+                  { "type": "span", "props": { "className": "stat-value" }, "children": [{ "bind": "stat.value" }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "counter" },
+            "children": [
+              { "type": "button", "events": { "click": { "action": "increment" } }, "children": [{ "text": "Click count: " }, { "bind": "count" }] }
+            ]
+          }
+        ]
+      }
+    },
+    "StatCard": {
+      "props": {
+        "label": { "type": "string", "required": true },
+        "value": { "type": "number", "required": true }
+      },
+      "render": {
+        "type": "div",
+        "props": { "className": "stat-card" },
+        "children": [
+          { "type": "span", "props": { "className": "stat-label" }, "children": [{ "bind": "label" }] },
+          { "type": "span", "props": { "className": "stat-value" }, "children": [{ "bind": "value" }] }
+        ]
+      }
+    }
+  },
+
+  "root": { "component": "Dashboard" }
+}

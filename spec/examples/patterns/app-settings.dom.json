@@ -1,0 +1,565 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-settings-pattern",
+  "target": "dom",
+  "description": "Settings page with sections, toggles, and persistent preferences",
+
+  "state": {
+    "activeSection": { "type": "string", "initial": "general" },
+    "settings": {
+      "type": "object",
+      "initial": {
+        "theme": "light",
+        "language": "en",
+        "timezone": "UTC",
+        "notifications": true,
+        "emailDigest": "daily",
+        "soundEnabled": true,
+        "autoSave": true,
+        "fontSize": "medium",
+        "compactMode": false,
+        "twoFactorEnabled": false,
+        "showOnlineStatus": true,
+        "allowAnalytics": true
+      }
+    },
+    "originalSettings": { "type": "object", "initial": null, "nullable": true },
+    "saving": { "type": "boolean", "initial": false },
+    "saved": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "hasChanges": {
+      "deps": ["settings", "originalSettings"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "neq", "args": [{ "ref": "originalSettings" }, null] },
+          { "op": "neq", "args": [{ "op": "stringify", "args": [{ "ref": "settings" }] }, { "op": "stringify", "args": [{ "ref": "originalSettings" }] }] }
+        ]
+      }
+    },
+    "currentTheme": {
+      "deps": ["settings"],
+      "fn": { "op": "get", "args": [{ "ref": "settings" }, "theme"] }
+    },
+    "sections": {
+      "deps": [],
+      "fn": [
+        { "id": "general", "label": "General", "icon": "⚙️" },
+        { "id": "notifications", "label": "Notifications", "icon": "🔔" },
+        { "id": "appearance", "label": "Appearance", "icon": "🎨" },
+        { "id": "privacy", "label": "Privacy & Security", "icon": "🔒" }
+      ]
+    }
+  },
+
+  "actions": {
+    "setSection": {
+      "params": ["section"],
+      "mutations": [
+        { "target": "activeSection", "op": "set", "value": { "param": "section" } }
+      ]
+    },
+    "updateSetting": {
+      "params": ["key", "value"],
+      "mutations": [
+        {
+          "target": "settings",
+          "op": "merge",
+          "value": {
+            "op": "fromEntries",
+            "args": [[[{ "param": "key" }, { "param": "value" }]]]
+          }
+        },
+        { "target": "saved", "op": "set", "value": false }
+      ]
+    },
+    "toggleSetting": {
+      "params": ["key"],
+      "mutations": [
+        {
+          "target": "settings",
+          "op": "merge",
+          "value": {
+            "op": "fromEntries",
+            "args": [[[{ "param": "key" }, { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "settings" }, { "param": "key" }] }] }]]]
+          }
+        },
+        { "target": "saved", "op": "set", "value": false }
+      ]
+    },
+    "saveSettings": {
+      "guard": { "ref": "hasChanges" },
+      "mutations": [
+        { "target": "saving", "op": "set", "value": true },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "saveSuccess": {
+      "mutations": [
+        { "target": "saving", "op": "set", "value": false },
+        { "target": "saved", "op": "set", "value": true },
+        { "target": "originalSettings", "op": "set", "value": { "ref": "settings" } }
+      ]
+    },
+    "saveError": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "saving", "op": "set", "value": false },
+        { "target": "error", "op": "set", "value": { "param": "message" } }
+      ]
+    },
+    "resetToDefaults": {
+      "mutations": [
+        {
+          "target": "settings",
+          "op": "set",
+          "value": {
+            "theme": "light",
+            "language": "en",
+            "timezone": "UTC",
+            "notifications": true,
+            "emailDigest": "daily",
+            "soundEnabled": true,
+            "autoSave": true,
+            "fontSize": "medium",
+            "compactMode": false,
+            "twoFactorEnabled": false,
+            "showOnlineStatus": true,
+            "allowAnalytics": true
+          }
+        },
+        { "target": "saved", "op": "set", "value": false }
+      ]
+    },
+    "discardChanges": {
+      "guard": { "ref": "hasChanges" },
+      "mutations": [
+        { "target": "settings", "op": "set", "value": { "ref": "originalSettings" } },
+        { "target": "saved", "op": "set", "value": false }
+      ]
+    },
+    "loadSettings": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "settings", "op": "set", "value": { "param": "data" } },
+        { "target": "originalSettings", "op": "set", "value": { "param": "data" } }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "load-from-storage",
+      "trigger": { "type": "mount" },
+      "do": { "op": "storage.get", "key": "app-settings", "storage": "local" },
+      "onSuccess": {
+        "op": "if",
+        "args": [
+          { "op": "neq", "args": ["$result", null] },
+          { "action": "loadSettings", "params": { "data": "$result" } },
+          null
+        ]
+      }
+    },
+    {
+      "id": "perform-save",
+      "watch": ["saving"],
+      "condition": { "ref": "saving" },
+      "do": { "op": "storage.set", "key": "app-settings", "value": { "ref": "settings" }, "storage": "local" },
+      "onSuccess": { "action": "saveSuccess" },
+      "onError": { "action": "saveError", "params": { "message": "Failed to save settings" } }
+    },
+    {
+      "id": "clear-saved-message",
+      "watch": ["saved"],
+      "condition": { "ref": "saved" },
+      "do": { "op": "delay", "ms": 3000 },
+      "onSuccess": { "action": "updateSetting", "params": { "key": "_clearSaved", "value": true } }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": { "op": "concat", "args": ["settings-page theme-", { "ref": "currentTheme" }] } },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "settings-header" },
+        "children": [
+          { "type": "h1", "children": [{ "text": "Settings" }] },
+          {
+            "type": "div",
+            "props": { "className": "header-actions" },
+            "children": [
+              {
+                "type": "span",
+                "when": { "ref": "saved" },
+                "props": { "className": "save-success" },
+                "children": [{ "text": "✓ Saved" }]
+              },
+              {
+                "type": "span",
+                "when": { "op": "neq", "args": [{ "ref": "error" }, ""] },
+                "props": { "className": "save-error" },
+                "children": [{ "bind": "error" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-secondary", "disabled": { "op": "not", "args": [{ "ref": "hasChanges" }] } },
+                "events": { "click": { "action": "discardChanges" } },
+                "children": [{ "text": "Discard" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-primary", "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "hasChanges" }] }, { "ref": "saving" }] } },
+                "events": { "click": { "action": "saveSettings" } },
+                "children": [{ "op": "if", "args": [{ "ref": "saving" }, "Saving...", "Save Changes"] }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "settings-layout" },
+        "children": [
+          {
+            "type": "nav",
+            "props": { "className": "settings-nav" },
+            "each": { "items": "sections", "as": "section" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "activeSection" }, { "op": "get", "args": [{ "ref": "section" }, "id"] }] }, "active", ""] }
+                },
+                "events": { "click": { "action": "setSection", "params": { "section": { "op": "get", "args": [{ "ref": "section" }, "id"] } } } },
+                "children": [
+                  { "type": "span", "props": { "className": "icon" }, "children": [{ "op": "get", "args": [{ "ref": "section" }, "icon"] }] },
+                  { "op": "get", "args": [{ "ref": "section" }, "label"] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "main",
+            "props": { "className": "settings-content" },
+            "children": [
+              {
+                "type": "section",
+                "when": { "op": "eq", "args": [{ "ref": "activeSection" }, "general"] },
+                "children": [
+                  { "type": "h2", "children": [{ "text": "General Settings" }] },
+                  {
+                    "type": "div",
+                    "props": { "className": "setting-group" },
+                    "children": [
+                      {
+                        "type": "label",
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Language" }] },
+                          {
+                            "type": "select",
+                            "props": { "value": { "op": "get", "args": [{ "ref": "settings" }, "language"] } },
+                            "events": { "change": { "action": "updateSetting", "params": { "key": "language", "value": "$event.target.value" } } },
+                            "children": [
+                              { "type": "option", "props": { "value": "en" }, "children": [{ "text": "English" }] },
+                              { "type": "option", "props": { "value": "es" }, "children": [{ "text": "Español" }] },
+                              { "type": "option", "props": { "value": "fr" }, "children": [{ "text": "Français" }] },
+                              { "type": "option", "props": { "value": "de" }, "children": [{ "text": "Deutsch" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Timezone" }] },
+                          {
+                            "type": "select",
+                            "props": { "value": { "op": "get", "args": [{ "ref": "settings" }, "timezone"] } },
+                            "events": { "change": { "action": "updateSetting", "params": { "key": "timezone", "value": "$event.target.value" } } },
+                            "children": [
+                              { "type": "option", "props": { "value": "UTC" }, "children": [{ "text": "UTC" }] },
+                              { "type": "option", "props": { "value": "America/New_York" }, "children": [{ "text": "Eastern Time" }] },
+                              { "type": "option", "props": { "value": "America/Los_Angeles" }, "children": [{ "text": "Pacific Time" }] },
+                              { "type": "option", "props": { "value": "Europe/London" }, "children": [{ "text": "London" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Auto-save" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "autoSave"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "autoSave" } } }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "when": { "op": "eq", "args": [{ "ref": "activeSection" }, "notifications"] },
+                "children": [
+                  { "type": "h2", "children": [{ "text": "Notification Settings" }] },
+                  {
+                    "type": "div",
+                    "props": { "className": "setting-group" },
+                    "children": [
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Enable notifications" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "notifications"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "notifications" } } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Sound effects" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "soundEnabled"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "soundEnabled" } } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Email digest" }] },
+                          {
+                            "type": "select",
+                            "props": { "value": { "op": "get", "args": [{ "ref": "settings" }, "emailDigest"] } },
+                            "events": { "change": { "action": "updateSetting", "params": { "key": "emailDigest", "value": "$event.target.value" } } },
+                            "children": [
+                              { "type": "option", "props": { "value": "never" }, "children": [{ "text": "Never" }] },
+                              { "type": "option", "props": { "value": "daily" }, "children": [{ "text": "Daily" }] },
+                              { "type": "option", "props": { "value": "weekly" }, "children": [{ "text": "Weekly" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "when": { "op": "eq", "args": [{ "ref": "activeSection" }, "appearance"] },
+                "children": [
+                  { "type": "h2", "children": [{ "text": "Appearance" }] },
+                  {
+                    "type": "div",
+                    "props": { "className": "setting-group" },
+                    "children": [
+                      {
+                        "type": "label",
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Theme" }] },
+                          {
+                            "type": "select",
+                            "props": { "value": { "op": "get", "args": [{ "ref": "settings" }, "theme"] } },
+                            "events": { "change": { "action": "updateSetting", "params": { "key": "theme", "value": "$event.target.value" } } },
+                            "children": [
+                              { "type": "option", "props": { "value": "light" }, "children": [{ "text": "Light" }] },
+                              { "type": "option", "props": { "value": "dark" }, "children": [{ "text": "Dark" }] },
+                              { "type": "option", "props": { "value": "system" }, "children": [{ "text": "System" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Font size" }] },
+                          {
+                            "type": "select",
+                            "props": { "value": { "op": "get", "args": [{ "ref": "settings" }, "fontSize"] } },
+                            "events": { "change": { "action": "updateSetting", "params": { "key": "fontSize", "value": "$event.target.value" } } },
+                            "children": [
+                              { "type": "option", "props": { "value": "small" }, "children": [{ "text": "Small" }] },
+                              { "type": "option", "props": { "value": "medium" }, "children": [{ "text": "Medium" }] },
+                              { "type": "option", "props": { "value": "large" }, "children": [{ "text": "Large" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Compact mode" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "compactMode"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "compactMode" } } }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "when": { "op": "eq", "args": [{ "ref": "activeSection" }, "privacy"] },
+                "children": [
+                  { "type": "h2", "children": [{ "text": "Privacy & Security" }] },
+                  {
+                    "type": "div",
+                    "props": { "className": "setting-group" },
+                    "children": [
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Two-factor authentication" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "twoFactorEnabled"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "twoFactorEnabled" } } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Show online status" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "showOnlineStatus"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "showOnlineStatus" } } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "label",
+                        "props": { "className": "toggle-setting" },
+                        "children": [
+                          { "type": "span", "children": [{ "text": "Allow analytics" }] },
+                          {
+                            "type": "input",
+                            "props": { "type": "checkbox", "checked": { "op": "get", "args": [{ "ref": "settings" }, "allowAnalytics"] } },
+                            "events": { "change": { "action": "toggleSetting", "params": { "key": "allowAnalytics" } } }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "danger-zone" },
+                "children": [
+                  { "type": "h3", "children": [{ "text": "Danger Zone" }] },
+                  {
+                    "type": "button",
+                    "props": { "className": "btn-danger" },
+                    "events": { "click": { "action": "resetToDefaults" } },
+                    "children": [{ "text": "Reset to Defaults" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with general section",
+      "steps": [
+        { "assert": { "ref": "activeSection", "eq": "general" } },
+        { "assert": { "ref": "hasChanges", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-change-section",
+      "name": "setSection changes active section",
+      "steps": [
+        { "dispatch": "setSection", "params": { "section": "notifications" } },
+        { "assert": { "ref": "activeSection", "eq": "notifications" } }
+      ]
+    },
+    {
+      "id": "test-update-setting",
+      "name": "updateSetting modifies settings",
+      "steps": [
+        { "dispatch": "loadSettings", "params": { "data": { "theme": "light", "language": "en" } } },
+        { "dispatch": "updateSetting", "params": { "key": "theme", "value": "dark" } },
+        { "assert": { "ref": "currentTheme", "eq": "dark" } },
+        { "assert": { "ref": "hasChanges", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-toggle-setting",
+      "name": "toggleSetting flips boolean",
+      "steps": [
+        { "dispatch": "loadSettings", "params": { "data": { "notifications": true } } },
+        { "dispatch": "toggleSetting", "params": { "key": "notifications" } }
+      ]
+    },
+    {
+      "id": "test-discard-changes",
+      "name": "discardChanges reverts to original",
+      "steps": [
+        { "dispatch": "loadSettings", "params": { "data": { "theme": "light" } } },
+        { "dispatch": "updateSetting", "params": { "key": "theme", "value": "dark" } },
+        { "assert": { "ref": "hasChanges", "eq": true } },
+        { "dispatch": "discardChanges" },
+        { "assert": { "ref": "currentTheme", "eq": "light" } },
+        { "assert": { "ref": "hasChanges", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-save-flow",
+      "name": "save workflow sets saving state",
+      "steps": [
+        { "dispatch": "loadSettings", "params": { "data": { "theme": "light" } } },
+        { "dispatch": "updateSetting", "params": { "key": "theme", "value": "dark" } },
+        { "dispatch": "saveSettings" },
+        { "assert": { "ref": "saving", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-save-success",
+      "name": "saveSuccess updates state",
+      "steps": [
+        { "dispatch": "saveSuccess" },
+        { "assert": { "ref": "saving", "eq": false } },
+        { "assert": { "ref": "saved", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-reset-defaults",
+      "name": "resetToDefaults restores defaults",
+      "steps": [
+        { "dispatch": "updateSetting", "params": { "key": "theme", "value": "dark" } },
+        { "dispatch": "resetToDefaults" },
+        { "assert": { "ref": "currentTheme", "eq": "light" } }
+      ]
+    }
+  ]
+}

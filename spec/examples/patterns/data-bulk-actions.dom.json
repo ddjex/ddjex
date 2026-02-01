@@ -1,0 +1,551 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-bulk-actions-pattern",
+  "target": "dom",
+  "description": "Select all, bulk delete, bulk update with confirmation",
+
+  "state": {
+    "items": { "type": "array", "initial": [], "itemType": "object" },
+    "selectedIds": { "type": "array", "initial": [], "itemType": "number" },
+    "selectMode": { "type": "boolean", "initial": false },
+    "loading": { "type": "boolean", "initial": false },
+    "confirmAction": { "type": "object", "initial": null, "nullable": true },
+    "bulkStatus": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "itemCount": {
+      "deps": ["items"],
+      "fn": { "op": "length", "args": [{ "ref": "items" }] }
+    },
+    "selectedCount": {
+      "deps": ["selectedIds"],
+      "fn": { "op": "length", "args": [{ "ref": "selectedIds" }] }
+    },
+    "hasSelection": {
+      "deps": ["selectedCount"],
+      "fn": { "op": "gt", "args": [{ "ref": "selectedCount" }, 0] }
+    },
+    "allSelected": {
+      "deps": ["selectedCount", "itemCount"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "gt", "args": [{ "ref": "itemCount" }, 0] },
+          { "op": "eq", "args": [{ "ref": "selectedCount" }, { "ref": "itemCount" }] }
+        ]
+      }
+    },
+    "someSelected": {
+      "deps": ["hasSelection", "allSelected"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "ref": "hasSelection" },
+          { "op": "not", "args": [{ "ref": "allSelected" }] }
+        ]
+      }
+    },
+    "selectedItems": {
+      "deps": ["items", "selectedIds"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "items" },
+          { "op": "includes", "args": [{ "ref": "selectedIds" }, { "op": "get", "args": ["$item", "id"] }] }
+        ]
+      }
+    },
+    "showConfirmDialog": {
+      "deps": ["confirmAction"],
+      "fn": { "op": "neq", "args": [{ "ref": "confirmAction" }, null] }
+    }
+  },
+
+  "actions": {
+    "loadItems": {
+      "params": ["data"],
+      "mutations": [
+        { "target": "items", "op": "set", "value": { "param": "data" } }
+      ]
+    },
+    "toggleSelectMode": {
+      "mutations": [
+        { "target": "selectMode", "op": "not" },
+        { "target": "selectedIds", "op": "set", "value": [] }
+      ]
+    },
+    "toggleItem": {
+      "params": ["itemId"],
+      "mutations": [
+        {
+          "target": "selectedIds",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "includes", "args": [{ "ref": "selectedIds" }, { "param": "itemId" }] },
+              { "op": "filter", "args": [{ "ref": "selectedIds" }, { "op": "neq", "args": ["$item", { "param": "itemId" }] }] },
+              { "op": "concat", "args": [{ "ref": "selectedIds" }, [{ "param": "itemId" }]] }
+            ]
+          }
+        }
+      ]
+    },
+    "selectAll": {
+      "mutations": [
+        {
+          "target": "selectedIds",
+          "op": "set",
+          "value": { "op": "map", "args": [{ "ref": "items" }, { "op": "get", "args": ["$item", "id"] }] }
+        }
+      ]
+    },
+    "deselectAll": {
+      "mutations": [
+        { "target": "selectedIds", "op": "set", "value": [] }
+      ]
+    },
+    "toggleSelectAll": {
+      "mutations": [
+        {
+          "target": "selectedIds",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "ref": "allSelected" },
+              [],
+              { "op": "map", "args": [{ "ref": "items" }, { "op": "get", "args": ["$item", "id"] }] }
+            ]
+          }
+        }
+      ]
+    },
+    "confirmBulkDelete": {
+      "guard": { "ref": "hasSelection" },
+      "mutations": [
+        {
+          "target": "confirmAction",
+          "op": "set",
+          "value": {
+            "type": "delete",
+            "title": "Delete Items",
+            "message": { "op": "concat", "args": ["Are you sure you want to delete ", { "ref": "selectedCount" }, " items?"] },
+            "ids": { "ref": "selectedIds" }
+          }
+        }
+      ]
+    },
+    "confirmBulkArchive": {
+      "guard": { "ref": "hasSelection" },
+      "mutations": [
+        {
+          "target": "confirmAction",
+          "op": "set",
+          "value": {
+            "type": "archive",
+            "title": "Archive Items",
+            "message": { "op": "concat", "args": ["Archive ", { "ref": "selectedCount" }, " items?"] },
+            "ids": { "ref": "selectedIds" }
+          }
+        }
+      ]
+    },
+    "confirmBulkStatus": {
+      "params": ["status"],
+      "guard": { "ref": "hasSelection" },
+      "mutations": [
+        {
+          "target": "confirmAction",
+          "op": "set",
+          "value": {
+            "type": "status",
+            "title": "Update Status",
+            "message": { "op": "concat", "args": ["Set ", { "ref": "selectedCount" }, " items to '", { "param": "status" }, "'?"] },
+            "ids": { "ref": "selectedIds" },
+            "status": { "param": "status" }
+          }
+        }
+      ]
+    },
+    "cancelConfirm": {
+      "mutations": [
+        { "target": "confirmAction", "op": "set", "value": null }
+      ]
+    },
+    "executeAction": {
+      "guard": { "ref": "showConfirmDialog" },
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true }
+      ]
+    },
+    "bulkDeleteSuccess": {
+      "mutations": [
+        {
+          "target": "items",
+          "op": "filter",
+          "predicate": {
+            "op": "not",
+            "args": [{ "op": "includes", "args": [{ "op": "get", "args": [{ "ref": "confirmAction" }, "ids"] }, { "op": "get", "args": ["$item", "id"] }] }]
+          }
+        },
+        { "target": "selectedIds", "op": "set", "value": [] },
+        { "target": "confirmAction", "op": "set", "value": null },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "bulkStatus", "op": "set", "value": "Items deleted successfully" }
+      ]
+    },
+    "bulkArchiveSuccess": {
+      "mutations": [
+        {
+          "target": "items",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "includes", "args": [{ "op": "get", "args": [{ "ref": "confirmAction" }, "ids"] }, { "op": "get", "args": ["$item", "id"] }] },
+              { "op": "merge", "args": [{ "$item": true }, { "archived": true }] },
+              { "$item": true }
+            ]
+          }
+        },
+        { "target": "selectedIds", "op": "set", "value": [] },
+        { "target": "confirmAction", "op": "set", "value": null },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "bulkStatus", "op": "set", "value": "Items archived successfully" }
+      ]
+    },
+    "bulkStatusSuccess": {
+      "mutations": [
+        {
+          "target": "items",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "includes", "args": [{ "op": "get", "args": [{ "ref": "confirmAction" }, "ids"] }, { "op": "get", "args": ["$item", "id"] }] },
+              { "op": "merge", "args": [{ "$item": true }, { "status": { "op": "get", "args": [{ "ref": "confirmAction" }, "status"] } }] },
+              { "$item": true }
+            ]
+          }
+        },
+        { "target": "selectedIds", "op": "set", "value": [] },
+        { "target": "confirmAction", "op": "set", "value": null },
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "bulkStatus", "op": "set", "value": "Status updated successfully" }
+      ]
+    },
+    "bulkError": {
+      "params": ["message"],
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        { "target": "bulkStatus", "op": "set", "value": { "param": "message" } }
+      ]
+    },
+    "clearStatus": {
+      "mutations": [
+        { "target": "bulkStatus", "op": "set", "value": "" }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "execute-bulk-action",
+      "watch": ["loading"],
+      "condition": { "ref": "loading" },
+      "do": {
+        "op": "fetch",
+        "url": "/api/bulk",
+        "method": "POST",
+        "body": {
+          "action": { "op": "get", "args": [{ "ref": "confirmAction" }, "type"] },
+          "ids": { "op": "get", "args": [{ "ref": "confirmAction" }, "ids"] }
+        }
+      },
+      "onSuccess": {
+        "op": "switch",
+        "args": [
+          { "op": "get", "args": [{ "ref": "confirmAction" }, "type"] },
+          {
+            "delete": { "action": "bulkDeleteSuccess" },
+            "archive": { "action": "bulkArchiveSuccess" },
+            "status": { "action": "bulkStatusSuccess" }
+          },
+          { "action": "bulkDeleteSuccess" }
+        ]
+      },
+      "onError": { "action": "bulkError", "params": { "message": "Bulk action failed" } }
+    },
+    {
+      "id": "clear-status",
+      "watch": ["bulkStatus"],
+      "condition": { "op": "neq", "args": [{ "ref": "bulkStatus" }, ""] },
+      "do": { "op": "delay", "ms": 3000 },
+      "onSuccess": { "action": "clearStatus" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "bulk-actions-container" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "list-header" },
+        "children": [
+          { "type": "h2", "children": [{ "text": "Items" }] },
+          {
+            "type": "button",
+            "props": { "className": { "op": "if", "args": [{ "ref": "selectMode" }, "btn-active", ""] } },
+            "events": { "click": { "action": "toggleSelectMode" } },
+            "children": [{ "op": "if", "args": [{ "ref": "selectMode" }, "Done", "Select"] }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "and", "args": [{ "ref": "selectMode" }, { "ref": "hasSelection" }] },
+        "props": { "className": "bulk-toolbar" },
+        "children": [
+          {
+            "type": "span",
+            "props": { "className": "selection-count" },
+            "children": [{ "bind": "selectedCount" }, { "text": " selected" }]
+          },
+          {
+            "type": "div",
+            "props": { "className": "bulk-buttons" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "btn-bulk" },
+                "events": { "click": { "action": "confirmBulkStatus", "params": { "status": "active" } } },
+                "children": [{ "text": "Set Active" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-bulk" },
+                "events": { "click": { "action": "confirmBulkArchive" } },
+                "children": [{ "text": "Archive" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-bulk btn-danger" },
+                "events": { "click": { "action": "confirmBulkDelete" } },
+                "children": [{ "text": "Delete" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "neq", "args": [{ "ref": "bulkStatus" }, ""] },
+        "props": { "className": "status-message" },
+        "children": [{ "bind": "bulkStatus" }]
+      },
+      {
+        "type": "table",
+        "props": { "className": "items-table" },
+        "children": [
+          {
+            "type": "thead",
+            "children": [
+              {
+                "type": "tr",
+                "children": [
+                  {
+                    "type": "th",
+                    "when": { "ref": "selectMode" },
+                    "props": { "className": "checkbox-col" },
+                    "children": [
+                      {
+                        "type": "input",
+                        "props": {
+                          "type": "checkbox",
+                          "checked": { "ref": "allSelected" },
+                          "indeterminate": { "ref": "someSelected" }
+                        },
+                        "events": { "change": { "action": "toggleSelectAll" } }
+                      }
+                    ]
+                  },
+                  { "type": "th", "children": [{ "text": "Name" }] },
+                  { "type": "th", "children": [{ "text": "Status" }] },
+                  { "type": "th", "children": [{ "text": "Date" }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "tbody",
+            "each": { "items": "items", "as": "item" },
+            "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+            "children": [
+              {
+                "type": "tr",
+                "props": {
+                  "className": {
+                    "op": "concat",
+                    "args": [
+                      { "op": "if", "args": [{ "op": "includes", "args": [{ "ref": "selectedIds" }, { "op": "get", "args": [{ "ref": "item" }, "id"] }] }, "selected", ""] },
+                      { "op": "if", "args": [{ "op": "get", "args": [{ "ref": "item" }, "archived"] }, " archived", ""] }
+                    ]
+                  }
+                },
+                "children": [
+                  {
+                    "type": "td",
+                    "when": { "ref": "selectMode" },
+                    "props": { "className": "checkbox-col" },
+                    "children": [
+                      {
+                        "type": "input",
+                        "props": {
+                          "type": "checkbox",
+                          "checked": { "op": "includes", "args": [{ "ref": "selectedIds" }, { "op": "get", "args": [{ "ref": "item" }, "id"] }] }
+                        },
+                        "events": { "change": { "action": "toggleItem", "params": { "itemId": { "op": "get", "args": [{ "ref": "item" }, "id"] } } } }
+                      }
+                    ]
+                  },
+                  { "type": "td", "children": [{ "op": "get", "args": [{ "ref": "item" }, "name"] }] },
+                  {
+                    "type": "td",
+                    "children": [
+                      {
+                        "type": "span",
+                        "props": { "className": { "op": "concat", "args": ["status-badge status-", { "op": "get", "args": [{ "ref": "item" }, "status"] }] } },
+                        "children": [{ "op": "get", "args": [{ "ref": "item" }, "status"] }]
+                      }
+                    ]
+                  },
+                  { "type": "td", "children": [{ "op": "get", "args": [{ "ref": "item" }, "date"] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "showConfirmDialog" },
+        "props": { "className": "modal-overlay" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "confirm-dialog" },
+            "children": [
+              { "type": "h3", "children": [{ "op": "get", "args": [{ "ref": "confirmAction" }, "title"] }] },
+              { "type": "p", "children": [{ "op": "get", "args": [{ "ref": "confirmAction" }, "message"] }] },
+              {
+                "type": "div",
+                "props": { "className": "dialog-actions" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "className": "btn-cancel", "disabled": { "ref": "loading" } },
+                    "events": { "click": { "action": "cancelConfirm" } },
+                    "children": [{ "text": "Cancel" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "btn-confirm", "disabled": { "ref": "loading" } },
+                    "events": { "click": { "action": "executeAction" } },
+                    "children": [{ "op": "if", "args": [{ "ref": "loading" }, "Processing...", "Confirm"] }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with no selection",
+      "steps": [
+        { "assert": { "ref": "selectMode", "eq": false } },
+        { "assert": { "ref": "selectedCount", "eq": 0 } },
+        { "assert": { "ref": "hasSelection", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-toggle-select-mode",
+      "name": "toggleSelectMode enables selection",
+      "steps": [
+        { "dispatch": "toggleSelectMode" },
+        { "assert": { "ref": "selectMode", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-toggle-item",
+      "name": "toggleItem adds/removes from selection",
+      "steps": [
+        { "dispatch": "loadItems", "params": { "data": [{ "id": 1, "name": "A" }, { "id": 2, "name": "B" }] } },
+        { "dispatch": "toggleItem", "params": { "itemId": 1 } },
+        { "assert": { "ref": "selectedCount", "eq": 1 } },
+        { "dispatch": "toggleItem", "params": { "itemId": 1 } },
+        { "assert": { "ref": "selectedCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-select-all",
+      "name": "selectAll selects all items",
+      "steps": [
+        { "dispatch": "loadItems", "params": { "data": [{ "id": 1 }, { "id": 2 }, { "id": 3 }] } },
+        { "dispatch": "selectAll" },
+        { "assert": { "ref": "selectedCount", "eq": 3 } },
+        { "assert": { "ref": "allSelected", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-deselect-all",
+      "name": "deselectAll clears selection",
+      "steps": [
+        { "dispatch": "loadItems", "params": { "data": [{ "id": 1 }, { "id": 2 }] } },
+        { "dispatch": "selectAll" },
+        { "dispatch": "deselectAll" },
+        { "assert": { "ref": "selectedCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-confirm-delete",
+      "name": "confirmBulkDelete shows dialog",
+      "steps": [
+        { "dispatch": "loadItems", "params": { "data": [{ "id": 1 }] } },
+        { "dispatch": "toggleItem", "params": { "itemId": 1 } },
+        { "dispatch": "confirmBulkDelete" },
+        { "assert": { "ref": "showConfirmDialog", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-cancel-confirm",
+      "name": "cancelConfirm hides dialog",
+      "steps": [
+        { "dispatch": "loadItems", "params": { "data": [{ "id": 1 }] } },
+        { "dispatch": "toggleItem", "params": { "itemId": 1 } },
+        { "dispatch": "confirmBulkDelete" },
+        { "dispatch": "cancelConfirm" },
+        { "assert": { "ref": "showConfirmDialog", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-bulk-delete-success",
+      "name": "bulkDeleteSuccess removes items",
+      "steps": [
+        { "dispatch": "loadItems", "params": { "data": [{ "id": 1 }, { "id": 2 }] } },
+        { "dispatch": "toggleItem", "params": { "itemId": 1 } },
+        { "dispatch": "confirmBulkDelete" },
+        { "dispatch": "bulkDeleteSuccess" },
+        { "assert": { "ref": "itemCount", "eq": 1 } },
+        { "assert": { "ref": "selectedCount", "eq": 0 } }
+      ]
+    }
+  ]
+}

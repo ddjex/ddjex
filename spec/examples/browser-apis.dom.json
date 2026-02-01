@@ -1,0 +1,314 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "browser-apis-demo",
+  "target": "dom",
+
+  "state": {
+    "savedValue": { "type": "string", "initial": "" },
+    "clipboardText": { "type": "string", "initial": "" },
+    "locationData": { "type": "object", "initial": null, "nullable": true },
+    "isFullscreen": { "type": "boolean", "initial": false },
+    "notificationPerm": { "type": "string", "initial": "default" },
+    "textToSave": { "type": "string", "initial": "" },
+    "textToCopy": { "type": "string", "initial": "Hello from ddjex!" },
+    "storageKey": { "type": "string", "initial": "ddjex-demo" },
+    "fileContent": { "type": "string", "initial": "" },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" }
+  },
+
+  "actions": {
+    "setTextToSave": {
+      "params": ["value"],
+      "mutations": [{ "target": "textToSave", "op": "set", "value": { "param": "value" } }]
+    },
+    "setTextToCopy": {
+      "params": ["value"],
+      "mutations": [{ "target": "textToCopy", "op": "set", "value": { "param": "value" } }]
+    },
+    "setStorageKey": {
+      "params": ["value"],
+      "mutations": [{ "target": "storageKey", "op": "set", "value": { "param": "value" } }]
+    },
+    "setSavedValue": {
+      "params": ["value"],
+      "mutations": [{ "target": "savedValue", "op": "set", "value": { "param": "value" } }]
+    },
+    "setClipboardText": {
+      "params": ["value"],
+      "mutations": [{ "target": "clipboardText", "op": "set", "value": { "param": "value" } }]
+    },
+    "setLocationData": {
+      "params": ["value"],
+      "mutations": [{ "target": "locationData", "op": "set", "value": { "param": "value" } }]
+    },
+    "setFullscreen": {
+      "params": ["value"],
+      "mutations": [{ "target": "isFullscreen", "op": "set", "value": { "param": "value" } }]
+    },
+    "setNotificationPerm": {
+      "params": ["value"],
+      "mutations": [{ "target": "notificationPerm", "op": "set", "value": { "param": "value" } }]
+    },
+    "setFileContent": {
+      "params": ["value"],
+      "mutations": [{ "target": "fileContent", "op": "set", "value": { "param": "value" } }]
+    },
+    "setLoading": {
+      "params": ["value"],
+      "mutations": [{ "target": "loading", "op": "set", "value": { "param": "value" } }]
+    },
+    "setError": {
+      "params": ["value"],
+      "mutations": [{ "target": "error", "op": "set", "value": { "param": "value" } }]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "saveToStorage",
+      "trigger": "mount",
+      "do": { "op": "log", "args": ["Browser APIs demo loaded"] }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-4 max-w-2xl mx-auto" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Browser APIs Demo" }] },
+
+      {
+        "type": "section",
+        "props": { "className": "mb-6 p-4 border rounded" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "Storage Operations" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 mb-2" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "text", "placeholder": "Key", "className": "border p-2 flex-1", "value": { "ref": "storageKey" } },
+                "events": { "input": { "action": "setStorageKey", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "input",
+                "props": { "type": "text", "placeholder": "Value to save", "className": "border p-2 flex-1", "value": { "ref": "textToSave" } },
+                "events": { "input": { "action": "setTextToSave", "args": [{ "op": "eventValue" }] } }
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "bg-blue-500 text-white px-4 py-2 rounded" },
+                "events": {
+                  "click": {
+                    "action": "setSavedValue",
+                    "args": [{ "ref": "textToSave" }]
+                  }
+                },
+                "children": [{ "text": "Save to localStorage" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "bg-green-500 text-white px-4 py-2 rounded" },
+                "events": { "click": { "action": "setSavedValue", "args": [""] } },
+                "children": [{ "text": "Load from localStorage" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "isNotEmpty", "args": [{ "ref": "savedValue" }] },
+            "then": {
+              "type": "div",
+              "props": { "className": "mt-2 p-2 bg-gray-100 rounded" },
+              "children": [{ "text": "Saved: " }, { "bind": "savedValue" }]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "mb-6 p-4 border rounded" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "Clipboard Operations" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 mb-2" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "text", "placeholder": "Text to copy", "className": "border p-2 flex-1", "value": { "ref": "textToCopy" } },
+                "events": { "input": { "action": "setTextToCopy", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "button",
+                "props": { "className": "bg-blue-500 text-white px-4 py-2 rounded" },
+                "events": { "click": { "action": "setClipboardText", "args": [{ "ref": "textToCopy" }] } },
+                "children": [{ "text": "Copy" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "bg-green-500 text-white px-4 py-2 rounded" },
+                "events": { "click": { "action": "setClipboardText", "args": [""] } },
+                "children": [{ "text": "Paste" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "isNotEmpty", "args": [{ "ref": "clipboardText" }] },
+            "then": {
+              "type": "div",
+              "props": { "className": "p-2 bg-gray-100 rounded" },
+              "children": [{ "text": "Clipboard: " }, { "bind": "clipboardText" }]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "mb-6 p-4 border rounded" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "File Operations" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2 mb-2" },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "file", "className": "border p-2" },
+                "events": { "change": { "action": "setFileContent", "args": ["File selected"] } }
+              },
+              {
+                "type": "button",
+                "props": { "className": "bg-purple-500 text-white px-4 py-2 rounded" },
+                "events": { "click": { "action": "setFileContent", "args": ["Download triggered"] } },
+                "children": [{ "text": "Download Sample" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "isNotEmpty", "args": [{ "ref": "fileContent" }] },
+            "then": {
+              "type": "pre",
+              "props": { "className": "mt-2 p-2 bg-gray-100 rounded text-sm overflow-auto max-h-40" },
+              "children": [{ "bind": "fileContent" }]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "mb-6 p-4 border rounded" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "Geolocation" }] },
+          {
+            "type": "button",
+            "props": { "className": "bg-orange-500 text-white px-4 py-2 rounded" },
+            "events": { "click": { "action": "setLocationData", "args": [{ "op": "merge", "args": [{}, { "status": "requesting" }] }] } },
+            "children": [{ "text": "Get Location" }]
+          },
+          {
+            "if": { "op": "isDefined", "args": [{ "ref": "locationData" }] },
+            "then": {
+              "type": "div",
+              "props": { "className": "mt-2 p-2 bg-gray-100 rounded" },
+              "children": [
+                { "type": "div", "children": [{ "text": "Lat: " }, { "bind": "locationData.latitude" }] },
+                { "type": "div", "children": [{ "text": "Lng: " }, { "bind": "locationData.longitude" }] }
+              ]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "mb-6 p-4 border rounded" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "Fullscreen" }] },
+          {
+            "type": "button",
+            "props": { "className": "bg-indigo-500 text-white px-4 py-2 rounded" },
+            "events": { "click": { "action": "setFullscreen", "args": [{ "op": "not", "args": [{ "ref": "isFullscreen" }] }] } },
+            "children": [
+              {
+                "if": { "ref": "isFullscreen" },
+                "then": { "type": "span", "children": [{ "text": "Exit Fullscreen" }] },
+                "else": { "type": "span", "children": [{ "text": "Enter Fullscreen" }] }
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "mb-6 p-4 border rounded" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-xl font-semibold mb-2" }, "children": [{ "text": "Notifications" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex gap-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "bg-yellow-500 text-white px-4 py-2 rounded" },
+                "events": { "click": { "action": "setNotificationPerm", "args": ["requesting"] } },
+                "children": [{ "text": "Request Permission" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "bg-red-500 text-white px-4 py-2 rounded" },
+                "events": { "click": { "action": "setNotificationPerm", "args": ["shown"] } },
+                "children": [{ "text": "Show Notification" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "mt-2" },
+            "children": [{ "text": "Permission: " }, { "bind": "notificationPerm" }]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Initial state is correct",
+      "steps": [
+        { "assert": { "ref": "savedValue", "eq": "" } },
+        { "assert": { "ref": "clipboardText", "eq": "" } },
+        { "assert": { "ref": "isFullscreen", "eq": false } },
+        { "assert": { "ref": "notificationPerm", "eq": "default" } }
+      ]
+    },
+    {
+      "id": "test-set-text-to-save",
+      "name": "Can set text to save",
+      "steps": [
+        { "dispatch": "setTextToSave", "args": ["Hello World"] },
+        { "assert": { "ref": "textToSave", "eq": "Hello World" } }
+      ]
+    },
+    {
+      "id": "test-set-storage-key",
+      "name": "Can set storage key",
+      "steps": [
+        { "dispatch": "setStorageKey", "args": ["my-custom-key"] },
+        { "assert": { "ref": "storageKey", "eq": "my-custom-key" } }
+      ]
+    }
+  ]
+}

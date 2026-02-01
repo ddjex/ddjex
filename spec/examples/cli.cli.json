@@ -1,0 +1,130 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "file_tool",
+  "target": "cli",
+
+  "state": {
+    "verbose": { "type": "boolean", "initial": false }
+  },
+
+  "actions": {
+    "setVerbose": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "verbose", "op": "set", "value": { "param": "value" } }
+      ]
+    }
+  },
+
+  "commands": [
+    {
+      "name": "count",
+      "args": [
+        { "name": "path", "type": "string", "required": true }
+      ],
+      "flags": [
+        { "name": "lines", "short": "l", "type": "boolean", "default": false },
+        { "name": "words", "short": "w", "type": "boolean", "default": false },
+        { "name": "chars", "short": "c", "type": "boolean", "default": false }
+      ],
+      "handler": [
+        {
+          "op": "read",
+          "args": [{ "param": "path" }],
+          "as": "content"
+        },
+        {
+          "op": "if",
+          "args": [
+            { "param": "lines" },
+            { "op": "print", "args": ["Lines:", { "op": "length", "args": [{ "op": "split", "args": [{ "ref": "content" }, "\n"] }] }] }
+          ]
+        },
+        {
+          "op": "if",
+          "args": [
+            { "param": "words" },
+            { "op": "print", "args": ["Words:", { "op": "length", "args": [{ "op": "split", "args": [{ "op": "trim", "args": [{ "ref": "content" }] }, { "op": "regex", "args": ["\\s+"] }] }] }] }
+          ]
+        },
+        {
+          "op": "if",
+          "args": [
+            { "param": "chars" },
+            { "op": "print", "args": ["Chars:", { "op": "length", "args": [{ "ref": "content" }] }] }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "find",
+      "args": [
+        { "name": "pattern", "type": "string", "required": true },
+        { "name": "path", "type": "string", "required": false, "default": "." }
+      ],
+      "flags": [
+        { "name": "recursive", "short": "r", "type": "boolean", "default": false },
+        { "name": "ignore_case", "short": "i", "type": "boolean", "default": false }
+      ],
+      "handler": [
+        {
+          "op": "glob",
+          "args": [
+            { "param": "path" },
+            { "op": "if", "args": [{ "param": "recursive" }, "**/*", "*"] }
+          ],
+          "as": "files"
+        },
+        {
+          "op": "forEach",
+          "args": [
+            { "ref": "files" },
+            {
+              "op": "pipe",
+              "args": [
+                { "op": "read", "args": [{ "param": "item" }], "as": "content" },
+                {
+                  "op": "if",
+                  "args": [
+                    { "op": "includes", "args": [
+                      { "op": "if", "args": [{ "param": "ignore_case" }, { "op": "toLowerCase", "args": [{ "ref": "content" }] }, { "ref": "content" }] },
+                      { "op": "if", "args": [{ "param": "ignore_case" }, { "op": "toLowerCase", "args": [{ "param": "pattern" }] }, { "param": "pattern" }] }
+                    ]},
+                    { "op": "print", "args": [{ "param": "item" }] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "transform",
+      "args": [
+        { "name": "input", "type": "string", "required": true },
+        { "name": "output", "type": "string", "required": true }
+      ],
+      "flags": [
+        { "name": "uppercase", "short": "u", "type": "boolean", "default": false },
+        { "name": "lowercase", "short": "l", "type": "boolean", "default": false },
+        { "name": "reverse", "short": "r", "type": "boolean", "default": false }
+      ],
+      "handler": [
+        { "op": "read", "args": [{ "param": "input" }], "as": "content" },
+        {
+          "op": "pipe",
+          "args": [
+            { "ref": "content" },
+            { "op": "if", "args": [{ "param": "uppercase" }, { "op": "toUpperCase", "args": [{ "ref": "_" }] }, { "ref": "_" }] },
+            { "op": "if", "args": [{ "param": "lowercase" }, { "op": "toLowerCase", "args": [{ "ref": "_" }] }, { "ref": "_" }] },
+            { "op": "if", "args": [{ "param": "reverse" }, { "op": "reverse", "args": [{ "ref": "_" }] }, { "ref": "_" }] }
+          ],
+          "as": "result"
+        },
+        { "op": "write", "args": [{ "param": "output" }, { "ref": "result" }] },
+        { "op": "print", "args": ["Transformed", { "param": "input" }, "->", { "param": "output" }] }
+      ]
+    }
+  ]
+}

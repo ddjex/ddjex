@@ -1,0 +1,427 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "form-multi-step",
+  "target": "dom",
+
+  "state": {
+    "currentStep": { "type": "number", "initial": 1, "constraints": { "min": 1, "max": 3 } },
+    "firstName": { "type": "string", "initial": "" },
+    "lastName": { "type": "string", "initial": "" },
+    "email": { "type": "string", "initial": "" },
+    "phone": { "type": "string", "initial": "" },
+    "address": { "type": "string", "initial": "" },
+    "city": { "type": "string", "initial": "" },
+    "country": { "type": "string", "initial": "" },
+    "submitted": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "step1Valid": {
+      "deps": ["firstName", "lastName"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "hasMinLength", "args": [{ "ref": "firstName" }, 1] },
+          { "op": "hasMinLength", "args": [{ "ref": "lastName" }, 1] }
+        ]
+      }
+    },
+    "step2Valid": {
+      "deps": ["email", "phone"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "isEmail", "args": [{ "ref": "email" }] },
+          { "op": "hasMinLength", "args": [{ "ref": "phone" }, 5] }
+        ]
+      }
+    },
+    "step3Valid": {
+      "deps": ["address", "city", "country"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "hasMinLength", "args": [{ "ref": "address" }, 1] },
+          { "op": "hasMinLength", "args": [{ "ref": "city" }, 1] },
+          { "op": "hasMinLength", "args": [{ "ref": "country" }, 1] }
+        ]
+      }
+    },
+    "canProceed": {
+      "deps": ["currentStep", "step1Valid", "step2Valid", "step3Valid"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "currentStep" },
+          { "1": { "ref": "step1Valid" }, "2": { "ref": "step2Valid" }, "3": { "ref": "step3Valid" } },
+          false
+        ]
+      }
+    },
+    "progress": {
+      "deps": ["currentStep"],
+      "fn": { "op": "multiply", "args": [{ "op": "divide", "args": [{ "ref": "currentStep" }, 3] }, 100] }
+    }
+  },
+
+  "actions": {
+    "nextStep": {
+      "mutations": [{ "target": "currentStep", "op": "add", "value": 1 }]
+    },
+    "prevStep": {
+      "mutations": [{ "target": "currentStep", "op": "subtract", "value": 1 }]
+    },
+    "goToStep": {
+      "params": ["step"],
+      "mutations": [{ "target": "currentStep", "op": "set", "value": { "param": "step" } }]
+    },
+    "setFirstName": {
+      "params": ["value"],
+      "mutations": [{ "target": "firstName", "op": "set", "value": { "param": "value" } }]
+    },
+    "setLastName": {
+      "params": ["value"],
+      "mutations": [{ "target": "lastName", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEmail": {
+      "params": ["value"],
+      "mutations": [{ "target": "email", "op": "set", "value": { "param": "value" } }]
+    },
+    "setPhone": {
+      "params": ["value"],
+      "mutations": [{ "target": "phone", "op": "set", "value": { "param": "value" } }]
+    },
+    "setAddress": {
+      "params": ["value"],
+      "mutations": [{ "target": "address", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCity": {
+      "params": ["value"],
+      "mutations": [{ "target": "city", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCountry": {
+      "params": ["value"],
+      "mutations": [{ "target": "country", "op": "set", "value": { "param": "value" } }]
+    },
+    "submit": {
+      "mutations": [{ "target": "submitted", "op": "set", "value": true }]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "currentStep", "op": "set", "value": 1 },
+        { "target": "firstName", "op": "set", "value": "" },
+        { "target": "lastName", "op": "set", "value": "" },
+        { "target": "email", "op": "set", "value": "" },
+        { "target": "phone", "op": "set", "value": "" },
+        { "target": "address", "op": "set", "value": "" },
+        { "target": "city", "op": "set", "value": "" },
+        { "target": "country", "op": "set", "value": "" },
+        { "target": "submitted", "op": "set", "value": false }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100 py-8" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "max-w-lg mx-auto bg-white rounded-lg shadow-md overflow-hidden" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "bg-gray-200 h-2" },
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": "bg-blue-500 h-full transition-all duration-300",
+                  "style": { "width": { "op": "concat", "args": [{ "ref": "progress" }, "%"] } }
+                }
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "p-6" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex justify-between mb-6" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "gte", "args": [{ "ref": "currentStep" }, 1] },
+                          "flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold",
+                          "flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-gray-600 font-bold"
+                        ]
+                      }
+                    },
+                    "children": [{ "text": "1" }]
+                  },
+                  { "type": "div", "props": { "className": "flex-1 h-0.5 bg-gray-300 self-center mx-2" } },
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "gte", "args": [{ "ref": "currentStep" }, 2] },
+                          "flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold",
+                          "flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-gray-600 font-bold"
+                        ]
+                      }
+                    },
+                    "children": [{ "text": "2" }]
+                  },
+                  { "type": "div", "props": { "className": "flex-1 h-0.5 bg-gray-300 self-center mx-2" } },
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "gte", "args": [{ "ref": "currentStep" }, 3] },
+                          "flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold",
+                          "flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-gray-600 font-bold"
+                        ]
+                      }
+                    },
+                    "children": [{ "text": "3" }]
+                  }
+                ]
+              },
+              {
+                "if": { "ref": "submitted" },
+                "then": {
+                  "type": "div",
+                  "props": { "className": "text-center py-8" },
+                  "children": [
+                    { "type": "div", "props": { "className": "text-green-500 text-5xl mb-4" }, "children": [{ "text": "✓" }] },
+                    { "type": "h2", "props": { "className": "text-xl font-semibold mb-4" }, "children": [{ "text": "Registration Complete!" }] },
+                    { "type": "p", "props": { "className": "text-gray-600 mb-2" }, "children": [{ "bind": "firstName" }, { "text": " " }, { "bind": "lastName" }] },
+                    { "type": "p", "props": { "className": "text-gray-600 mb-4" }, "children": [{ "bind": "email" }] },
+                    {
+                      "type": "button",
+                      "props": { "className": "bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600" },
+                      "events": { "click": { "action": "reset" } },
+                      "children": [{ "text": "Start Over" }]
+                    }
+                  ]
+                },
+                "else": {
+                  "fragment": [
+                    {
+                      "if": { "op": "eq", "args": [{ "ref": "currentStep" }, 1] },
+                      "then": {
+                        "type": "div",
+                        "children": [
+                          { "type": "h2", "props": { "className": "text-xl font-semibold mb-4" }, "children": [{ "text": "Personal Information" }] },
+                          {
+                            "type": "div",
+                            "props": { "className": "mb-4" },
+                            "children": [
+                              { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "First Name" }] },
+                              {
+                                "type": "input",
+                                "props": { "type": "text", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "firstName" } },
+                                "events": { "input": { "action": "setFirstName", "args": [{ "op": "eventValue" }] } }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "props": { "className": "mb-4" },
+                            "children": [
+                              { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "Last Name" }] },
+                              {
+                                "type": "input",
+                                "props": { "type": "text", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "lastName" } },
+                                "events": { "input": { "action": "setLastName", "args": [{ "op": "eventValue" }] } }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "if": { "op": "eq", "args": [{ "ref": "currentStep" }, 2] },
+                      "then": {
+                        "type": "div",
+                        "children": [
+                          { "type": "h2", "props": { "className": "text-xl font-semibold mb-4" }, "children": [{ "text": "Contact Information" }] },
+                          {
+                            "type": "div",
+                            "props": { "className": "mb-4" },
+                            "children": [
+                              { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "Email" }] },
+                              {
+                                "type": "input",
+                                "props": { "type": "email", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "email" } },
+                                "events": { "input": { "action": "setEmail", "args": [{ "op": "eventValue" }] } }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "props": { "className": "mb-4" },
+                            "children": [
+                              { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "Phone" }] },
+                              {
+                                "type": "input",
+                                "props": { "type": "tel", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "phone" } },
+                                "events": { "input": { "action": "setPhone", "args": [{ "op": "eventValue" }] } }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "if": { "op": "eq", "args": [{ "ref": "currentStep" }, 3] },
+                      "then": {
+                        "type": "div",
+                        "children": [
+                          { "type": "h2", "props": { "className": "text-xl font-semibold mb-4" }, "children": [{ "text": "Address" }] },
+                          {
+                            "type": "div",
+                            "props": { "className": "mb-4" },
+                            "children": [
+                              { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "Street Address" }] },
+                              {
+                                "type": "input",
+                                "props": { "type": "text", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "address" } },
+                                "events": { "input": { "action": "setAddress", "args": [{ "op": "eventValue" }] } }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "props": { "className": "grid grid-cols-2 gap-4 mb-4" },
+                            "children": [
+                              {
+                                "type": "div",
+                                "children": [
+                                  { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "City" }] },
+                                  {
+                                    "type": "input",
+                                    "props": { "type": "text", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "city" } },
+                                    "events": { "input": { "action": "setCity", "args": [{ "op": "eventValue" }] } }
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "div",
+                                "children": [
+                                  { "type": "label", "props": { "className": "block text-gray-700 mb-1" }, "children": [{ "text": "Country" }] },
+                                  {
+                                    "type": "input",
+                                    "props": { "type": "text", "className": "w-full px-3 py-2 border rounded", "value": { "ref": "country" } },
+                                    "events": { "input": { "action": "setCountry", "args": [{ "op": "eventValue" }] } }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "div",
+                      "props": { "className": "flex justify-between mt-6" },
+                      "children": [
+                        {
+                          "if": { "op": "gt", "args": [{ "ref": "currentStep" }, 1] },
+                          "then": {
+                            "type": "button",
+                            "props": { "className": "px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400" },
+                            "events": { "click": { "action": "prevStep" } },
+                            "children": [{ "text": "Back" }]
+                          },
+                          "else": { "type": "div" }
+                        },
+                        {
+                          "if": { "op": "lt", "args": [{ "ref": "currentStep" }, 3] },
+                          "then": {
+                            "type": "button",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "ref": "canProceed" },
+                                  "px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                                  "px-6 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                                ]
+                              },
+                              "disabled": { "op": "not", "args": [{ "ref": "canProceed" }] }
+                            },
+                            "events": { "click": { "action": "nextStep" } },
+                            "children": [{ "text": "Next" }]
+                          },
+                          "else": {
+                            "type": "button",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "ref": "canProceed" },
+                                  "px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600",
+                                  "px-6 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"
+                                ]
+                              },
+                              "disabled": { "op": "not", "args": [{ "ref": "canProceed" }] }
+                            },
+                            "events": { "click": { "action": "submit" } },
+                            "children": [{ "text": "Submit" }]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-step",
+      "name": "Starts on step 1",
+      "steps": [
+        { "assert": { "ref": "currentStep", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-step1-validation",
+      "name": "Step 1 requires first and last name",
+      "steps": [
+        { "assert": { "ref": "step1Valid", "eq": false } },
+        { "dispatch": "setFirstName", "args": ["John"] },
+        { "assert": { "ref": "step1Valid", "eq": false } },
+        { "dispatch": "setLastName", "args": ["Doe"] },
+        { "assert": { "ref": "step1Valid", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-navigation",
+      "name": "Can navigate between steps",
+      "steps": [
+        { "dispatch": "setFirstName", "args": ["John"] },
+        { "dispatch": "setLastName", "args": ["Doe"] },
+        { "dispatch": "nextStep" },
+        { "assert": { "ref": "currentStep", "eq": 2 } },
+        { "dispatch": "prevStep" },
+        { "assert": { "ref": "currentStep", "eq": 1 } }
+      ]
+    }
+  ]
+}

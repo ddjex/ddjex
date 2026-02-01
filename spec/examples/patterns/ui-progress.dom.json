@@ -1,0 +1,469 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-progress",
+  "target": "dom",
+
+  "state": {
+    "linearProgress": { "type": "number", "initial": 45 },
+    "circularProgress": { "type": "number", "initial": 72 },
+    "stepProgress": { "type": "number", "initial": 2 },
+    "totalSteps": { "type": "number", "initial": 5 },
+    "isLoading": { "type": "boolean", "initial": false },
+    "uploadProgress": { "type": "number", "initial": 0 },
+    "isUploading": { "type": "boolean", "initial": false },
+    "downloadItems": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "name": "document.pdf", "progress": 100, "status": "complete" },
+        { "id": 2, "name": "image.png", "progress": 67, "status": "downloading" },
+        { "id": 3, "name": "video.mp4", "progress": 23, "status": "downloading" },
+        { "id": 4, "name": "archive.zip", "progress": 0, "status": "pending" }
+      ]
+    }
+  },
+
+  "computed": {
+    "linearPercent": {
+      "deps": ["linearProgress"],
+      "fn": { "op": "round", "args": [{ "ref": "linearProgress" }] }
+    },
+    "circularPercent": {
+      "deps": ["circularProgress"],
+      "fn": { "op": "round", "args": [{ "ref": "circularProgress" }] }
+    },
+    "stepPercent": {
+      "deps": ["stepProgress", "totalSteps"],
+      "fn": { "op": "round", "args": [{ "op": "multiply", "args": [{ "op": "divide", "args": [{ "ref": "stepProgress" }, { "ref": "totalSteps" }] }, 100] }] }
+    },
+    "circularDashOffset": {
+      "deps": ["circularProgress"],
+      "fn": { "op": "subtract", "args": [283, { "op": "multiply", "args": [{ "op": "divide", "args": [{ "ref": "circularProgress" }, 100] }, 283] }] }
+    },
+    "progressColor": {
+      "deps": ["linearProgress"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "lt", "args": [{ "ref": "linearProgress" }, 30] },
+          "bg-red-500",
+          {
+            "op": "if",
+            "args": [
+              { "op": "lt", "args": [{ "ref": "linearProgress" }, 70] },
+              "bg-yellow-500",
+              "bg-green-500"
+            ]
+          }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setLinearProgress": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "linearProgress", "op": "set", "value": { "op": "max", "args": [0, { "op": "min", "args": [100, { "param": "value" }] }] } }
+      ]
+    },
+    "setCircularProgress": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "circularProgress", "op": "set", "value": { "op": "max", "args": [0, { "op": "min", "args": [100, { "param": "value" }] }] } }
+      ]
+    },
+    "nextStep": {
+      "mutations": [
+        {
+          "target": "stepProgress",
+          "op": "set",
+          "value": { "op": "min", "args": [{ "ref": "totalSteps" }, { "op": "add", "args": [{ "ref": "stepProgress" }, 1] }] }
+        }
+      ]
+    },
+    "prevStep": {
+      "mutations": [
+        {
+          "target": "stepProgress",
+          "op": "set",
+          "value": { "op": "max", "args": [1, { "op": "subtract", "args": [{ "ref": "stepProgress" }, 1] }] }
+        }
+      ]
+    },
+    "resetSteps": {
+      "mutations": [
+        { "target": "stepProgress", "op": "set", "value": 1 }
+      ]
+    },
+    "toggleLoading": {
+      "mutations": [
+        { "target": "isLoading", "op": "set", "value": { "op": "not", "args": [{ "ref": "isLoading" }] } }
+      ]
+    },
+    "startUpload": {
+      "mutations": [
+        { "target": "isUploading", "op": "set", "value": true },
+        { "target": "uploadProgress", "op": "set", "value": 0 }
+      ]
+    },
+    "updateUpload": {
+      "params": ["progress"],
+      "mutations": [
+        { "target": "uploadProgress", "op": "set", "value": { "param": "progress" } }
+      ]
+    },
+    "finishUpload": {
+      "mutations": [
+        { "target": "isUploading", "op": "set", "value": false },
+        { "target": "uploadProgress", "op": "set", "value": 100 }
+      ]
+    },
+    "updateDownloadProgress": {
+      "params": ["id", "progress"],
+      "mutations": [
+        {
+          "target": "downloadItems",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "downloadItems" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  {
+                    "op": "merge",
+                    "args": [
+                      { "ref": "$item" },
+                      {
+                        "progress": { "param": "progress" },
+                        "status": { "op": "if", "args": [{ "op": "eq", "args": [{ "param": "progress" }, 100] }, "complete", "downloading"] }
+                      }
+                    ]
+                  },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6 space-y-8" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Progress Indicators" }] },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Linear Progress" }] },
+          {
+            "type": "div",
+            "props": { "className": "mb-4" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex justify-between mb-1" },
+                "children": [
+                  { "type": "span", "props": { "className": "text-sm text-gray-600" }, "children": [{ "text": "Progress" }] },
+                  { "type": "span", "props": { "className": "text-sm text-gray-600" }, "children": [{ "bind": "linearPercent" }, { "text": "%" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "w-full bg-gray-200 rounded-full h-4" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": { "op": "concat", "args": ["h-4 rounded-full transition-all ", { "ref": "progressColor" }] },
+                      "style": { "width": { "op": "concat", "args": [{ "ref": "linearProgress" }, "%"] } }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "input",
+            "props": {
+              "type": "range",
+              "className": "w-full",
+              "min": 0,
+              "max": 100,
+              "value": { "ref": "linearProgress" }
+            },
+            "events": { "input": { "action": "setLinearProgress", "args": [{ "op": "eventValue" }] } }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Circular Progress" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex items-center gap-8" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "relative w-32 h-32" },
+                "children": [
+                  {
+                    "type": "svg",
+                    "props": { "className": "w-32 h-32 transform -rotate-90", "viewBox": "0 0 100 100" },
+                    "children": [
+                      { "type": "circle", "props": { "cx": "50", "cy": "50", "r": "45", "fill": "none", "stroke": "#e5e7eb", "stroke-width": "8" } },
+                      {
+                        "type": "circle",
+                        "props": {
+                          "cx": "50",
+                          "cy": "50",
+                          "r": "45",
+                          "fill": "none",
+                          "stroke": "#3b82f6",
+                          "stroke-width": "8",
+                          "stroke-linecap": "round",
+                          "stroke-dasharray": "283",
+                          "stroke-dashoffset": { "ref": "circularDashOffset" },
+                          "className": "transition-all duration-300"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "absolute inset-0 flex items-center justify-center" },
+                    "children": [
+                      { "type": "span", "props": { "className": "text-2xl font-bold" }, "children": [{ "bind": "circularPercent" }, { "text": "%" }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "input",
+                "props": {
+                  "type": "range",
+                  "className": "flex-1",
+                  "min": 0,
+                  "max": 100,
+                  "value": { "ref": "circularProgress" }
+                },
+                "events": { "input": { "action": "setCircularProgress", "args": [{ "op": "eventValue" }] } }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Step Progress" }] },
+          {
+            "type": "div",
+            "props": { "className": "flex items-center justify-between mb-4" },
+            "children": [
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 1] }, "w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold", "w-10 h-10 rounded-full bg-gray-300 text-gray-500 flex items-center justify-center font-bold"] } }, "children": [{ "text": "1" }] },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 2] }, "flex-1 h-1 bg-blue-500 mx-2", "flex-1 h-1 bg-gray-300 mx-2"] } } },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 2] }, "w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold", "w-10 h-10 rounded-full bg-gray-300 text-gray-500 flex items-center justify-center font-bold"] } }, "children": [{ "text": "2" }] },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 3] }, "flex-1 h-1 bg-blue-500 mx-2", "flex-1 h-1 bg-gray-300 mx-2"] } } },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 3] }, "w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold", "w-10 h-10 rounded-full bg-gray-300 text-gray-500 flex items-center justify-center font-bold"] } }, "children": [{ "text": "3" }] },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 4] }, "flex-1 h-1 bg-blue-500 mx-2", "flex-1 h-1 bg-gray-300 mx-2"] } } },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 4] }, "w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold", "w-10 h-10 rounded-full bg-gray-300 text-gray-500 flex items-center justify-center font-bold"] } }, "children": [{ "text": "4" }] },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 5] }, "flex-1 h-1 bg-blue-500 mx-2", "flex-1 h-1 bg-gray-300 mx-2"] } } },
+              { "type": "div", "props": { "className": { "op": "if", "args": [{ "op": "gte", "args": [{ "ref": "stepProgress" }, 5] }, "w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold", "w-10 h-10 rounded-full bg-gray-300 text-gray-500 flex items-center justify-center font-bold"] } }, "children": [{ "text": "5" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex justify-between items-center" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "px-4 py-2 bg-gray-200 rounded hover:bg-gray-300" },
+                "events": { "click": { "action": "prevStep" } },
+                "children": [{ "text": "Previous" }]
+              },
+              {
+                "type": "span",
+                "props": { "className": "text-gray-600" },
+                "children": [{ "text": "Step " }, { "bind": "stepProgress" }, { "text": " of " }, { "bind": "totalSteps" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" },
+                "events": { "click": { "action": "nextStep" } },
+                "children": [{ "text": "Next" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Indeterminate Loading" }] },
+          {
+            "type": "button",
+            "props": {
+              "className": "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mb-4"
+            },
+            "events": { "click": { "action": "toggleLoading" } },
+            "children": [{ "op": "if", "args": [{ "ref": "isLoading" }, "Stop Loading", "Start Loading"] }]
+          },
+          {
+            "if": { "ref": "isLoading" },
+            "then": {
+              "type": "div",
+              "props": { "className": "w-full bg-gray-200 rounded-full h-2 overflow-hidden" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "className": "h-2 bg-blue-500 rounded-full animate-pulse",
+                    "style": { "width": "30%", "animation": "indeterminate 1.5s ease-in-out infinite" }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Download Queue" }] },
+          {
+            "type": "div",
+            "props": { "className": "space-y-3" },
+            "each": { "items": "downloadItems", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex items-center gap-3" },
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "text-2xl" },
+                    "children": [
+                      {
+                        "op": "switch",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "item" }, "status"] },
+                          { "complete": "✅", "downloading": "📥", "pending": "⏳" },
+                          "📄"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "flex-1" },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "flex justify-between mb-1" },
+                        "children": [
+                          { "type": "span", "props": { "className": "text-sm font-medium" }, "children": [{ "bind": "item.name" }] },
+                          { "type": "span", "props": { "className": "text-sm text-gray-500" }, "children": [{ "bind": "item.progress" }, { "text": "%" }] }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "w-full bg-gray-200 rounded-full h-2" },
+                        "children": [
+                          {
+                            "type": "div",
+                            "props": {
+                              "className": {
+                                "op": "if",
+                                "args": [
+                                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "item" }, "status"] }, "complete"] },
+                                  "h-2 rounded-full bg-green-500",
+                                  "h-2 rounded-full bg-blue-500"
+                                ]
+                              },
+                              "style": { "width": { "op": "concat", "args": [{ "op": "get", "args": [{ "ref": "item" }, "progress"] }, "%"] } }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-progress",
+      "name": "Has initial progress values",
+      "steps": [
+        { "assert": { "ref": "linearProgress", "eq": 45 } },
+        { "assert": { "ref": "circularProgress", "eq": 72 } },
+        { "assert": { "ref": "stepProgress", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-set-linear-progress",
+      "name": "Can set linear progress",
+      "steps": [
+        { "dispatch": "setLinearProgress", "args": [75] },
+        { "assert": { "ref": "linearProgress", "eq": 75 } }
+      ]
+    },
+    {
+      "id": "test-progress-bounds",
+      "name": "Progress stays within bounds",
+      "steps": [
+        { "dispatch": "setLinearProgress", "args": [150] },
+        { "assert": { "ref": "linearProgress", "eq": 100 } },
+        { "dispatch": "setLinearProgress", "args": [-10] },
+        { "assert": { "ref": "linearProgress", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-step-navigation",
+      "name": "Can navigate steps",
+      "steps": [
+        { "dispatch": "nextStep" },
+        { "assert": { "ref": "stepProgress", "eq": 3 } },
+        { "dispatch": "prevStep" },
+        { "assert": { "ref": "stepProgress", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-step-bounds",
+      "name": "Steps stay within bounds",
+      "steps": [
+        { "dispatch": "resetSteps" },
+        { "assert": { "ref": "stepProgress", "eq": 1 } },
+        { "dispatch": "prevStep" },
+        { "assert": { "ref": "stepProgress", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-toggle-loading",
+      "name": "Can toggle loading state",
+      "steps": [
+        { "assert": { "ref": "isLoading", "eq": false } },
+        { "dispatch": "toggleLoading" },
+        { "assert": { "ref": "isLoading", "eq": true } }
+      ]
+    }
+  ]
+}

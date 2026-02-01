@@ -1,0 +1,416 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-drag-drop",
+  "target": "dom",
+
+  "state": {
+    "items": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "title": "Learn ddjex basics", "priority": "high" },
+        { "id": 2, "title": "Build a sample app", "priority": "medium" },
+        { "id": 3, "title": "Deploy to production", "priority": "low" },
+        { "id": 4, "title": "Write documentation", "priority": "medium" },
+        { "id": 5, "title": "Add more features", "priority": "high" }
+      ]
+    },
+    "draggedId": { "type": "number", "initial": null, "nullable": true },
+    "dragOverId": { "type": "number", "initial": null, "nullable": true },
+    "dropPosition": { "type": "string", "initial": null, "nullable": true }
+  },
+
+  "computed": {
+    "itemCount": {
+      "deps": ["items"],
+      "fn": { "op": "length", "args": [{ "ref": "items" }] }
+    },
+    "isDragging": {
+      "deps": ["draggedId"],
+      "fn": { "op": "isDefined", "args": [{ "ref": "draggedId" }] }
+    },
+    "draggedItem": {
+      "deps": ["items", "draggedId"],
+      "fn": {
+        "op": "find",
+        "args": [
+          { "ref": "items" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "ref": "draggedId" }] }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "startDrag": {
+      "params": ["id"],
+      "mutations": [
+        { "target": "draggedId", "op": "set", "value": { "param": "id" } }
+      ]
+    },
+    "dragOver": {
+      "params": ["id", "position"],
+      "mutations": [
+        { "target": "dragOverId", "op": "set", "value": { "param": "id" } },
+        { "target": "dropPosition", "op": "set", "value": { "param": "position" } }
+      ]
+    },
+    "endDrag": {
+      "mutations": [
+        { "target": "draggedId", "op": "set", "value": null },
+        { "target": "dragOverId", "op": "set", "value": null },
+        { "target": "dropPosition", "op": "set", "value": null }
+      ]
+    },
+    "drop": {
+      "mutations": [
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "and", "args": [{ "ref": "draggedId" }, { "ref": "dragOverId" }, { "op": "neq", "args": [{ "ref": "draggedId" }, { "ref": "dragOverId" }] }] },
+              {
+                "op": "pipe",
+                "args": [
+                  { "ref": "items" },
+                  { "op": "filter", "args": [{ "ref": "$value" }, { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "ref": "draggedId" }] }] }
+                ]
+              },
+              { "ref": "items" }
+            ]
+          }
+        },
+        { "target": "draggedId", "op": "set", "value": null },
+        { "target": "dragOverId", "op": "set", "value": null },
+        { "target": "dropPosition", "op": "set", "value": null }
+      ]
+    },
+    "moveUp": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "items" },
+              { "ref": "$item" }
+            ]
+          }
+        }
+      ]
+    },
+    "moveDown": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "items" },
+              { "ref": "$item" }
+            ]
+          }
+        }
+      ]
+    },
+    "swapItems": {
+      "params": ["fromId", "toId"],
+      "mutations": [
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "items" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "fromId" }] },
+                  {
+                    "op": "find",
+                    "args": [
+                      { "ref": "items" },
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "toId" }] }
+                    ]
+                  },
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "toId" }] },
+                      {
+                        "op": "find",
+                        "args": [
+                          { "ref": "items" },
+                          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "fromId" }] }
+                        ]
+                      },
+                      { "ref": "$item" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "removeItem": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "items" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "setPriority": {
+      "params": ["id", "priority"],
+      "mutations": [
+        {
+          "target": "items",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "items" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "priority": { "param": "priority" } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-md mx-auto p-6" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-2" }, "children": [{ "text": "Drag & Drop List" }] },
+      { "type": "p", "props": { "className": "text-gray-600 mb-6" }, "children": [{ "text": "Use the arrows to reorder items, or drag and drop them." }] },
+      {
+        "type": "ul",
+        "props": { "className": "space-y-2" },
+        "each": { "items": "items", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+        "children": [
+          {
+            "type": "li",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "bg-white rounded-lg shadow p-4 flex items-center gap-3 cursor-move transition-all ",
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }, { "ref": "draggedId" }] },
+                      "opacity-50 scale-95",
+                      ""
+                    ]
+                  },
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }, { "ref": "dragOverId" }] },
+                      " ring-2 ring-blue-500",
+                      ""
+                    ]
+                  }
+                ]
+              },
+              "draggable": true
+            },
+            "events": {
+              "dragstart": { "action": "startDrag", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }] },
+              "dragend": { "action": "endDrag" },
+              "dragover": { "action": "dragOver", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }, "over"] },
+              "drop": { "action": "drop" }
+            },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex flex-col gap-1" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "className": "text-gray-400 hover:text-gray-600 text-xs leading-none" },
+                    "events": {
+                      "click": {
+                        "action": "swapItems",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "item" }, "id"] },
+                          {
+                            "op": "get",
+                            "args": [
+                              { "op": "get", "args": [{ "ref": "items" }, { "op": "max", "args": [0, { "op": "subtract", "args": [{ "ref": "$index" }, 1] }] }] },
+                              "id"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "children": [{ "text": "▲" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "text-gray-400 hover:text-gray-600 text-xs leading-none" },
+                    "events": {
+                      "click": {
+                        "action": "swapItems",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "item" }, "id"] },
+                          {
+                            "op": "get",
+                            "args": [
+                              { "op": "get", "args": [{ "ref": "items" }, { "op": "min", "args": [{ "op": "subtract", "args": [{ "ref": "itemCount" }, 1] }, { "op": "add", "args": [{ "ref": "$index" }, 1] }] }] },
+                              "id"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "children": [{ "text": "▼" }]
+                  }
+                ]
+              },
+              {
+                "type": "span",
+                "props": { "className": "text-gray-400 cursor-move" },
+                "children": [{ "text": "⋮⋮" }]
+              },
+              {
+                "type": "div",
+                "props": { "className": "flex-1" },
+                "children": [
+                  { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "item.title" }] },
+                  {
+                    "type": "span",
+                    "props": {
+                      "className": {
+                        "op": "switch",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "item" }, "priority"] },
+                          {
+                            "high": "text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded",
+                            "medium": "text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded",
+                            "low": "text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded"
+                          },
+                          "text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded"
+                        ]
+                      }
+                    },
+                    "children": [{ "bind": "item.priority" }]
+                  }
+                ]
+              },
+              {
+                "type": "select",
+                "props": {
+                  "className": "text-xs border rounded px-2 py-1",
+                  "value": { "op": "get", "args": [{ "ref": "item" }, "priority"] }
+                },
+                "events": { "change": { "action": "setPriority", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }, { "op": "eventValue" }] } },
+                "children": [
+                  { "type": "option", "props": { "value": "high" }, "children": [{ "text": "High" }] },
+                  { "type": "option", "props": { "value": "medium" }, "children": [{ "text": "Medium" }] },
+                  { "type": "option", "props": { "value": "low" }, "children": [{ "text": "Low" }] }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "text-red-400 hover:text-red-600 ml-2" },
+                "events": { "click": { "action": "removeItem", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }] } },
+                "children": [{ "text": "×" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "p",
+        "props": { "className": "mt-4 text-sm text-gray-500 text-center" },
+        "children": [{ "bind": "itemCount" }, { "text": " items" }]
+      },
+      {
+        "if": { "ref": "isDragging" },
+        "then": {
+          "type": "div",
+          "props": { "className": "fixed bottom-4 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg" },
+          "children": [
+            { "text": "Dragging: " },
+            { "bind": "draggedItem.title" }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-items",
+      "name": "Has initial items",
+      "steps": [
+        { "assert": { "ref": "itemCount", "eq": 5 } }
+      ]
+    },
+    {
+      "id": "test-start-drag",
+      "name": "Can start dragging",
+      "steps": [
+        { "dispatch": "startDrag", "args": [1] },
+        { "assert": { "ref": "isDragging", "eq": true } },
+        { "assert": { "ref": "draggedId", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-end-drag",
+      "name": "Can end dragging",
+      "steps": [
+        { "dispatch": "startDrag", "args": [1] },
+        { "dispatch": "endDrag" },
+        { "assert": { "ref": "isDragging", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-remove-item",
+      "name": "Can remove an item",
+      "steps": [
+        { "dispatch": "removeItem", "args": [1] },
+        { "assert": { "ref": "itemCount", "eq": 4 } }
+      ]
+    },
+    {
+      "id": "test-set-priority",
+      "name": "Can change priority",
+      "steps": [
+        { "dispatch": "setPriority", "args": [1, "low"] }
+      ]
+    },
+    {
+      "id": "test-swap-items",
+      "name": "Can swap items",
+      "steps": [
+        { "dispatch": "swapItems", "args": [1, 2] }
+      ]
+    }
+  ]
+}

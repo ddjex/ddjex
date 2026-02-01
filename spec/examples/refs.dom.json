@@ -1,0 +1,188 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "refs_demo",
+  "target": "dom",
+
+  "state": {
+    "message": { "type": "string", "initial": "" },
+    "inputValue": { "type": "string", "initial": "" },
+    "boundingRect": { "type": "object", "initial": null, "nullable": true }
+  },
+
+  "actions": {
+    "focusInput": {
+      "mutations": [],
+      "effects": [
+        { "op": "refFocus", "args": ["searchInput"] }
+      ]
+    },
+    "blurInput": {
+      "mutations": [],
+      "effects": [
+        { "op": "refBlur", "args": ["searchInput"] }
+      ]
+    },
+    "scrollToBottom": {
+      "mutations": [],
+      "effects": [
+        { "op": "refScrollIntoView", "args": ["bottomSection", { "behavior": "smooth" }] }
+      ]
+    },
+    "getInputValue": {
+      "mutations": [
+        { "target": "inputValue", "op": "set", "value": { "op": "refGetValue", "args": ["searchInput"] } }
+      ]
+    },
+    "setInputValue": {
+      "params": ["value"],
+      "mutations": [],
+      "effects": [
+        { "op": "refSetValue", "args": ["searchInput", { "param": "value" }] }
+      ]
+    },
+    "getBoundingRect": {
+      "mutations": [
+        { "target": "boundingRect", "op": "set", "value": { "op": "refGetBoundingRect", "args": ["targetBox"] } }
+      ]
+    },
+    "toggleHighlight": {
+      "mutations": [],
+      "effects": [
+        { "op": "refToggleClass", "args": ["targetBox", "highlighted"] }
+      ]
+    },
+    "setMessage": {
+      "params": ["msg"],
+      "mutations": [
+        { "target": "message", "op": "set", "value": { "param": "msg" } }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "refs-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Refs Demo" }]
+      },
+      {
+        "type": "section",
+        "props": { "className": "input-section" },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "Input Ref" }]
+          },
+          {
+            "type": "input",
+            "ref": "searchInput",
+            "props": {
+              "type": "text",
+              "placeholder": "Focus me with the button below"
+            }
+          },
+          {
+            "type": "div",
+            "props": { "className": "button-group" },
+            "children": [
+              {
+                "type": "button",
+                "events": { "click": { "action": "focusInput" } },
+                "children": [{ "text": "Focus" }]
+              },
+              {
+                "type": "button",
+                "events": { "click": { "action": "blurInput" } },
+                "children": [{ "text": "Blur" }]
+              },
+              {
+                "type": "button",
+                "events": { "click": { "action": "getInputValue" } },
+                "children": [{ "text": "Get Value" }]
+              },
+              {
+                "type": "button",
+                "events": { "click": { "action": "setInputValue", "args": ["Hello from ref!"] } },
+                "children": [{ "text": "Set Value" }]
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "children": [
+              { "text": "Input value: " },
+              { "bind": "inputValue" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "props": { "className": "box-section" },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "Box Ref" }]
+          },
+          {
+            "type": "div",
+            "ref": "targetBox",
+            "props": { "className": "target-box" },
+            "children": [{ "text": "Target Box" }]
+          },
+          {
+            "type": "div",
+            "props": { "className": "button-group" },
+            "children": [
+              {
+                "type": "button",
+                "events": { "click": { "action": "getBoundingRect" } },
+                "children": [{ "text": "Get Bounding Rect" }]
+              },
+              {
+                "type": "button",
+                "events": { "click": { "action": "toggleHighlight" } },
+                "children": [{ "text": "Toggle Highlight" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "neq", "args": [{ "ref": "boundingRect" }, null] },
+            "then": {
+              "type": "pre",
+              "children": [
+                { "text": "x: " }, { "bind": "boundingRect.x" }, { "text": "\n" },
+                { "text": "y: " }, { "bind": "boundingRect.y" }, { "text": "\n" },
+                { "text": "width: " }, { "bind": "boundingRect.width" }, { "text": "\n" },
+                { "text": "height: " }, { "bind": "boundingRect.height" }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "style": { "height": "500px" } },
+        "children": [{ "text": "Scroll space..." }]
+      },
+      {
+        "type": "section",
+        "ref": "bottomSection",
+        "props": { "className": "bottom-section" },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "Bottom Section" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "scrollToBottom" } },
+            "children": [{ "text": "Scroll to Top (click from above)" }]
+          }
+        ]
+      }
+    ]
+  }
+}

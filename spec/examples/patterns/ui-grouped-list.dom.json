@@ -1,0 +1,195 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui_grouped_list",
+  "target": "dom",
+  "description": "Grouped list with nested each - renders categorized items",
+
+  "state": {
+    "groups": {
+      "type": "array",
+      "initial": [
+        {
+          "id": "fruits",
+          "name": "Fruits",
+          "items": [
+            { "id": "1", "name": "Apple", "emoji": "🍎" },
+            { "id": "2", "name": "Banana", "emoji": "🍌" },
+            { "id": "3", "name": "Orange", "emoji": "🍊" }
+          ]
+        },
+        {
+          "id": "vegetables",
+          "name": "Vegetables",
+          "items": [
+            { "id": "4", "name": "Carrot", "emoji": "🥕" },
+            { "id": "5", "name": "Broccoli", "emoji": "🥦" }
+          ]
+        },
+        {
+          "id": "dairy",
+          "name": "Dairy",
+          "items": [
+            { "id": "6", "name": "Milk", "emoji": "🥛" },
+            { "id": "7", "name": "Cheese", "emoji": "🧀" },
+            { "id": "8", "name": "Yogurt", "emoji": "🍶" }
+          ]
+        }
+      ]
+    },
+    "selectedItem": { "type": "string", "initial": "", "nullable": true }
+  },
+
+  "computed": {
+    "totalItems": {
+      "deps": ["groups"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "groups" },
+          { "op": "add", "args": [{ "param": "acc" }, { "op": "length", "args": [{ "op": "get", "args": [{ "param": "item" }, "items"] }] }] },
+          0
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "selectItem": {
+      "params": ["itemId"],
+      "mutations": [
+        { "target": "selectedItem", "op": "set", "value": { "param": "itemId" } }
+      ]
+    },
+    "addItem": {
+      "params": ["groupId", "name", "emoji"],
+      "mutations": [
+        {
+          "target": "groups",
+          "op": "map",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": [{ "param": "item" }, "id"] }, { "param": "groupId" }] },
+              {
+                "op": "merge",
+                "args": [
+                  { "param": "item" },
+                  {
+                    "items": {
+                      "op": "concat",
+                      "args": [
+                        { "op": "get", "args": [{ "param": "item" }, "items"] },
+                        [{ "id": { "op": "now" }, "name": { "param": "name" }, "emoji": { "param": "emoji" } }]
+                      ]
+                    }
+                  }
+                ]
+              },
+              { "param": "item" }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "children": [
+      {
+        "type": "h2",
+        "children": [
+          { "text": "Grouped List (" },
+          { "bind": "totalItems" },
+          { "text": " items)" }
+        ]
+      },
+      {
+        "type": "div",
+        "each": { "items": "groups", "as": "group" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "style": "margin-bottom: 20px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "style": "background: #f0f0f0; padding: 10px 15px; font-weight: bold;" },
+                "children": [
+                  { "bind": "group.name" },
+                  { "text": " (" },
+                  { "op": "length", "args": [{ "ref": "group.items" }] },
+                  { "text": ")" }
+                ]
+              },
+              {
+                "type": "ul",
+                "props": { "style": "list-style: none; margin: 0; padding: 0;" },
+                "each": { "items": "group.items", "as": "item" },
+                "children": [
+                  {
+                    "type": "li",
+                    "props": {
+                      "style": {
+                        "op": "if",
+                        "args": [
+                          { "op": "eq", "args": [{ "ref": "selectedItem" }, { "op": "get", "args": [{ "ref": "item" }, "id"] }] },
+                          "padding: 10px 15px; cursor: pointer; background: #e0e7ff; border-bottom: 1px solid #eee;",
+                          "padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;"
+                        ]
+                      }
+                    },
+                    "events": {
+                      "click": { "action": "selectItem", "args": [{ "op": "get", "args": [{ "ref": "item" }, "id"] }] }
+                    },
+                    "children": [
+                      { "bind": "item.emoji" },
+                      { "text": " " },
+                      { "bind": "item.name" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "op": "neq", "args": [{ "ref": "selectedItem" }, ""] },
+        "then": {
+          "type": "div",
+          "props": { "style": "margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;" },
+          "children": [
+            { "text": "Selected item ID: " },
+            { "bind": "selectedItem" }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-groups",
+      "name": "has 3 groups initially",
+      "steps": [
+        { "assert": { "ref": "groups", "length": 3 } }
+      ]
+    },
+    {
+      "id": "test-total-items",
+      "name": "totalItems computed correctly",
+      "steps": [
+        { "assert": { "ref": "totalItems", "eq": 8 } }
+      ]
+    },
+    {
+      "id": "test-select-item",
+      "name": "selectItem sets selectedItem",
+      "steps": [
+        { "dispatch": "selectItem", "params": { "itemId": "3" } },
+        { "assert": { "ref": "selectedItem", "eq": "3" } }
+      ]
+    }
+  ]
+}

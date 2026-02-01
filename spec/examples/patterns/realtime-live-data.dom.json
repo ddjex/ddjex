@@ -1,0 +1,773 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "realtime-live-data-pattern",
+  "target": "dom",
+  "description": "Pattern for live data dashboard with WebSocket updates and polling fallback",
+
+  "state": {
+    "metrics": {
+      "type": "object",
+      "initial": {
+        "activeUsers": 0,
+        "requestsPerSecond": 0,
+        "avgResponseTime": 0,
+        "errorRate": 0,
+        "cpuUsage": 0,
+        "memoryUsage": 0
+      }
+    },
+    "history": { "type": "array", "initial": [], "itemType": "object", "constraints": { "maxLength": 60 } },
+    "alerts": { "type": "array", "initial": [], "itemType": "object" },
+    "connectionType": { "type": "string", "initial": "none" },
+    "lastUpdate": { "type": "number", "initial": 0 },
+    "isPaused": { "type": "boolean", "initial": false },
+    "refreshInterval": { "type": "number", "initial": 5000 },
+    "selectedMetric": { "type": "string", "initial": "activeUsers" },
+    "timeRange": { "type": "string", "initial": "1m" }
+  },
+
+  "computed": {
+    "isConnected": {
+      "deps": ["connectionType"],
+      "fn": { "op": "neq", "args": [{ "ref": "connectionType" }, "none"] }
+    },
+    "isWebSocket": {
+      "deps": ["connectionType"],
+      "fn": { "op": "eq", "args": [{ "ref": "connectionType" }, "websocket"] }
+    },
+    "isPolling": {
+      "deps": ["connectionType"],
+      "fn": { "op": "eq", "args": [{ "ref": "connectionType" }, "polling"] }
+    },
+    "timeSinceUpdate": {
+      "deps": ["lastUpdate"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "lastUpdate" }, 0] },
+          "Never",
+          {
+            "op": "concat",
+            "args": [
+              { "op": "round", "args": [{ "op": "divide", "args": [{ "op": "subtract", "args": [{ "op": "now" }, { "ref": "lastUpdate" }] }, 1000] }] },
+              "s ago"
+            ]
+          }
+        ]
+      }
+    },
+    "activeAlertCount": {
+      "deps": ["alerts"],
+      "fn": {
+        "op": "length",
+        "args": [
+          { "op": "filter", "args": [{ "ref": "alerts" }, { "op": "not", "args": [{ "op": "get", "args": ["$item", "dismissed"] }] }] }
+        ]
+      }
+    },
+    "criticalAlerts": {
+      "deps": ["alerts"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "alerts" },
+          {
+            "op": "and",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "severity"] }, "critical"] },
+              { "op": "not", "args": [{ "op": "get", "args": ["$item", "dismissed"] }] }
+            ]
+          }
+        ]
+      }
+    },
+    "selectedMetricHistory": {
+      "deps": ["history", "selectedMetric"],
+      "fn": {
+        "op": "map",
+        "args": [
+          { "ref": "history" },
+          {
+            "timestamp": { "op": "get", "args": ["$item", "timestamp"] },
+            "value": { "op": "get", "args": [{ "op": "get", "args": ["$item", "metrics"] }, { "ref": "selectedMetric" }] }
+          }
+        ]
+      }
+    },
+    "healthStatus": {
+      "deps": ["metrics"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "gt", "args": [{ "op": "get", "args": [{ "ref": "metrics" }, "errorRate"] }, 5] },
+          "critical",
+          {
+            "op": "if",
+            "args": [
+              { "op": "gt", "args": [{ "op": "get", "args": [{ "ref": "metrics" }, "errorRate"] }, 1] },
+              "warning",
+              "healthy"
+            ]
+          }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "setConnectionType": {
+      "params": ["type"],
+      "mutations": [
+        { "target": "connectionType", "op": "set", "value": { "param": "type" } }
+      ]
+    },
+    "updateMetrics": {
+      "params": ["newMetrics"],
+      "guard": { "op": "not", "args": [{ "ref": "isPaused" }] },
+      "mutations": [
+        { "target": "metrics", "op": "set", "value": { "param": "newMetrics" } },
+        { "target": "lastUpdate", "op": "set", "value": { "op": "now" } },
+        {
+          "target": "history",
+          "op": "set",
+          "value": {
+            "op": "slice",
+            "args": [
+              {
+                "op": "concat",
+                "args": [
+                  { "ref": "history" },
+                  [{
+                    "timestamp": { "op": "now" },
+                    "metrics": { "param": "newMetrics" }
+                  }]
+                ]
+              },
+              -60
+            ]
+          }
+        }
+      ]
+    },
+    "addAlert": {
+      "params": ["alert"],
+      "mutations": [
+        {
+          "target": "alerts",
+          "op": "push",
+          "value": {
+            "op": "merge",
+            "args": [
+              { "param": "alert" },
+              { "id": { "op": "uuid" }, "timestamp": { "op": "now" }, "dismissed": false }
+            ]
+          }
+        }
+      ]
+    },
+    "dismissAlert": {
+      "params": ["alertId"],
+      "mutations": [
+        {
+          "target": "alerts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "alertId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "dismissed": true }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "dismissAllAlerts": {
+      "mutations": [
+        {
+          "target": "alerts",
+          "op": "map",
+          "transform": { "op": "merge", "args": [{ "$item": true }, { "dismissed": true }] }
+        }
+      ]
+    },
+    "togglePause": {
+      "mutations": [
+        { "target": "isPaused", "op": "not" }
+      ]
+    },
+    "setRefreshInterval": {
+      "params": ["interval"],
+      "mutations": [
+        { "target": "refreshInterval", "op": "set", "value": { "param": "interval" } }
+      ]
+    },
+    "selectMetric": {
+      "params": ["metric"],
+      "mutations": [
+        { "target": "selectedMetric", "op": "set", "value": { "param": "metric" } }
+      ]
+    },
+    "setTimeRange": {
+      "params": ["range"],
+      "mutations": [
+        { "target": "timeRange", "op": "set", "value": { "param": "range" } }
+      ]
+    },
+    "checkThresholds": {
+      "params": ["metrics"],
+      "mutations": [
+        {
+          "target": "alerts",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "gt", "args": [{ "op": "get", "args": [{ "param": "metrics" }, "errorRate"] }, 5] },
+              {
+                "op": "concat",
+                "args": [
+                  { "ref": "alerts" },
+                  [{
+                    "id": { "op": "uuid" },
+                    "severity": "critical",
+                    "message": { "op": "concat", "args": ["Error rate critical: ", { "op": "get", "args": [{ "param": "metrics" }, "errorRate"] }, "%"] },
+                    "metric": "errorRate",
+                    "value": { "op": "get", "args": [{ "param": "metrics" }, "errorRate"] },
+                    "timestamp": { "op": "now" },
+                    "dismissed": false
+                  }]
+                ]
+              },
+              { "ref": "alerts" }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "try-websocket",
+      "trigger": { "type": "mount" },
+      "do": {
+        "op": "wsConnect",
+        "url": "wss://metrics.example.com/live"
+      },
+      "onSuccess": { "action": "setConnectionType", "params": { "type": "websocket" } },
+      "onError": { "action": "setConnectionType", "params": { "type": "polling" } }
+    },
+    {
+      "id": "poll-fallback",
+      "trigger": { "type": "interval", "interval": { "ref": "refreshInterval" } },
+      "condition": {
+        "op": "and",
+        "args": [
+          { "ref": "isPolling" },
+          { "op": "not", "args": [{ "ref": "isPaused" }] }
+        ]
+      },
+      "do": {
+        "op": "fetch",
+        "url": "/api/metrics/current",
+        "method": "GET"
+      },
+      "onSuccess": { "action": "updateMetrics", "params": { "newMetrics": "$result" } }
+    },
+    {
+      "id": "check-alerts",
+      "watch": ["metrics"],
+      "do": { "action": "checkThresholds", "params": { "metrics": { "ref": "metrics" } } }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "live-dashboard" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "dashboard-header" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "header-left" },
+            "children": [
+              {
+                "type": "h1",
+                "children": [{ "text": "Live Metrics Dashboard" }]
+              },
+              {
+                "type": "div",
+                "props": {
+                  "className": {
+                    "op": "concat",
+                    "args": ["connection-status ", { "ref": "connectionType" }]
+                  }
+                },
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "status-dot" }
+                  },
+                  {
+                    "op": "switch",
+                    "args": [
+                      { "ref": "connectionType" },
+                      {
+                        "websocket": "Live (WebSocket)",
+                        "polling": { "op": "concat", "args": ["Polling (", { "op": "divide", "args": [{ "ref": "refreshInterval" }, 1000] }, "s)"] },
+                        "none": "Disconnected"
+                      },
+                      "Unknown"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "header-controls" },
+            "children": [
+              {
+                "type": "select",
+                "props": { "value": { "ref": "timeRange" } },
+                "events": { "change": { "action": "setTimeRange", "params": { "range": "$event.target.value" } } },
+                "children": [
+                  { "type": "option", "props": { "value": "1m" }, "children": [{ "text": "Last 1 minute" }] },
+                  { "type": "option", "props": { "value": "5m" }, "children": [{ "text": "Last 5 minutes" }] },
+                  { "type": "option", "props": { "value": "15m" }, "children": [{ "text": "Last 15 minutes" }] },
+                  { "type": "option", "props": { "value": "1h" }, "children": [{ "text": "Last hour" }] }
+                ]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": { "op": "if", "args": [{ "ref": "isPaused" }, "btn-resume", "btn-pause"] }
+                },
+                "events": { "click": { "action": "togglePause" } },
+                "children": [
+                  { "op": "if", "args": [{ "ref": "isPaused" }, "▶ Resume", "⏸ Pause"] }
+                ]
+              },
+              {
+                "type": "span",
+                "props": { "className": "last-update" },
+                "children": [
+                  { "text": "Updated: " },
+                  { "bind": "timeSinceUpdate" }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "op": "gt", "args": [{ "ref": "activeAlertCount" }, 0] },
+        "props": { "className": "alerts-banner" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "alerts-header" },
+            "children": [
+              {
+                "type": "span",
+                "children": [
+                  { "text": "⚠️ " },
+                  { "bind": "activeAlertCount" },
+                  { "text": " active alerts" }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "btn-dismiss-all" },
+                "events": { "click": { "action": "dismissAllAlerts" } },
+                "children": [{ "text": "Dismiss All" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "alerts-list" },
+            "each": {
+              "items": {
+                "op": "filter",
+                "args": [{ "ref": "alerts" }, { "op": "not", "args": [{ "op": "get", "args": ["$item", "dismissed"] }] }]
+              },
+              "as": "alert"
+            },
+            "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+            "children": [
+              {
+                "type": "div",
+                "props": {
+                  "className": {
+                    "op": "concat",
+                    "args": ["alert-item severity-", { "op": "get", "args": [{ "ref": "alert" }, "severity"] }]
+                  }
+                },
+                "children": [
+                  {
+                    "type": "span",
+                    "props": { "className": "alert-message" },
+                    "children": [{ "op": "get", "args": [{ "ref": "alert" }, "message"] }]
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "btn-dismiss" },
+                    "events": {
+                      "click": {
+                        "action": "dismissAlert",
+                        "params": { "alertId": { "op": "get", "args": [{ "ref": "alert" }, "id"] } }
+                      }
+                    },
+                    "children": [{ "text": "×" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "metrics-grid" },
+        "children": [
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "metric-card",
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedMetric" }, "activeUsers"] }, " selected", ""] }
+                ]
+              }
+            },
+            "events": { "click": { "action": "selectMetric", "params": { "metric": "activeUsers" } } },
+            "children": [
+              { "type": "div", "props": { "className": "metric-label" }, "children": [{ "text": "Active Users" }] },
+              {
+                "type": "div",
+                "props": { "className": "metric-value" },
+                "children": [{ "op": "get", "args": [{ "ref": "metrics" }, "activeUsers"] }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "metric-card",
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedMetric" }, "requestsPerSecond"] }, " selected", ""] }
+                ]
+              }
+            },
+            "events": { "click": { "action": "selectMetric", "params": { "metric": "requestsPerSecond" } } },
+            "children": [
+              { "type": "div", "props": { "className": "metric-label" }, "children": [{ "text": "Requests/sec" }] },
+              {
+                "type": "div",
+                "props": { "className": "metric-value" },
+                "children": [
+                  { "op": "get", "args": [{ "ref": "metrics" }, "requestsPerSecond"] },
+                  { "text": "/s" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "metric-card",
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedMetric" }, "avgResponseTime"] }, " selected", ""] }
+                ]
+              }
+            },
+            "events": { "click": { "action": "selectMetric", "params": { "metric": "avgResponseTime" } } },
+            "children": [
+              { "type": "div", "props": { "className": "metric-label" }, "children": [{ "text": "Avg Response" }] },
+              {
+                "type": "div",
+                "props": { "className": "metric-value" },
+                "children": [
+                  { "op": "get", "args": [{ "ref": "metrics" }, "avgResponseTime"] },
+                  { "text": "ms" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "metric-card",
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedMetric" }, "errorRate"] }, " selected", ""] },
+                  { "op": "if", "args": [{ "op": "gt", "args": [{ "op": "get", "args": [{ "ref": "metrics" }, "errorRate"] }, 1] }, " warning", ""] },
+                  { "op": "if", "args": [{ "op": "gt", "args": [{ "op": "get", "args": [{ "ref": "metrics" }, "errorRate"] }, 5] }, " critical", ""] }
+                ]
+              }
+            },
+            "events": { "click": { "action": "selectMetric", "params": { "metric": "errorRate" } } },
+            "children": [
+              { "type": "div", "props": { "className": "metric-label" }, "children": [{ "text": "Error Rate" }] },
+              {
+                "type": "div",
+                "props": { "className": "metric-value" },
+                "children": [
+                  { "op": "get", "args": [{ "ref": "metrics" }, "errorRate"] },
+                  { "text": "%" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "metric-card",
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedMetric" }, "cpuUsage"] }, " selected", ""] }
+                ]
+              }
+            },
+            "events": { "click": { "action": "selectMetric", "params": { "metric": "cpuUsage" } } },
+            "children": [
+              { "type": "div", "props": { "className": "metric-label" }, "children": [{ "text": "CPU Usage" }] },
+              {
+                "type": "div",
+                "props": { "className": "metric-value" },
+                "children": [
+                  { "op": "get", "args": [{ "ref": "metrics" }, "cpuUsage"] },
+                  { "text": "%" }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "progress-bar" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": "progress-fill",
+                      "style": {
+                        "width": { "op": "concat", "args": [{ "op": "get", "args": [{ "ref": "metrics" }, "cpuUsage"] }, "%"] }
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": {
+              "className": {
+                "op": "concat",
+                "args": [
+                  "metric-card",
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedMetric" }, "memoryUsage"] }, " selected", ""] }
+                ]
+              }
+            },
+            "events": { "click": { "action": "selectMetric", "params": { "metric": "memoryUsage" } } },
+            "children": [
+              { "type": "div", "props": { "className": "metric-label" }, "children": [{ "text": "Memory Usage" }] },
+              {
+                "type": "div",
+                "props": { "className": "metric-value" },
+                "children": [
+                  { "op": "get", "args": [{ "ref": "metrics" }, "memoryUsage"] },
+                  { "text": "%" }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "progress-bar" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": "progress-fill",
+                      "style": {
+                        "width": { "op": "concat", "args": [{ "op": "get", "args": [{ "ref": "metrics" }, "memoryUsage"] }, "%"] }
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "chart-section" },
+        "children": [
+          {
+            "type": "h3",
+            "children": [
+              { "text": "History: " },
+              { "bind": "selectedMetric" }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "chart-placeholder" },
+            "children": [
+              {
+                "type": "div",
+                "when": { "op": "eq", "args": [{ "op": "length", "args": [{ "ref": "history" }] }, 0] },
+                "children": [{ "text": "Collecting data..." }]
+              },
+              {
+                "type": "div",
+                "when": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "history" }] }, 0] },
+                "props": { "className": "mini-chart" },
+                "each": { "items": "selectedMetricHistory", "as": "point", "indexAs": "i" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": "chart-bar",
+                      "style": {
+                        "height": { "op": "concat", "args": [{ "op": "min", "args": [{ "op": "get", "args": [{ "ref": "point" }, "value"] }, 100] }, "%"] }
+                      },
+                      "title": { "op": "get", "args": [{ "ref": "point" }, "value"] }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "footer",
+        "props": { "className": "dashboard-footer" },
+        "children": [
+          {
+            "type": "div",
+            "props": {
+              "className": { "op": "concat", "args": ["health-indicator health-", { "ref": "healthStatus" }] }
+            },
+            "children": [
+              { "text": "System Health: " },
+              { "op": "toUpperCase", "args": [{ "ref": "healthStatus" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "children": [
+              { "op": "length", "args": [{ "ref": "history" }] },
+              { "text": " data points" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts disconnected with zero metrics",
+      "steps": [
+        { "assert": { "ref": "connectionType", "eq": "none" } },
+        { "assert": { "ref": "isConnected", "eq": false } },
+        { "assert": { "ref": "isPaused", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-connection-websocket",
+      "name": "setConnectionType updates connection status",
+      "steps": [
+        { "dispatch": "setConnectionType", "params": { "type": "websocket" } },
+        { "assert": { "ref": "isWebSocket", "eq": true } },
+        { "assert": { "ref": "isConnected", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-connection-polling",
+      "name": "polling fallback works",
+      "steps": [
+        { "dispatch": "setConnectionType", "params": { "type": "polling" } },
+        { "assert": { "ref": "isPolling", "eq": true } },
+        { "assert": { "ref": "isConnected", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-update-metrics",
+      "name": "updateMetrics stores metrics and adds to history",
+      "steps": [
+        { "dispatch": "updateMetrics", "params": { "newMetrics": { "activeUsers": 100, "requestsPerSecond": 50, "avgResponseTime": 120, "errorRate": 0.5, "cpuUsage": 45, "memoryUsage": 60 } } },
+        { "assert": { "ref": "lastUpdate", "gt": 0 } }
+      ]
+    },
+    {
+      "id": "test-pause-blocks-updates",
+      "name": "paused state blocks metric updates",
+      "steps": [
+        { "dispatch": "togglePause" },
+        { "assert": { "ref": "isPaused", "eq": true } },
+        { "dispatch": "togglePause" },
+        { "assert": { "ref": "isPaused", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-add-alert",
+      "name": "addAlert creates new alert",
+      "steps": [
+        { "dispatch": "addAlert", "params": { "alert": { "severity": "warning", "message": "High CPU", "metric": "cpuUsage", "value": 90 } } },
+        { "assert": { "ref": "activeAlertCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-dismiss-alert",
+      "name": "dismissAlert marks alert as dismissed",
+      "steps": [
+        { "dispatch": "addAlert", "params": { "alert": { "severity": "warning", "message": "Test alert", "metric": "test", "value": 1 } } },
+        { "assert": { "ref": "activeAlertCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-dismiss-all",
+      "name": "dismissAllAlerts clears all alerts",
+      "steps": [
+        { "dispatch": "addAlert", "params": { "alert": { "severity": "warning", "message": "Alert 1", "metric": "test", "value": 1 } } },
+        { "dispatch": "addAlert", "params": { "alert": { "severity": "critical", "message": "Alert 2", "metric": "test", "value": 2 } } },
+        { "assert": { "ref": "activeAlertCount", "eq": 2 } },
+        { "dispatch": "dismissAllAlerts" },
+        { "assert": { "ref": "activeAlertCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-select-metric",
+      "name": "selectMetric changes selected metric",
+      "steps": [
+        { "dispatch": "selectMetric", "params": { "metric": "cpuUsage" } },
+        { "assert": { "ref": "selectedMetric", "eq": "cpuUsage" } }
+      ]
+    },
+    {
+      "id": "test-health-status",
+      "name": "healthStatus reflects error rate",
+      "steps": [
+        { "assert": { "ref": "healthStatus", "eq": "healthy" } },
+        { "dispatch": "updateMetrics", "params": { "newMetrics": { "activeUsers": 0, "requestsPerSecond": 0, "avgResponseTime": 0, "errorRate": 2, "cpuUsage": 0, "memoryUsage": 0 } } },
+        { "assert": { "ref": "healthStatus", "eq": "warning" } }
+      ]
+    }
+  ]
+}

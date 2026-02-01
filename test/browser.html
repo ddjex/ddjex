@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DDJEX Browser Tests</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h1 { margin-bottom: 20px; color: #fff; }
+    .badge { background: #166534; color: #4ade80; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 12px; vertical-align: middle; }
+    .summary { background: #252542; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
+    .summary.pass { border-left: 4px solid #4ade80; }
+    .summary.fail { border-left: 4px solid #f87171; }
+    .summary.running { border-left: 4px solid #fbbf24; }
+    .summary h2 { font-size: 18px; margin-bottom: 5px; }
+    .summary .stats { color: #888; }
+    .stats .passed { color: #4ade80; font-weight: bold; }
+    .stats .failed { color: #f87171; font-weight: bold; }
+    .category { background: #252542; border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
+    .category-header { padding: 12px 15px; background: #1a1a2e; border-bottom: 1px solid #3a3a5a; font-weight: 600; display: flex; justify-content: space-between; }
+    .category-header .count { color: #888; font-weight: normal; }
+    .test { padding: 10px 15px; border-bottom: 1px solid #3a3a5a; display: flex; align-items: flex-start; gap: 10px; }
+    .test:last-child { border-bottom: none; }
+    .test.pass .status { color: #4ade80; }
+    .test.fail .status { color: #f87171; }
+    .test .name { flex: 1; }
+    .test .error { color: #f87171; font-size: 12px; margin-top: 5px; font-family: monospace; }
+    .test-container { display: none; }
+    #portal-target { padding: 10px; margin: 10px 0; border: 2px dashed #3a3a5a; min-height: 50px; }
+    .running-text { color: #fbbf24; font-style: italic; }
+    .links { margin-top: 20px; padding-top: 20px; border-top: 1px solid #3a3a5a; }
+    .links a { color: #6eb5ff; margin-right: 20px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>DDJEX Browser Tests <span class="badge">DDJEX-powered</span></h1>
+
+    <div id="results-app"></div>
+  </div>
+
+  <!-- Test containers (hidden) -->
+  <div class="test-container" id="test-app"></div>
+  <div class="test-container" id="test-hydration"></div>
+  <div id="portal-target" class="test-container"></div>
+
+  <script src="../dist/ddjex.browser.js"></script>
+  <script>
+    // ==================== TEST FRAMEWORK (vanilla JS - necessary to test DDJEX) ====================
+    const testResults = {
+      passed: 0,
+      failed: 0,
+      running: true,
+      categories: {}
+    };
+
+    function category(name) {
+      if (!testResults.categories[name]) {
+        testResults.categories[name] = { name, tests: [], passed: 0, failed: 0 };
+      }
+      return testResults.categories[name];
+    }
+
+    function test(categoryName, name, fn) {
+      const cat = category(categoryName);
+      const result = { name, passed: false, error: null };
+
+      try {
+        fn();
+        result.passed = true;
+        testResults.passed++;
+        cat.passed++;
+      } catch (e) {
+        result.error = e.message;
+        testResults.failed++;
+        cat.failed++;
+      }
+
+      cat.tests.push(result);
+    }
+
+    async function testAsync(categoryName, name, fn) {
+      const cat = category(categoryName);
+      const result = { name, passed: false, error: null };
+
+      try {
+        await fn();
+        result.passed = true;
+        testResults.passed++;
+        cat.passed++;
+      } catch (e) {
+        result.error = e.message;
+        testResults.failed++;
+        cat.failed++;
+      }
+
+      cat.tests.push(result);
+    }
+
+    function assert(condition, message) {
+      if (!condition) throw new Error(message || 'Assertion failed');
+    }
+
+    function assertEqual(actual, expected, message) {
+      if (actual !== expected) {
+        throw new Error(message || `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+      }
+    }
+
+    function cleanup() {
+      document.getElementById('test-app').innerHTML = '';
+      document.getElementById('test-hydration').innerHTML = '';
+      document.getElementById('portal-target').innerHTML = '';
+    }
+
+    // ==================== DDJEX RESULTS DISPLAY ====================
+    let resultsApp = null;
+
+    function initResultsApp() {
+      const categoriesArray = Object.values(testResults.categories);
+
+      resultsApp = DDJEX.run({
+        "$ddjex": "0.4.0",
+        "id": "browser_tests_results",
+        "target": "dom",
+
+        "state": {
+          "passed": { "type": "number", "initial": testResults.passed },
+          "failed": { "type": "number", "initial": testResults.failed },
+          "running": { "type": "boolean", "initial": testResults.running },
+          "categories": { "type": "array", "initial": categoriesArray }
+        },
+
+        "computed": {
+          "total": {
+            "deps": ["passed", "failed"],
+            "fn": { "op": "add", "args": [{ "ref": "passed" }, { "ref": "failed" }] }
+          },
+          "allPassed": {
+            "deps": ["failed"],
+            "fn": { "op": "eq", "args": [{ "ref": "failed" }, 0] }
+          },
+          "summaryClass": {
+            "deps": ["running", "allPassed"],
+            "fn": {
+              "op": "if",
+              "args": [
+                { "ref": "running" },
+                "summary running",
+                { "op": "if", "args": [{ "ref": "allPassed" }, "summary pass", "summary fail"] }
+              ]
+            }
+          },
+          "summaryTitle": {
+            "deps": ["running", "allPassed"],
+            "fn": {
+              "op": "if",
+              "args": [
+                { "ref": "running" },
+                "Running tests...",
+                { "op": "if", "args": [{ "ref": "allPassed" }, "All Tests Passed!", "Some Tests Failed"] }
+              ]
+            }
+          }
+        },
+
+        "actions": {
+          "updateResults": {
+            "params": ["p", "f", "r", "cats"],
+            "mutations": [
+              { "target": "passed", "op": "set", "value": { "param": "p" } },
+              { "target": "failed", "op": "set", "value": { "param": "f" } },
+              { "target": "running", "op": "set", "value": { "param": "r" } },
+              { "target": "categories", "op": "set", "value": { "param": "cats" } }
+            ]
+          },
+          "hmrReload": {
+            "mutations": [],
+            "effects": [{ "op": "reload" }]
+          }
+        },
+
+        "root": {
+          "type": "div",
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": { "ref": "summaryClass" } },
+              "children": [
+                { "type": "h2", "children": [{ "bind": "summaryTitle" }] },
+                {
+                  "if": { "op": "eq", "args": [{ "ref": "running" }, false] },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "stats" },
+                    "children": [
+                      { "type": "span", "props": { "className": "passed" }, "children": [{ "bind": "passed" }, { "text": " passed" }] },
+                      { "text": " / " },
+                      { "type": "span", "props": { "className": "failed" }, "children": [{ "bind": "failed" }, { "text": " failed" }] },
+                      { "text": " / " },
+                      { "bind": "total" },
+                      { "text": " total" }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "each": { "items": "categories", "as": "cat" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "category" },
+                  "children": [
+                    {
+                      "type": "div",
+                      "props": { "className": "category-header" },
+                      "children": [
+                        { "type": "span", "children": [{ "bind": "cat.name" }] },
+                        {
+                          "type": "span",
+                          "props": { "className": "count" },
+                          "children": [
+                            { "bind": "cat.passed" },
+                            { "text": "/" },
+                            { "op": "length", "args": [{ "op": "get", "args": [{ "ref": "cat" }, "tests"] }] }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "each": { "items": { "ref": "cat.tests" }, "as": "t" },
+                      "children": [
+                        {
+                          "type": "div",
+                          "props": {
+                            "className": {
+                              "op": "if",
+                              "args": [
+                                { "op": "get", "args": [{ "ref": "t" }, "passed"] },
+                                "test pass",
+                                "test fail"
+                              ]
+                            }
+                          },
+                          "children": [
+                            {
+                              "type": "span",
+                              "props": { "className": "status" },
+                              "children": [{
+                                "op": "if",
+                                "args": [
+                                  { "op": "get", "args": [{ "ref": "t" }, "passed"] },
+                                  "✓",
+                                  "✗"
+                                ]
+                              }]
+                            },
+                            {
+                              "type": "span",
+                              "props": { "className": "name" },
+                              "children": [{ "bind": "t.name" }]
+                            },
+                            {
+                              "if": { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "t" }, "error"] }, null] },
+                              "then": {
+                                "type": "div",
+                                "props": { "className": "error" },
+                                "children": [{ "bind": "t.error" }]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "links" },
+              "children": [
+                { "type": "a", "props": { "href": "/" }, "children": [{ "text": "Back to Home" }] },
+                { "type": "a", "props": { "href": "/test/runner.html" }, "children": [{ "text": "Test Runner" }] }
+              ]
+            }
+          ]
+        }
+      }, { container: '#results-app' });
+    }
+
+    function updateResultsApp() {
+      if (resultsApp) {
+        resultsApp.dispatch('updateResults',
+          testResults.passed,
+          testResults.failed,
+          testResults.running,
+          Object.values(testResults.categories)
+        );
+      }
+    }
+
+    // ==================== TESTS ====================
+
+    async function runAllTests() {
+      // Initialize DDJEX results display first (shows "Running...")
+      initResultsApp();
+
+      // DOM Rendering Tests
+      await runDOMRenderingTests();
+      updateResultsApp();
+
+      // Binding Tests
+      await runBindingTests();
+      updateResultsApp();
+
+      // Conditional Tests
+      await runConditionalTests();
+      updateResultsApp();
+
+      // Loop Tests
+      await runLoopTests();
+      updateResultsApp();
+
+      // Lifecycle Tests
+      await runLifecycleTests();
+      updateResultsApp();
+
+      // Ref Tests
+      await runRefTests();
+      updateResultsApp();
+
+      // Portal Tests
+      await runPortalTests();
+      updateResultsApp();
+
+      // Fragment Tests
+      await runFragmentTests();
+      updateResultsApp();
+
+      // Hydration Tests
+      await runHydrationTests();
+      updateResultsApp();
+
+      // Event Tests
+      await runEventTests();
+
+      // Mark as done and final update
+      testResults.running = false;
+      updateResultsApp();
+
+      // Console output
+      console.log('DDJEX Browser Test Results:', JSON.stringify({
+        passed: testResults.passed,
+        failed: testResults.failed,
+        categories: Object.fromEntries(
+          Object.entries(testResults.categories).map(([k, v]) => [k, { passed: v.passed, failed: v.failed }])
+        )
+      }, null, 2));
+    }
+
+    // ==================== DOM RENDERING TESTS ====================
+
+    async function runDOMRenderingTests() {
+      cleanup();
+
+      test('DOM Rendering', 'renders basic element', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { id: 'basic-el' }, children: [{ text: 'Hello' }] }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#basic-el');
+        assert(el !== null, 'Element should exist');
+        assertEqual(el.textContent, 'Hello');
+        app.unmount();
+      });
+
+      test('DOM Rendering', 'renders nested elements', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: {
+            type: 'div', props: { id: 'parent' },
+            children: [
+              { type: 'span', props: { id: 'child1' }, children: [{ text: 'A' }] },
+              { type: 'span', props: { id: 'child2' }, children: [{ text: 'B' }] }
+            ]
+          }
+        }, { container: '#test-app' });
+
+        const parent = document.querySelector('#parent');
+        assert(parent !== null, 'Parent should exist');
+        assertEqual(parent.children.length, 2);
+        assertEqual(document.querySelector('#child1').textContent, 'A');
+        assertEqual(document.querySelector('#child2').textContent, 'B');
+        app.unmount();
+      });
+
+      test('DOM Rendering', 'sets className prop', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { id: 'class-test', className: 'foo bar' } }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#class-test');
+        assert(el.classList.contains('foo'), 'Should have foo class');
+        assert(el.classList.contains('bar'), 'Should have bar class');
+        app.unmount();
+      });
+
+      test('DOM Rendering', 'sets style prop', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { id: 'style-test', style: 'color: red; font-size: 20px' } }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#style-test');
+        assertEqual(el.style.color, 'red');
+        assertEqual(el.style.fontSize, '20px');
+        app.unmount();
+      });
+
+      test('DOM Rendering', 'sets data attributes', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { id: 'data-test', 'data-foo': 'bar', 'data-id': '123' } }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#data-test');
+        assertEqual(el.dataset.foo, 'bar');
+        assertEqual(el.dataset.id, '123');
+        app.unmount();
+      });
+    }
+
+    // ==================== BINDING TESTS ====================
+
+    async function runBindingTests() {
+      cleanup();
+
+      test('Bindings', 'binds state to text', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { name: { type: 'string', initial: 'World' } },
+          root: { type: 'div', props: { id: 'bind-test' }, children: [{ bind: 'name' }] }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#bind-test').textContent, 'World');
+        app.unmount();
+      });
+
+      test('Bindings', 'updates on state change', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 0 } },
+          actions: { inc: { mutations: [{ target: 'count', op: 'add', value: 1 }] } },
+          root: { type: 'div', props: { id: 'reactive-test' }, children: [{ bind: 'count' }] }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#reactive-test').textContent, '0');
+        app.dispatch('inc');
+        assertEqual(document.querySelector('#reactive-test').textContent, '1');
+        app.dispatch('inc');
+        assertEqual(document.querySelector('#reactive-test').textContent, '2');
+        app.unmount();
+      });
+
+      test('Bindings', 'binds computed values', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 5 } },
+          computed: {
+            doubled: { deps: ['count'], fn: { op: 'multiply', args: [{ ref: 'count' }, 2] } }
+          },
+          root: { type: 'div', props: { id: 'computed-test' }, children: [{ bind: 'doubled' }] }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#computed-test').textContent, '10');
+        app.unmount();
+      });
+
+      test('Bindings', 'binds nested object property', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { user: { type: 'object', initial: { name: 'Alice', age: 30 } } },
+          root: {
+            type: 'div', props: { id: 'nested-test' },
+            children: [{ bind: 'user.name' }, { text: ' - ' }, { bind: 'user.age' }]
+          }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#nested-test').textContent, 'Alice - 30');
+        app.unmount();
+      });
+
+      test('Bindings', 'binds prop reactively', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { active: { type: 'boolean', initial: false } },
+          actions: { toggle: { mutations: [{ target: 'active', op: 'toggle' }] } },
+          root: {
+            type: 'div',
+            props: { id: 'prop-bind', className: { op: 'if', args: [{ ref: 'active' }, 'active', 'inactive'] } }
+          }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#prop-bind');
+        assert(el.classList.contains('inactive'), 'Should have inactive class');
+        app.dispatch('toggle');
+        assert(el.classList.contains('active'), 'Should have active class after toggle');
+        app.unmount();
+      });
+    }
+
+    // ==================== CONDITIONAL TESTS ====================
+
+    async function runConditionalTests() {
+      cleanup();
+
+      test('Conditionals', 'renders then branch when true', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { show: { type: 'boolean', initial: true } },
+          root: {
+            type: 'div', props: { id: 'cond-container' },
+            children: [{
+              if: { ref: 'show' },
+              then: { type: 'span', props: { id: 'then-el' }, children: [{ text: 'Visible' }] }
+            }]
+          }
+        }, { container: '#test-app' });
+
+        assert(document.querySelector('#then-el') !== null, 'Then element should exist');
+        app.unmount();
+      });
+
+      test('Conditionals', 'renders else branch when false', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { show: { type: 'boolean', initial: false } },
+          root: {
+            type: 'div', props: { id: 'cond-container' },
+            children: [{
+              if: { ref: 'show' },
+              then: { type: 'span', props: { id: 'then-el' }, children: [{ text: 'Then' }] },
+              else: { type: 'span', props: { id: 'else-el' }, children: [{ text: 'Else' }] }
+            }]
+          }
+        }, { container: '#test-app' });
+
+        assert(document.querySelector('#then-el') === null, 'Then element should not exist');
+        assert(document.querySelector('#else-el') !== null, 'Else element should exist');
+        app.unmount();
+      });
+
+      test('Conditionals', 'updates on state change', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { show: { type: 'boolean', initial: true } },
+          actions: { toggle: { mutations: [{ target: 'show', op: 'toggle' }] } },
+          root: {
+            type: 'div', props: { id: 'reactive-cond' },
+            children: [{
+              if: { ref: 'show' },
+              then: { type: 'span', props: { id: 'shown' }, children: [{ text: 'Shown' }] },
+              else: { type: 'span', props: { id: 'hidden' }, children: [{ text: 'Hidden' }] }
+            }]
+          }
+        }, { container: '#test-app' });
+
+        assert(document.querySelector('#shown') !== null, 'Should show initially');
+        app.dispatch('toggle');
+        assert(document.querySelector('#shown') === null, 'Should hide after toggle');
+        assert(document.querySelector('#hidden') !== null, 'Should show else after toggle');
+        app.unmount();
+      });
+
+      test('Conditionals', 'works with comparison operators', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 5 } },
+          root: {
+            type: 'div', props: { id: 'cmp-cond' },
+            children: [{
+              if: { op: 'gt', args: [{ ref: 'count' }, 3] },
+              then: { type: 'span', children: [{ text: 'Big' }] },
+              else: { type: 'span', children: [{ text: 'Small' }] }
+            }]
+          }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#cmp-cond').textContent, 'Big');
+        app.unmount();
+      });
+    }
+
+    // ==================== LOOP TESTS ====================
+
+    async function runLoopTests() {
+      cleanup();
+
+      test('Loops', 'renders array items', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { items: { type: 'array', initial: ['A', 'B', 'C'] } },
+          root: {
+            type: 'ul', props: { id: 'list' },
+            each: { items: 'items', as: 'item' },
+            children: [{ type: 'li', children: [{ bind: 'item' }] }]
+          }
+        }, { container: '#test-app' });
+
+        const list = document.querySelector('#list');
+        assertEqual(list.children.length, 3);
+        assertEqual(list.children[0].textContent, 'A');
+        assertEqual(list.children[1].textContent, 'B');
+        assertEqual(list.children[2].textContent, 'C');
+        app.unmount();
+      });
+
+      test('Loops', 'updates when array changes', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { items: { type: 'array', initial: ['A'] } },
+          actions: { add: { mutations: [{ target: 'items', op: 'push', value: 'B' }] } },
+          root: {
+            type: 'ul', props: { id: 'dynamic-list' },
+            each: { items: 'items', as: 'item' },
+            children: [{ type: 'li', children: [{ bind: 'item' }] }]
+          }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#dynamic-list').children.length, 1);
+        app.dispatch('add');
+        assertEqual(document.querySelector('#dynamic-list').children.length, 2);
+        app.unmount();
+      });
+
+      test('Loops', 'provides index variable', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { items: { type: 'array', initial: ['X', 'Y', 'Z'] } },
+          root: {
+            type: 'ul', props: { id: 'index-list' },
+            each: { items: 'items', as: 'item', index: 'i' },
+            children: [{ type: 'li', children: [{ bind: 'i' }, { text: ': ' }, { bind: 'item' }] }]
+          }
+        }, { container: '#test-app' });
+
+        const list = document.querySelector('#index-list');
+        assertEqual(list.children[0].textContent, '0: X');
+        assertEqual(list.children[1].textContent, '1: Y');
+        assertEqual(list.children[2].textContent, '2: Z');
+        app.unmount();
+      });
+
+      test('Loops', 'handles object items', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { users: { type: 'array', initial: [{ name: 'Alice' }, { name: 'Bob' }] } },
+          root: {
+            type: 'ul', props: { id: 'obj-list' },
+            each: { items: 'users', as: 'user' },
+            children: [{ type: 'li', children: [{ bind: 'user.name' }] }]
+          }
+        }, { container: '#test-app' });
+
+        const list = document.querySelector('#obj-list');
+        assertEqual(list.children[0].textContent, 'Alice');
+        assertEqual(list.children[1].textContent, 'Bob');
+        app.unmount();
+      });
+
+      test('Loops', 'handles empty array', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { items: { type: 'array', initial: [] } },
+          root: {
+            type: 'ul', props: { id: 'empty-list' },
+            each: { items: 'items', as: 'item' },
+            children: [{ type: 'li', children: [{ bind: 'item' }] }]
+          }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#empty-list').children.length, 0);
+        app.unmount();
+      });
+    }
+
+    // ==================== LIFECYCLE TESTS ====================
+
+    async function runLifecycleTests() {
+      cleanup();
+
+      await testAsync('Lifecycle', 'mount effect runs after render', async () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { mounted: { type: 'boolean', initial: false } },
+          effects: [{ id: 'mount-effect', trigger: 'mount', do: { action: 'setMounted' } }],
+          actions: { setMounted: { mutations: [{ target: 'mounted', op: 'set', value: true }] } },
+          root: { type: 'div', props: { id: 'mount-test' }, children: [{ bind: 'mounted' }] }
+        }, { container: '#test-app' });
+
+        await new Promise(r => setTimeout(r, 50));
+        assertEqual(app.getState().mounted, true, 'Mount effect should have run');
+        app.unmount();
+      });
+
+      await testAsync('Lifecycle', 'interval effect runs periodically', async () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 0 } },
+          effects: [{ id: 'interval-effect', trigger: 'interval', interval: 30, do: { action: 'increment' } }],
+          actions: { increment: { mutations: [{ target: 'count', op: 'add', value: 1 }] } },
+          root: { type: 'div', props: { id: 'interval-test' }, children: [{ bind: 'count' }] }
+        }, { container: '#test-app' });
+
+        await new Promise(r => setTimeout(r, 100));
+        assert(app.getState().count >= 2, `Interval should run multiple times, got ${app.getState().count}`);
+        app.unmount();
+      });
+
+      await testAsync('Lifecycle', 'timeout effect runs once', async () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { triggered: { type: 'boolean', initial: false } },
+          effects: [{ id: 'timeout-effect', trigger: 'timeout', timeout: 30, do: { action: 'trigger' } }],
+          actions: { trigger: { mutations: [{ target: 'triggered', op: 'set', value: true }] } },
+          root: { type: 'div', children: [{ bind: 'triggered' }] }
+        }, { container: '#test-app' });
+
+        assertEqual(app.getState().triggered, false, 'Should not be triggered initially');
+        await new Promise(r => setTimeout(r, 60));
+        assertEqual(app.getState().triggered, true, 'Should be triggered after timeout');
+        app.unmount();
+      });
+
+      await testAsync('Lifecycle', 'watch effect runs on state change', async () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { source: { type: 'number', initial: 0 }, derived: { type: 'number', initial: 0 } },
+          effects: [{ id: 'watch-effect', watch: ['source'], do: { action: 'updateDerived' } }],
+          actions: {
+            increment: { mutations: [{ target: 'source', op: 'add', value: 1 }] },
+            updateDerived: { mutations: [{ target: 'derived', op: 'set', value: { op: 'multiply', args: [{ ref: 'source' }, 2] } }] }
+          },
+          root: { type: 'div', children: [{ bind: 'derived' }] }
+        }, { container: '#test-app' });
+
+        assertEqual(app.getState().derived, 0, 'Initial derived should be 0');
+        app.dispatch('increment');
+        await new Promise(r => setTimeout(r, 10));
+        assertEqual(app.getState().derived, 2, 'Derived should be 2 after source becomes 1');
+        app.unmount();
+      });
+    }
+
+    // ==================== REF TESTS ====================
+
+    async function runRefTests() {
+      cleanup();
+
+      test('Refs', 'registers element ref', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'input', props: { id: 'input-ref', ref: 'myInput', type: 'text' } }
+        }, { container: '#test-app' });
+
+        assert(app.refs.get('myInput') !== undefined, 'Ref should be registered');
+        assertEqual(app.refs.get('myInput').id, 'input-ref');
+        app.unmount();
+      });
+
+      test('Refs', 'refGetValue returns input value', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'input', props: { ref: 'testInput', type: 'text', value: 'hello' } }
+        }, { container: '#test-app' });
+
+        assertEqual(app.refs.getValue('testInput'), 'hello');
+        app.unmount();
+      });
+
+      test('Refs', 'refSetValue updates input', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'input', props: { id: 'set-input', ref: 'testInput', type: 'text' } }
+        }, { container: '#test-app' });
+
+        app.refs.setValue('testInput', 'new value');
+        assertEqual(document.querySelector('#set-input').value, 'new value');
+        app.unmount();
+      });
+
+      await testAsync('Refs', 'refFocus focuses element', async () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'input', props: { id: 'focus-input', ref: 'focusInput', type: 'text' } }
+        }, { container: '#test-app' });
+
+        document.getElementById('test-app').style.display = 'block';
+        app.refs.focus('focusInput');
+        await new Promise(r => setTimeout(r, 10));
+        assertEqual(document.activeElement.id, 'focus-input');
+        document.getElementById('test-app').style.display = 'none';
+        app.unmount();
+      });
+
+      test('Refs', 'refAddClass/RemoveClass work', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { id: 'class-div', ref: 'classDiv' } }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#class-div');
+        app.refs.addClass('classDiv', 'test-class');
+        assert(el.classList.contains('test-class'), 'Should have class after add');
+        app.refs.removeClass('classDiv', 'test-class');
+        assert(!el.classList.contains('test-class'), 'Should not have class after remove');
+        app.unmount();
+      });
+
+      test('Refs', 'refToggleClass toggles', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { id: 'toggle-div', ref: 'toggleDiv' } }
+        }, { container: '#test-app' });
+
+        const el = document.querySelector('#toggle-div');
+        app.refs.toggleClass('toggleDiv', 'toggled');
+        assert(el.classList.contains('toggled'), 'Should have class after first toggle');
+        app.refs.toggleClass('toggleDiv', 'toggled');
+        assert(!el.classList.contains('toggled'), 'Should not have class after second toggle');
+        app.unmount();
+      });
+
+      test('Refs', 'refGetBoundingRect returns dimensions', () => {
+        cleanup();
+        document.getElementById('test-app').style.display = 'block';
+
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: { type: 'div', props: { ref: 'rectDiv', style: 'width: 100px; height: 50px' } }
+        }, { container: '#test-app' });
+
+        const rect = app.refs.getBoundingRect('rectDiv');
+        assert(rect !== null, 'Should return rect');
+        assert(typeof rect.width === 'number', 'Width should be number');
+        assert(typeof rect.height === 'number', 'Height should be number');
+
+        document.getElementById('test-app').style.display = 'none';
+        app.unmount();
+      });
+    }
+
+    // ==================== PORTAL TESTS ====================
+
+    async function runPortalTests() {
+      cleanup();
+      document.getElementById('portal-target').style.display = 'block';
+
+      test('Portals', 'renders children to portal target', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: {
+            type: 'div',
+            children: [
+              { text: 'Main content' },
+              {
+                portal: {
+                  target: '#portal-target',
+                  children: [{ type: 'div', props: { id: 'portal-content' }, children: [{ text: 'Portal content' }] }]
+                }
+              }
+            ]
+          }
+        }, { container: '#test-app' });
+
+        const portalContent = document.querySelector('#portal-content');
+        assert(portalContent !== null, 'Portal content should exist');
+        assertEqual(portalContent.parentElement.id, 'portal-target', 'Should be in portal target');
+        app.unmount();
+      });
+
+      test('Portals', 'portal content updates reactively', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { msg: { type: 'string', initial: 'Hello' } },
+          actions: { change: { mutations: [{ target: 'msg', op: 'set', value: 'World' }] } },
+          root: {
+            type: 'div',
+            children: [{
+              portal: {
+                target: '#portal-target',
+                children: [{ type: 'div', props: { id: 'reactive-portal' }, children: [{ bind: 'msg' }] }]
+              }
+            }]
+          }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#reactive-portal').textContent, 'Hello');
+        app.dispatch('change');
+        assertEqual(document.querySelector('#reactive-portal').textContent, 'World');
+        app.unmount();
+      });
+
+      document.getElementById('portal-target').style.display = 'none';
+    }
+
+    // ==================== FRAGMENT TESTS ====================
+
+    async function runFragmentTests() {
+      cleanup();
+
+      test('Fragments', 'renders multiple elements without wrapper', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          root: {
+            type: 'div', props: { id: 'frag-container' },
+            children: [{
+              fragment: [
+                { type: 'span', props: { id: 'frag-1' }, children: [{ text: 'First' }] },
+                { type: 'span', props: { id: 'frag-2' }, children: [{ text: 'Second' }] },
+                { type: 'span', props: { id: 'frag-3' }, children: [{ text: 'Third' }] }
+              ]
+            }]
+          }
+        }, { container: '#test-app' });
+
+        const container = document.querySelector('#frag-container');
+        assertEqual(container.children.length, 3);
+        assert(document.querySelector('#frag-1') !== null);
+        assert(document.querySelector('#frag-2') !== null);
+        assert(document.querySelector('#frag-3') !== null);
+        app.unmount();
+      });
+
+      test('Fragments', 'fragment children update reactively', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { val: { type: 'string', initial: 'A' } },
+          actions: { change: { mutations: [{ target: 'val', op: 'set', value: 'B' }] } },
+          root: {
+            type: 'div', props: { id: 'frag-reactive' },
+            children: [{
+              fragment: [
+                { type: 'span', props: { id: 'frag-val' }, children: [{ bind: 'val' }] }
+              ]
+            }]
+          }
+        }, { container: '#test-app' });
+
+        assertEqual(document.querySelector('#frag-val').textContent, 'A');
+        app.dispatch('change');
+        assertEqual(document.querySelector('#frag-val').textContent, 'B');
+        app.unmount();
+      });
+    }
+
+    // ==================== HYDRATION TESTS ====================
+
+    async function runHydrationTests() {
+      cleanup();
+      document.getElementById('test-hydration').style.display = 'block';
+
+      test('Hydration', 'attaches click events to existing DOM', () => {
+        document.getElementById('test-hydration').innerHTML = '<button id="hydrate-btn">0</button>';
+
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 0 } },
+          actions: { inc: { mutations: [{ target: 'count', op: 'add', value: 1 }] } },
+          root: {
+            type: 'button', props: { id: 'hydrate-btn' },
+            events: { click: { action: 'inc' } },
+            children: [{ bind: 'count' }]
+          }
+        }, { container: '#test-hydration', hydrate: true });
+
+        const btn = document.querySelector('#hydrate-btn');
+        btn.click();
+        assertEqual(btn.textContent, '1', 'Click should increment count');
+        btn.click();
+        assertEqual(btn.textContent, '2', 'Second click should increment again');
+        app.unmount();
+      });
+
+      test('Hydration', 'restores state from window.__DDJEX_STATE__', () => {
+        cleanup();
+        document.getElementById('test-hydration').innerHTML = '<div id="hydrate-state">5</div>';
+
+        window.__DDJEX_STATE__ = { count: 5 };
+
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 0 } },
+          root: {
+            type: 'div', props: { id: 'hydrate-state' },
+            children: [{ bind: 'count' }]
+          }
+        }, { container: '#test-hydration', hydrate: true });
+
+        assertEqual(app.getState().count, 5, 'State should be restored from window');
+        delete window.__DDJEX_STATE__;
+        app.unmount();
+      });
+
+      test('Hydration', 'binds reactive updates to existing elements', () => {
+        cleanup();
+        document.getElementById('test-hydration').innerHTML = '<div id="hydrate-reactive"><span>0</span></div>';
+
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { value: { type: 'number', initial: 0 } },
+          actions: { set: { params: ['v'], mutations: [{ target: 'value', op: 'set', value: { param: 'v' } }] } },
+          root: {
+            type: 'div', props: { id: 'hydrate-reactive' },
+            children: [{ type: 'span', children: [{ bind: 'value' }] }]
+          }
+        }, { container: '#test-hydration', hydrate: true });
+
+        app.dispatch('set', 42);
+        const span = document.querySelector('#hydrate-reactive span');
+        assertEqual(span.textContent, '42', 'Span should update reactively');
+        app.unmount();
+      });
+
+      test('Hydration', 'hydrates loops correctly', () => {
+        cleanup();
+        document.getElementById('test-hydration').innerHTML = '<ul id="hydrate-list"><li>A</li><li>B</li></ul>';
+
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { items: { type: 'array', initial: ['A', 'B'] } },
+          actions: { add: { mutations: [{ target: 'items', op: 'push', value: 'C' }] } },
+          root: {
+            type: 'ul', props: { id: 'hydrate-list' },
+            each: { items: 'items', as: 'item' },
+            children: [{ type: 'li', children: [{ bind: 'item' }] }]
+          }
+        }, { container: '#test-hydration', hydrate: true });
+
+        const list = document.querySelector('#hydrate-list');
+        assertEqual(list.children.length, 2, 'Should have 2 initial items');
+        app.dispatch('add');
+        assertEqual(list.children.length, 3, 'Should have 3 items after add');
+        assertEqual(list.children[2].textContent, 'C', 'New item should be C');
+        app.unmount();
+      });
+
+      test('Hydration', 'handles input events after hydration', () => {
+        cleanup();
+        document.getElementById('test-hydration').innerHTML = '<div><input id="hydrate-input" type="text" /><span id="hydrate-output"></span></div>';
+
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { text: { type: 'string', initial: '' } },
+          actions: { setText: { params: ['val'], mutations: [{ target: 'text', op: 'set', value: { param: 'val' } }] } },
+          root: {
+            type: 'div',
+            children: [
+              {
+                type: 'input', props: { id: 'hydrate-input', type: 'text' },
+                events: { input: { action: 'setText', args: [{ op: 'eventValue' }] } }
+              },
+              { type: 'span', props: { id: 'hydrate-output' }, children: [{ bind: 'text' }] }
+            ]
+          }
+        }, { container: '#test-hydration', hydrate: true });
+
+        const input = document.querySelector('#hydrate-input');
+        const output = document.querySelector('#hydrate-output');
+        input.value = 'hydrated';
+        input.dispatchEvent(new Event('input'));
+        assertEqual(output.textContent, 'hydrated', 'Output should update from input');
+        app.unmount();
+      });
+
+      document.getElementById('test-hydration').style.display = 'none';
+    }
+
+    // ==================== EVENT TESTS ====================
+
+    async function runEventTests() {
+      cleanup();
+
+      test('Events', 'click event triggers action', () => {
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { count: { type: 'number', initial: 0 } },
+          actions: { inc: { mutations: [{ target: 'count', op: 'add', value: 1 }] } },
+          root: {
+            type: 'button', props: { id: 'click-btn' },
+            events: { click: { action: 'inc' } },
+            children: [{ bind: 'count' }]
+          }
+        }, { container: '#test-app' });
+
+        const btn = document.querySelector('#click-btn');
+        assertEqual(btn.textContent, '0');
+        btn.click();
+        assertEqual(btn.textContent, '1');
+        btn.click();
+        assertEqual(btn.textContent, '2');
+        app.unmount();
+      });
+
+      test('Events', 'input event updates state', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { text: { type: 'string', initial: '' } },
+          actions: { setText: { params: ['val'], mutations: [{ target: 'text', op: 'set', value: { param: 'val' } }] } },
+          root: {
+            type: 'div',
+            children: [
+              {
+                type: 'input', props: { id: 'text-input', type: 'text' },
+                events: { input: { action: 'setText', args: [{ op: 'eventValue' }] } }
+              },
+              { type: 'span', props: { id: 'text-display' }, children: [{ bind: 'text' }] }
+            ]
+          }
+        }, { container: '#test-app' });
+
+        const input = document.querySelector('#text-input');
+        input.value = 'hello';
+        input.dispatchEvent(new Event('input'));
+        assertEqual(document.querySelector('#text-display').textContent, 'hello');
+        app.unmount();
+      });
+
+      test('Events', 'event with args passes parameters', () => {
+        cleanup();
+        const app = DDJEX.run({
+          $ddjex: '0.1.0', id: 'test', target: 'dom',
+          state: { value: { type: 'number', initial: 0 } },
+          actions: { set: { params: ['n'], mutations: [{ target: 'value', op: 'set', value: { param: 'n' } }] } },
+          root: {
+            type: 'div', props: { id: 'arg-container' },
+            children: [
+              { type: 'button', props: { id: 'btn-5' }, events: { click: { action: 'set', args: [5] } }, children: [{ text: 'Set 5' }] },
+              { type: 'button', props: { id: 'btn-10' }, events: { click: { action: 'set', args: [10] } }, children: [{ text: 'Set 10' }] },
+              { type: 'span', props: { id: 'arg-display' }, children: [{ bind: 'value' }] }
+            ]
+          }
+        }, { container: '#test-app' });
+
+        document.querySelector('#btn-5').click();
+        assertEqual(document.querySelector('#arg-display').textContent, '5');
+        document.querySelector('#btn-10').click();
+        assertEqual(document.querySelector('#arg-display').textContent, '10');
+        app.unmount();
+      });
+    }
+
+    // Run tests
+    runAllTests();
+  </script>
+</body>
+</html>

@@ -1,0 +1,289 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "animation_demo",
+  "target": "dom",
+
+  "state": {
+    "showModal": { "type": "boolean", "initial": false },
+    "items": { "type": "array", "initial": ["Item 1", "Item 2", "Item 3"] },
+    "counter": { "type": "number", "initial": 0 },
+    "newItem": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "counterScale": {
+      "deps": ["counter"],
+      "fn": { "op": "add", "args": [1, { "op": "multiply", "args": [{ "ref": "counter" }, 0.1] }] }
+    }
+  },
+
+  "actions": {
+    "toggleModal": {
+      "mutations": [
+        { "target": "showModal", "op": "toggle" }
+      ]
+    },
+    "increment": {
+      "mutations": [
+        { "target": "counter", "op": "add", "value": 1 }
+      ]
+    },
+    "decrement": {
+      "mutations": [
+        { "target": "counter", "op": "subtract", "value": 1 }
+      ]
+    },
+    "addItem": {
+      "mutations": [
+        { "target": "items", "op": "push", "value": { "ref": "newItem" } },
+        { "target": "newItem", "op": "set", "value": "" }
+      ]
+    },
+    "removeItem": {
+      "params": ["index"],
+      "mutations": [
+        { "target": "items", "op": "set", "value": {
+          "op": "filter",
+          "args": [{ "ref": "items" }, { "op": "neq", "args": [{ "param": "index" }, { "ref": "index" }] }]
+        }}
+      ]
+    },
+    "setNewItem": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "newItem", "op": "set", "value": { "param": "value" } }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "animation-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Animation Demo" }]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "section" },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "1. Enter/Exit Transitions" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "toggleModal" } },
+            "children": [{ "text": "Toggle Modal" }]
+          },
+          {
+            "transition": {
+              "show": { "ref": "showModal" },
+              "enter": {
+                "from": { "opacity": 0, "transform": "scale(0.9) translateY(-20px)" },
+                "to": { "opacity": 1, "transform": "scale(1) translateY(0)" },
+                "duration": 300,
+                "easing": "ease-out"
+              },
+              "exit": {
+                "from": { "opacity": 1, "transform": "scale(1) translateY(0)" },
+                "to": { "opacity": 0, "transform": "scale(0.9) translateY(-20px)" },
+                "duration": 200,
+                "easing": "ease-in"
+              },
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "className": "modal",
+                    "style": {
+                      "padding": "20px",
+                      "background": "#fff",
+                      "border": "1px solid #ccc",
+                      "borderRadius": "8px",
+                      "boxShadow": "0 4px 12px rgba(0,0,0,0.15)",
+                      "marginTop": "10px"
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "h3",
+                      "children": [{ "text": "Modal Content" }]
+                    },
+                    {
+                      "type": "p",
+                      "children": [{ "text": "This modal animates in and out!" }]
+                    },
+                    {
+                      "type": "button",
+                      "events": { "click": { "action": "toggleModal" } },
+                      "children": [{ "text": "Close" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "section", "style": { "marginTop": "30px" } },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "2. Value-Based Animation" }]
+          },
+          {
+            "type": "div",
+            "props": { "className": "counter-controls" },
+            "children": [
+              {
+                "type": "button",
+                "events": { "click": { "action": "decrement" } },
+                "children": [{ "text": "-" }]
+              },
+              {
+                "type": "span",
+                "props": { "style": { "margin": "0 15px", "fontSize": "24px" } },
+                "children": [{ "bind": "counter" }]
+              },
+              {
+                "type": "button",
+                "events": { "click": { "action": "increment" } },
+                "children": [{ "text": "+" }]
+              }
+            ]
+          },
+          {
+            "animated": {
+              "value": { "ref": "counter" },
+              "style": {
+                "transform": { "op": "scale", "args": [{ "ref": "counterScale" }] }
+              },
+              "config": {
+                "spring": { "stiffness": 200, "damping": 15 }
+              },
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "style": {
+                      "width": "100px",
+                      "height": "100px",
+                      "background": "#3498db",
+                      "borderRadius": "10px",
+                      "display": "flex",
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "color": "white",
+                      "fontSize": "24px",
+                      "marginTop": "20px"
+                    }
+                  },
+                  "children": [{ "bind": "counter" }]
+                }
+              ]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "section", "style": { "marginTop": "30px" } },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "3. List Transitions" }]
+          },
+          {
+            "type": "div",
+            "props": { "className": "add-item", "style": { "marginBottom": "15px" } },
+            "children": [
+              {
+                "type": "input",
+                "props": { "type": "text", "placeholder": "New item...", "value": { "ref": "newItem" } },
+                "events": { "input": { "action": "setNewItem", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "button",
+                "events": { "click": { "action": "addItem" } },
+                "children": [{ "text": "Add Item" }]
+              }
+            ]
+          },
+          {
+            "transitionGroup": {
+              "items": "items",
+              "as": "item",
+              "key": { "ref": "item" },
+              "enter": {
+                "from": { "opacity": 0, "transform": "translateX(-20px)" },
+                "to": { "opacity": 1, "transform": "translateX(0)" },
+                "duration": 300,
+                "easing": "ease-out"
+              },
+              "exit": {
+                "from": { "opacity": 1, "transform": "translateX(0)" },
+                "to": { "opacity": 0, "transform": "translateX(20px)" },
+                "duration": 200,
+                "easing": "ease-in"
+              },
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "style": {
+                      "padding": "10px",
+                      "margin": "5px 0",
+                      "background": "#f0f0f0",
+                      "borderRadius": "5px",
+                      "display": "flex",
+                      "justifyContent": "space-between",
+                      "alignItems": "center"
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "span",
+                      "children": [{ "bind": "item" }]
+                    },
+                    {
+                      "type": "button",
+                      "props": { "style": { "marginLeft": "10px" } },
+                      "events": { "click": { "action": "removeItem", "args": [{ "ref": "$index" }] } },
+                      "children": [{ "text": "Remove" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "props": { "className": "section", "style": { "marginTop": "30px" } },
+        "children": [
+          {
+            "type": "h2",
+            "children": [{ "text": "4. Spring Physics" }]
+          },
+          {
+            "type": "p",
+            "children": [{ "text": "The counter box above uses spring physics for natural motion." }]
+          },
+          {
+            "type": "p",
+            "children": [{ "text": "Spring config: stiffness=200, damping=15" }]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,335 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-search-filter",
+  "target": "dom",
+
+  "state": {
+    "products": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "name": "Laptop", "category": "electronics", "price": 999, "inStock": true },
+        { "id": 2, "name": "Headphones", "category": "electronics", "price": 199, "inStock": true },
+        { "id": 3, "name": "T-Shirt", "category": "clothing", "price": 29, "inStock": true },
+        { "id": 4, "name": "Jeans", "category": "clothing", "price": 79, "inStock": false },
+        { "id": 5, "name": "Coffee Maker", "category": "home", "price": 89, "inStock": true },
+        { "id": 6, "name": "Desk Lamp", "category": "home", "price": 45, "inStock": true },
+        { "id": 7, "name": "Smartphone", "category": "electronics", "price": 799, "inStock": false },
+        { "id": 8, "name": "Sneakers", "category": "clothing", "price": 120, "inStock": true }
+      ]
+    },
+    "searchQuery": { "type": "string", "initial": "" },
+    "categoryFilter": { "type": "string", "initial": "all" },
+    "stockFilter": { "type": "string", "initial": "all" },
+    "sortBy": { "type": "string", "initial": "name" },
+    "sortDir": { "type": "string", "initial": "asc" }
+  },
+
+  "computed": {
+    "categories": {
+      "deps": ["products"],
+      "fn": { "op": "unique", "args": [{ "op": "map", "args": [{ "ref": "products" }, { "op": "get", "args": [{ "ref": "$item" }, "category"] }] }] }
+    },
+    "filteredProducts": {
+      "deps": ["products", "searchQuery", "categoryFilter", "stockFilter", "sortBy", "sortDir"],
+      "fn": {
+        "op": "sort",
+        "args": [
+          {
+            "op": "filter",
+            "args": [
+              { "ref": "products" },
+              {
+                "op": "and",
+                "args": [
+                  {
+                    "op": "or",
+                    "args": [
+                      { "op": "isEmpty", "args": [{ "ref": "searchQuery" }] },
+                      { "op": "includes", "args": [{ "op": "toLowerCase", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "name"] }] }, { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }] }
+                    ]
+                  },
+                  {
+                    "op": "or",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "categoryFilter" }, "all"] },
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "category"] }, { "ref": "categoryFilter" }] }
+                    ]
+                  },
+                  {
+                    "op": "or",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "stockFilter" }, "all"] },
+                      { "op": "and", "args": [{ "op": "eq", "args": [{ "ref": "stockFilter" }, "inStock"] }, { "op": "get", "args": [{ "ref": "$item" }, "inStock"] }] },
+                      { "op": "and", "args": [{ "op": "eq", "args": [{ "ref": "stockFilter" }, "outOfStock"] }, { "op": "not", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "inStock"] }] }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          { "ref": "sortBy" },
+          { "ref": "sortDir" }
+        ]
+      }
+    },
+    "resultCount": {
+      "deps": ["filteredProducts"],
+      "fn": { "op": "length", "args": [{ "ref": "filteredProducts" }] }
+    }
+  },
+
+  "actions": {
+    "setSearch": {
+      "params": ["value"],
+      "mutations": [{ "target": "searchQuery", "op": "set", "value": { "param": "value" } }]
+    },
+    "setCategory": {
+      "params": ["value"],
+      "mutations": [{ "target": "categoryFilter", "op": "set", "value": { "param": "value" } }]
+    },
+    "setStock": {
+      "params": ["value"],
+      "mutations": [{ "target": "stockFilter", "op": "set", "value": { "param": "value" } }]
+    },
+    "setSort": {
+      "params": ["field"],
+      "mutations": [
+        { "target": "sortBy", "op": "set", "value": { "param": "field" } }
+      ]
+    },
+    "toggleSortDir": {
+      "mutations": [
+        {
+          "target": "sortDir",
+          "op": "set",
+          "value": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "sortDir" }, "asc"] }, "desc", "asc"] }
+        }
+      ]
+    },
+    "clearFilters": {
+      "mutations": [
+        { "target": "searchQuery", "op": "set", "value": "" },
+        { "target": "categoryFilter", "op": "set", "value": "all" },
+        { "target": "stockFilter", "op": "set", "value": "all" }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8 max-w-4xl mx-auto" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-6" }, "children": [{ "text": "Product Search & Filter" }] },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-4 mb-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "grid grid-cols-1 md:grid-cols-4 gap-4" },
+            "children": [
+              {
+                "type": "div",
+                "children": [
+                  { "type": "label", "props": { "className": "block text-sm font-medium text-gray-700 mb-1" }, "children": [{ "text": "Search" }] },
+                  {
+                    "type": "input",
+                    "props": {
+                      "type": "text",
+                      "placeholder": "Search products...",
+                      "className": "w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500",
+                      "value": { "ref": "searchQuery" }
+                    },
+                    "events": { "input": { "action": "setSearch", "args": [{ "op": "eventValue" }] } }
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "children": [
+                  { "type": "label", "props": { "className": "block text-sm font-medium text-gray-700 mb-1" }, "children": [{ "text": "Category" }] },
+                  {
+                    "type": "select",
+                    "props": { "className": "w-full px-3 py-2 border rounded", "value": { "ref": "categoryFilter" } },
+                    "events": { "change": { "action": "setCategory", "args": [{ "op": "eventValue" }] } },
+                    "children": [
+                      { "type": "option", "props": { "value": "all" }, "children": [{ "text": "All Categories" }] },
+                      { "type": "option", "props": { "value": "electronics" }, "children": [{ "text": "Electronics" }] },
+                      { "type": "option", "props": { "value": "clothing" }, "children": [{ "text": "Clothing" }] },
+                      { "type": "option", "props": { "value": "home" }, "children": [{ "text": "Home" }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "children": [
+                  { "type": "label", "props": { "className": "block text-sm font-medium text-gray-700 mb-1" }, "children": [{ "text": "Availability" }] },
+                  {
+                    "type": "select",
+                    "props": { "className": "w-full px-3 py-2 border rounded", "value": { "ref": "stockFilter" } },
+                    "events": { "change": { "action": "setStock", "args": [{ "op": "eventValue" }] } },
+                    "children": [
+                      { "type": "option", "props": { "value": "all" }, "children": [{ "text": "All" }] },
+                      { "type": "option", "props": { "value": "inStock" }, "children": [{ "text": "In Stock" }] },
+                      { "type": "option", "props": { "value": "outOfStock" }, "children": [{ "text": "Out of Stock" }] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "flex items-end" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "className": "w-full px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300" },
+                    "events": { "click": { "action": "clearFilters" } },
+                    "children": [{ "text": "Clear Filters" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mb-4" },
+        "children": [
+          {
+            "type": "span",
+            "props": { "className": "text-gray-600" },
+            "children": [{ "bind": "resultCount" }, { "text": " products found" }]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex items-center gap-2" },
+            "children": [
+              { "type": "span", "props": { "className": "text-sm text-gray-600" }, "children": [{ "text": "Sort by:" }] },
+              {
+                "type": "select",
+                "props": { "className": "px-2 py-1 border rounded text-sm", "value": { "ref": "sortBy" } },
+                "events": { "change": { "action": "setSort", "args": [{ "op": "eventValue" }] } },
+                "children": [
+                  { "type": "option", "props": { "value": "name" }, "children": [{ "text": "Name" }] },
+                  { "type": "option", "props": { "value": "price" }, "children": [{ "text": "Price" }] }
+                ]
+              },
+              {
+                "type": "button",
+                "props": { "className": "px-2 py-1 border rounded text-sm hover:bg-gray-100" },
+                "events": { "click": { "action": "toggleSortDir" } },
+                "children": [
+                  { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "sortDir" }, "asc"] }, "↑ Asc", "↓ Desc"] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" },
+        "each": { "items": "filteredProducts", "as": "product", "key": { "op": "get", "args": [{ "ref": "product" }, "id"] } },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex justify-between items-start mb-2" },
+                "children": [
+                  { "type": "h3", "props": { "className": "font-semibold text-lg" }, "children": [{ "bind": "product.name" }] },
+                  {
+                    "type": "span",
+                    "props": {
+                      "className": {
+                        "op": "if",
+                        "args": [
+                          { "op": "get", "args": [{ "ref": "product" }, "inStock"] },
+                          "text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full",
+                          "text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full"
+                        ]
+                      }
+                    },
+                    "children": [
+                      { "op": "if", "args": [{ "op": "get", "args": [{ "ref": "product" }, "inStock"] }, "In Stock", "Out of Stock"] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "p",
+                "props": { "className": "text-gray-500 text-sm capitalize mb-2" },
+                "children": [{ "bind": "product.category" }]
+              },
+              {
+                "type": "p",
+                "props": { "className": "text-xl font-bold text-blue-600" },
+                "children": [{ "text": "$" }, { "bind": "product.price" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "op": "eq", "args": [{ "ref": "resultCount" }, 0] },
+        "then": {
+          "type": "div",
+          "props": { "className": "text-center py-12 text-gray-500" },
+          "children": [
+            { "type": "p", "props": { "className": "text-lg" }, "children": [{ "text": "No products found" }] },
+            { "type": "p", "props": { "className": "text-sm" }, "children": [{ "text": "Try adjusting your search or filters" }] }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-all",
+      "name": "Shows all products initially",
+      "steps": [
+        { "assert": { "ref": "resultCount", "eq": 8 } }
+      ]
+    },
+    {
+      "id": "test-search",
+      "name": "Search filters products",
+      "steps": [
+        { "dispatch": "setSearch", "args": ["laptop"] },
+        { "assert": { "ref": "resultCount", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-category-filter",
+      "name": "Category filter works",
+      "steps": [
+        { "dispatch": "setCategory", "args": ["electronics"] },
+        { "assert": { "ref": "resultCount", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-stock-filter",
+      "name": "Stock filter works",
+      "steps": [
+        { "dispatch": "setStock", "args": ["outOfStock"] },
+        { "assert": { "ref": "resultCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-clear-filters",
+      "name": "Clear filters resets all",
+      "steps": [
+        { "dispatch": "setSearch", "args": ["test"] },
+        { "dispatch": "setCategory", "args": ["electronics"] },
+        { "dispatch": "clearFilters" },
+        { "assert": { "ref": "searchQuery", "eq": "" } },
+        { "assert": { "ref": "categoryFilter", "eq": "all" } }
+      ]
+    }
+  ]
+}

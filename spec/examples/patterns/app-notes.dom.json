@@ -1,0 +1,383 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-notes",
+  "target": "dom",
+
+  "state": {
+    "notes": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "title": "Welcome", "content": "Welcome to Notes app!", "createdAt": 1704067200000, "color": "yellow" },
+        { "id": 2, "title": "Shopping List", "content": "Milk, Bread, Eggs", "createdAt": 1704153600000, "color": "green" }
+      ]
+    },
+    "selectedId": { "type": "number", "initial": null, "nullable": true },
+    "editTitle": { "type": "string", "initial": "" },
+    "editContent": { "type": "string", "initial": "" },
+    "editColor": { "type": "string", "initial": "yellow" },
+    "searchQuery": { "type": "string", "initial": "" },
+    "nextId": { "type": "number", "initial": 3 }
+  },
+
+  "computed": {
+    "filteredNotes": {
+      "deps": ["notes", "searchQuery"],
+      "fn": {
+        "op": "filter",
+        "args": [
+          { "ref": "notes" },
+          {
+            "op": "or",
+            "args": [
+              { "op": "isEmpty", "args": [{ "ref": "searchQuery" }] },
+              { "op": "includes", "args": [
+                { "op": "toLowerCase", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "title"] }] },
+                { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }
+              ]},
+              { "op": "includes", "args": [
+                { "op": "toLowerCase", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "content"] }] },
+                { "op": "toLowerCase", "args": [{ "ref": "searchQuery" }] }
+              ]}
+            ]
+          }
+        ]
+      }
+    },
+    "selectedNote": {
+      "deps": ["notes", "selectedId"],
+      "fn": {
+        "op": "find",
+        "args": [
+          { "ref": "notes" },
+          { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "ref": "selectedId" }] }
+        ]
+      }
+    },
+    "isEditing": {
+      "deps": ["selectedId"],
+      "fn": { "op": "isDefined", "args": [{ "ref": "selectedId" }] }
+    },
+    "noteCount": {
+      "deps": ["notes"],
+      "fn": { "op": "length", "args": [{ "ref": "notes" }] }
+    }
+  },
+
+  "actions": {
+    "newNote": {
+      "mutations": [
+        { "target": "selectedId", "op": "set", "value": null },
+        { "target": "editTitle", "op": "set", "value": "" },
+        { "target": "editContent", "op": "set", "value": "" },
+        { "target": "editColor", "op": "set", "value": "yellow" }
+      ]
+    },
+    "selectNote": {
+      "params": ["id"],
+      "mutations": [
+        { "target": "selectedId", "op": "set", "value": { "param": "id" } }
+      ]
+    },
+    "setEditTitle": {
+      "params": ["value"],
+      "mutations": [{ "target": "editTitle", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEditContent": {
+      "params": ["value"],
+      "mutations": [{ "target": "editContent", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEditColor": {
+      "params": ["value"],
+      "mutations": [{ "target": "editColor", "op": "set", "value": { "param": "value" } }]
+    },
+    "setSearch": {
+      "params": ["value"],
+      "mutations": [{ "target": "searchQuery", "op": "set", "value": { "param": "value" } }]
+    },
+    "saveNote": {
+      "mutations": [
+        {
+          "target": "notes",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "ref": "selectedId" },
+              {
+                "op": "map",
+                "args": [
+                  { "ref": "notes" },
+                  {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "ref": "selectedId" }] },
+                      {
+                        "op": "merge",
+                        "args": [
+                          { "ref": "$item" },
+                          { "title": { "ref": "editTitle" }, "content": { "ref": "editContent" }, "color": { "ref": "editColor" } }
+                        ]
+                      },
+                      { "ref": "$item" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "push",
+                "args": [
+                  { "ref": "notes" },
+                  {
+                    "id": { "ref": "nextId" },
+                    "title": { "op": "if", "args": [{ "op": "isEmpty", "args": [{ "ref": "editTitle" }] }, "Untitled", { "ref": "editTitle" }] },
+                    "content": { "ref": "editContent" },
+                    "color": { "ref": "editColor" },
+                    "createdAt": { "op": "now" }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "target": "nextId",
+          "op": "set",
+          "value": { "op": "if", "args": [{ "ref": "selectedId" }, { "ref": "nextId" }, { "op": "add", "args": [{ "ref": "nextId" }, 1] }] }
+        },
+        {
+          "target": "selectedId",
+          "op": "set",
+          "value": { "op": "if", "args": [{ "ref": "selectedId" }, { "ref": "selectedId" }, { "ref": "nextId" }] }
+        }
+      ]
+    },
+    "deleteNote": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "notes",
+          "op": "set",
+          "value": { "op": "filter", "args": [{ "ref": "notes" }, { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }] }
+        },
+        {
+          "target": "selectedId",
+          "op": "set",
+          "value": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "selectedId" }, { "param": "id" }] }, null, { "ref": "selectedId" }] }
+        }
+      ]
+    },
+    "loadNote": {
+      "params": ["note"],
+      "mutations": [
+        { "target": "editTitle", "op": "set", "value": { "op": "get", "args": [{ "param": "note" }, "title"] } },
+        { "target": "editContent", "op": "set", "value": { "op": "get", "args": [{ "param": "note" }, "content"] } },
+        { "target": "editColor", "op": "set", "value": { "op": "get", "args": [{ "param": "note" }, "color"] } }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100 flex" },
+    "children": [
+      {
+        "type": "aside",
+        "props": { "className": "w-80 bg-white shadow-lg flex flex-col" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "p-4 border-b" },
+            "children": [
+              { "type": "h1", "props": { "className": "text-xl font-bold mb-3" }, "children": [{ "text": "📝 Notes" }] },
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "placeholder": "Search notes...",
+                  "className": "w-full px-3 py-2 border rounded",
+                  "value": { "ref": "searchQuery" }
+                },
+                "events": { "input": { "action": "setSearch", "args": [{ "op": "eventValue" }] } }
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "p-4" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600" },
+                "events": { "click": { "action": "newNote" } },
+                "children": [{ "text": "+ New Note" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex-1 overflow-y-auto" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "p-2 space-y-2" },
+                "each": { "items": "filteredNotes", "as": "note", "key": { "op": "get", "args": [{ "ref": "note" }, "id"] } },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "concat",
+                        "args": [
+                          "p-3 rounded-lg cursor-pointer border-2 transition-colors ",
+                          {
+                            "op": "if",
+                            "args": [
+                              { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "note" }, "id"] }, { "ref": "selectedId" }] },
+                              "border-blue-500 ",
+                              "border-transparent hover:border-gray-300 "
+                            ]
+                          },
+                          {
+                            "op": "switch",
+                            "args": [
+                              { "op": "get", "args": [{ "ref": "note" }, "color"] },
+                              { "yellow": "bg-yellow-100", "green": "bg-green-100", "blue": "bg-blue-100", "pink": "bg-pink-100", "purple": "bg-purple-100" },
+                              "bg-gray-100"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "events": {
+                      "click": { "action": "selectNote", "args": [{ "op": "get", "args": [{ "ref": "note" }, "id"] }] }
+                    },
+                    "children": [
+                      { "type": "h3", "props": { "className": "font-medium truncate" }, "children": [{ "bind": "note.title" }] },
+                      { "type": "p", "props": { "className": "text-sm text-gray-600 truncate" }, "children": [{ "bind": "note.content" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "p-3 border-t text-sm text-gray-500 text-center" },
+            "children": [{ "bind": "noteCount" }, { "text": " notes" }]
+          }
+        ]
+      },
+      {
+        "type": "main",
+        "props": { "className": "flex-1 p-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex items-center gap-2 mb-4" },
+                "children": [
+                  { "type": "span", "props": { "className": "text-gray-600" }, "children": [{ "text": "Color:" }] },
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "editColor" }, "yellow"] }, "w-6 h-6 rounded-full bg-yellow-400 ring-2 ring-offset-2 ring-yellow-400", "w-6 h-6 rounded-full bg-yellow-400"] } },
+                    "events": { "click": { "action": "setEditColor", "args": ["yellow"] } }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "editColor" }, "green"] }, "w-6 h-6 rounded-full bg-green-400 ring-2 ring-offset-2 ring-green-400", "w-6 h-6 rounded-full bg-green-400"] } },
+                    "events": { "click": { "action": "setEditColor", "args": ["green"] } }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "editColor" }, "blue"] }, "w-6 h-6 rounded-full bg-blue-400 ring-2 ring-offset-2 ring-blue-400", "w-6 h-6 rounded-full bg-blue-400"] } },
+                    "events": { "click": { "action": "setEditColor", "args": ["blue"] } }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "editColor" }, "pink"] }, "w-6 h-6 rounded-full bg-pink-400 ring-2 ring-offset-2 ring-pink-400", "w-6 h-6 rounded-full bg-pink-400"] } },
+                    "events": { "click": { "action": "setEditColor", "args": ["pink"] } }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "editColor" }, "purple"] }, "w-6 h-6 rounded-full bg-purple-400 ring-2 ring-offset-2 ring-purple-400", "w-6 h-6 rounded-full bg-purple-400"] } },
+                    "events": { "click": { "action": "setEditColor", "args": ["purple"] } }
+                  }
+                ]
+              },
+              {
+                "type": "input",
+                "props": {
+                  "type": "text",
+                  "placeholder": "Note title...",
+                  "className": "w-full text-2xl font-bold mb-4 outline-none border-b pb-2",
+                  "value": { "ref": "editTitle" }
+                },
+                "events": { "input": { "action": "setEditTitle", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "textarea",
+                "props": {
+                  "placeholder": "Start typing your note...",
+                  "className": "w-full h-64 outline-none resize-none",
+                  "value": { "ref": "editContent" }
+                },
+                "events": { "input": { "action": "setEditContent", "args": [{ "op": "eventValue" }] } }
+              },
+              {
+                "type": "div",
+                "props": { "className": "flex justify-between mt-4 pt-4 border-t" },
+                "children": [
+                  {
+                    "if": { "ref": "selectedId" },
+                    "then": {
+                      "type": "button",
+                      "props": { "className": "px-4 py-2 text-red-500 hover:bg-red-50 rounded" },
+                      "events": { "click": { "action": "deleteNote", "args": [{ "ref": "selectedId" }] } },
+                      "children": [{ "text": "Delete" }]
+                    },
+                    "else": { "type": "div" }
+                  },
+                  {
+                    "type": "button",
+                    "props": { "className": "px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" },
+                    "events": { "click": { "action": "saveNote" } },
+                    "children": [{ "text": "Save" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-notes",
+      "name": "Has initial notes",
+      "steps": [
+        { "assert": { "ref": "noteCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-search",
+      "name": "Can search notes",
+      "steps": [
+        { "dispatch": "setSearch", "args": ["Welcome"] },
+        { "assert": { "value": { "op": "length", "args": [{ "ref": "filteredNotes" }] }, "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-delete-note",
+      "name": "Can delete a note",
+      "steps": [
+        { "dispatch": "deleteNote", "args": [1] },
+        { "assert": { "ref": "noteCount", "eq": 1 } }
+      ]
+    }
+  ]
+}

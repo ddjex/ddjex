@@ -1,0 +1,553 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-calendar",
+  "target": "dom",
+
+  "state": {
+    "currentYear": { "type": "number", "initial": 2024 },
+    "currentMonth": { "type": "number", "initial": 0 },
+    "selectedDate": { "type": "string", "initial": null, "nullable": true },
+    "events": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "date": "2024-01-15", "title": "Team Meeting", "time": "10:00", "color": "blue" },
+        { "id": 2, "date": "2024-01-15", "title": "Lunch with Client", "time": "12:30", "color": "green" },
+        { "id": 3, "date": "2024-01-20", "title": "Project Deadline", "time": "17:00", "color": "red" },
+        { "id": 4, "date": "2024-01-25", "title": "Workshop", "time": "09:00", "color": "purple" }
+      ]
+    },
+    "showEventModal": { "type": "boolean", "initial": false },
+    "newEventTitle": { "type": "string", "initial": "" },
+    "newEventTime": { "type": "string", "initial": "09:00" },
+    "newEventColor": { "type": "string", "initial": "blue" },
+    "nextEventId": { "type": "number", "initial": 5 },
+    "viewMode": { "type": "string", "initial": "month" }
+  },
+
+  "computed": {
+    "monthNames": {
+      "deps": [],
+      "fn": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    },
+    "currentMonthName": {
+      "deps": ["monthNames", "currentMonth"],
+      "fn": { "op": "get", "args": [{ "ref": "monthNames" }, { "ref": "currentMonth" }] }
+    },
+    "daysInMonth": {
+      "deps": ["currentYear", "currentMonth"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "currentMonth" },
+          { "0": 31, "1": 28, "2": 31, "3": 30, "4": 31, "5": 30, "6": 31, "7": 31, "8": 30, "9": 31, "10": 30, "11": 31 },
+          30
+        ]
+      }
+    },
+    "firstDayOfMonth": {
+      "deps": ["currentYear", "currentMonth"],
+      "fn": 1
+    },
+    "calendarDays": {
+      "deps": ["daysInMonth"],
+      "fn": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    },
+    "selectedDateEvents": {
+      "deps": ["events", "selectedDate"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "ref": "selectedDate" },
+          { "op": "filter", "args": [{ "ref": "events" }, { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "date"] }, { "ref": "selectedDate" }] }] },
+          []
+        ]
+      }
+    },
+    "selectedEventCount": {
+      "deps": ["selectedDateEvents"],
+      "fn": { "op": "length", "args": [{ "ref": "selectedDateEvents" }] }
+    },
+    "totalEventCount": {
+      "deps": ["events"],
+      "fn": { "op": "length", "args": [{ "ref": "events" }] }
+    },
+    "hasSelectedDate": {
+      "deps": ["selectedDate"],
+      "fn": { "op": "isDefined", "args": [{ "ref": "selectedDate" }] }
+    }
+  },
+
+  "actions": {
+    "prevMonth": {
+      "mutations": [
+        {
+          "target": "currentMonth",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "ref": "currentMonth" }, 0] },
+              11,
+              { "op": "subtract", "args": [{ "ref": "currentMonth" }, 1] }
+            ]
+          }
+        },
+        {
+          "target": "currentYear",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "ref": "currentMonth" }, 0] },
+              { "op": "subtract", "args": [{ "ref": "currentYear" }, 1] },
+              { "ref": "currentYear" }
+            ]
+          }
+        }
+      ]
+    },
+    "nextMonth": {
+      "mutations": [
+        {
+          "target": "currentMonth",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "ref": "currentMonth" }, 11] },
+              0,
+              { "op": "add", "args": [{ "ref": "currentMonth" }, 1] }
+            ]
+          }
+        },
+        {
+          "target": "currentYear",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "ref": "currentMonth" }, 11] },
+              { "op": "add", "args": [{ "ref": "currentYear" }, 1] },
+              { "ref": "currentYear" }
+            ]
+          }
+        }
+      ]
+    },
+    "selectDate": {
+      "params": ["day"],
+      "mutations": [
+        {
+          "target": "selectedDate",
+          "op": "set",
+          "value": {
+            "op": "concat",
+            "args": [
+              { "ref": "currentYear" },
+              "-",
+              { "op": "if", "args": [{ "op": "lt", "args": [{ "ref": "currentMonth" }, 9] }, { "op": "concat", "args": ["0", { "op": "add", "args": [{ "ref": "currentMonth" }, 1] }] }, { "op": "add", "args": [{ "ref": "currentMonth" }, 1] }] },
+              "-",
+              { "op": "if", "args": [{ "op": "lt", "args": [{ "param": "day" }, 10] }, { "op": "concat", "args": ["0", { "param": "day" }] }, { "param": "day" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "clearSelection": {
+      "mutations": [
+        { "target": "selectedDate", "op": "set", "value": null }
+      ]
+    },
+    "openEventModal": {
+      "mutations": [
+        { "target": "showEventModal", "op": "set", "value": true },
+        { "target": "newEventTitle", "op": "set", "value": "" },
+        { "target": "newEventTime", "op": "set", "value": "09:00" },
+        { "target": "newEventColor", "op": "set", "value": "blue" }
+      ]
+    },
+    "closeEventModal": {
+      "mutations": [
+        { "target": "showEventModal", "op": "set", "value": false }
+      ]
+    },
+    "setNewEventTitle": {
+      "params": ["value"],
+      "mutations": [{ "target": "newEventTitle", "op": "set", "value": { "param": "value" } }]
+    },
+    "setNewEventTime": {
+      "params": ["value"],
+      "mutations": [{ "target": "newEventTime", "op": "set", "value": { "param": "value" } }]
+    },
+    "setNewEventColor": {
+      "params": ["value"],
+      "mutations": [{ "target": "newEventColor", "op": "set", "value": { "param": "value" } }]
+    },
+    "addEvent": {
+      "mutations": [
+        {
+          "target": "events",
+          "op": "push",
+          "value": {
+            "id": { "ref": "nextEventId" },
+            "date": { "ref": "selectedDate" },
+            "title": { "ref": "newEventTitle" },
+            "time": { "ref": "newEventTime" },
+            "color": { "ref": "newEventColor" }
+          }
+        },
+        { "target": "nextEventId", "op": "add", "value": 1 },
+        { "target": "showEventModal", "op": "set", "value": false }
+      ]
+    },
+    "deleteEvent": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "events",
+          "op": "set",
+          "value": {
+            "op": "filter",
+            "args": [
+              { "ref": "events" },
+              { "op": "neq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] }
+            ]
+          }
+        }
+      ]
+    },
+    "goToToday": {
+      "mutations": [
+        { "target": "currentYear", "op": "set", "value": 2024 },
+        { "target": "currentMonth", "op": "set", "value": 0 }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-4xl mx-auto p-6" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mb-6" },
+        "children": [
+          { "type": "h1", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "Calendar" }] },
+          {
+            "type": "button",
+            "props": { "className": "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" },
+            "events": { "click": { "action": "goToToday" } },
+            "children": [{ "text": "Today" }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex justify-between items-center p-4 border-b" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": "p-2 hover:bg-gray-100 rounded" },
+                "events": { "click": { "action": "prevMonth" } },
+                "children": [{ "text": "←" }]
+              },
+              {
+                "type": "h2",
+                "props": { "className": "text-lg font-semibold" },
+                "children": [{ "bind": "currentMonthName" }, { "text": " " }, { "bind": "currentYear" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": "p-2 hover:bg-gray-100 rounded" },
+                "events": { "click": { "action": "nextMonth" } },
+                "children": [{ "text": "→" }]
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "grid grid-cols-7 border-b" },
+            "children": [
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Sun" }] },
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Mon" }] },
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Tue" }] },
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Wed" }] },
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Thu" }] },
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Fri" }] },
+              { "type": "div", "props": { "className": "p-2 text-center text-sm font-medium text-gray-500" }, "children": [{ "text": "Sat" }] }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "grid grid-cols-7" },
+            "each": { "items": "calendarDays", "as": "day" },
+            "children": [
+              {
+                "if": { "op": "lte", "args": [{ "ref": "day" }, { "ref": "daysInMonth" }] },
+                "then": {
+                  "type": "button",
+                  "props": {
+                    "className": "p-2 h-20 border-b border-r text-left align-top hover:bg-gray-50 focus:bg-blue-50"
+                  },
+                  "events": { "click": { "action": "selectDate", "args": [{ "ref": "day" }] } },
+                  "children": [
+                    { "type": "span", "props": { "className": "text-sm" }, "children": [{ "bind": "day" }] }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": { "ref": "hasSelectedDate" },
+        "then": {
+          "type": "div",
+          "props": { "className": "mt-6 bg-white rounded-lg shadow-md p-4" },
+          "children": [
+            {
+              "type": "div",
+              "props": { "className": "flex justify-between items-center mb-4" },
+              "children": [
+                {
+                  "type": "h3",
+                  "props": { "className": "text-lg font-semibold" },
+                  "children": [{ "text": "Events for " }, { "bind": "selectedDate" }]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "flex gap-2" },
+                  "children": [
+                    {
+                      "type": "button",
+                      "props": { "className": "px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600" },
+                      "events": { "click": { "action": "openEventModal" } },
+                      "children": [{ "text": "+ Add Event" }]
+                    },
+                    {
+                      "type": "button",
+                      "props": { "className": "px-3 py-1 text-gray-500 hover:text-gray-700 text-sm" },
+                      "events": { "click": { "action": "clearSelection" } },
+                      "children": [{ "text": "Close" }]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "if": { "op": "eq", "args": [{ "ref": "selectedEventCount" }, 0] },
+              "then": {
+                "type": "p",
+                "props": { "className": "text-gray-500 text-center py-4" },
+                "children": [{ "text": "No events for this day" }]
+              },
+              "else": {
+                "type": "div",
+                "props": { "className": "space-y-2" },
+                "each": { "items": "selectedDateEvents", "as": "event", "key": { "op": "get", "args": [{ "ref": "event" }, "id"] } },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": {
+                      "className": {
+                        "op": "concat",
+                        "args": [
+                          "flex items-center justify-between p-3 rounded-lg border-l-4 bg-gray-50 ",
+                          {
+                            "op": "switch",
+                            "args": [
+                              { "op": "get", "args": [{ "ref": "event" }, "color"] },
+                              { "blue": "border-blue-500", "green": "border-green-500", "red": "border-red-500", "purple": "border-purple-500" },
+                              "border-gray-500"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "children": [
+                      {
+                        "type": "div",
+                        "children": [
+                          { "type": "p", "props": { "className": "font-medium" }, "children": [{ "bind": "event.title" }] },
+                          { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "bind": "event.time" }] }
+                        ]
+                      },
+                      {
+                        "type": "button",
+                        "props": { "className": "text-red-500 hover:text-red-700" },
+                        "events": { "click": { "action": "deleteEvent", "args": [{ "op": "get", "args": [{ "ref": "event" }, "id"] }] } },
+                        "children": [{ "text": "Delete" }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "if": { "ref": "showEventModal" },
+        "then": {
+          "portal": {
+            "target": "body",
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "bg-white rounded-lg p-6 max-w-md w-full mx-4" },
+                    "children": [
+                      { "type": "h3", "props": { "className": "text-lg font-semibold mb-4" }, "children": [{ "text": "Add Event" }] },
+                      {
+                        "type": "div",
+                        "props": { "className": "mb-4" },
+                        "children": [
+                          { "type": "label", "props": { "className": "block text-sm text-gray-700 mb-1" }, "children": [{ "text": "Title" }] },
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "text",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "placeholder": "Event title",
+                              "value": { "ref": "newEventTitle" }
+                            },
+                            "events": { "input": { "action": "setNewEventTitle", "args": [{ "op": "eventValue" }] } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "mb-4" },
+                        "children": [
+                          { "type": "label", "props": { "className": "block text-sm text-gray-700 mb-1" }, "children": [{ "text": "Time" }] },
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "time",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "value": { "ref": "newEventTime" }
+                            },
+                            "events": { "input": { "action": "setNewEventTime", "args": [{ "op": "eventValue" }] } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "mb-4" },
+                        "children": [
+                          { "type": "label", "props": { "className": "block text-sm text-gray-700 mb-1" }, "children": [{ "text": "Color" }] },
+                          {
+                            "type": "div",
+                            "props": { "className": "flex gap-2" },
+                            "children": [
+                              { "type": "button", "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "newEventColor" }, "blue"] }, "w-8 h-8 rounded-full bg-blue-500 ring-2 ring-offset-2 ring-blue-500", "w-8 h-8 rounded-full bg-blue-500"] } }, "events": { "click": { "action": "setNewEventColor", "args": ["blue"] } } },
+                              { "type": "button", "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "newEventColor" }, "green"] }, "w-8 h-8 rounded-full bg-green-500 ring-2 ring-offset-2 ring-green-500", "w-8 h-8 rounded-full bg-green-500"] } }, "events": { "click": { "action": "setNewEventColor", "args": ["green"] } } },
+                              { "type": "button", "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "newEventColor" }, "red"] }, "w-8 h-8 rounded-full bg-red-500 ring-2 ring-offset-2 ring-red-500", "w-8 h-8 rounded-full bg-red-500"] } }, "events": { "click": { "action": "setNewEventColor", "args": ["red"] } } },
+                              { "type": "button", "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "newEventColor" }, "purple"] }, "w-8 h-8 rounded-full bg-purple-500 ring-2 ring-offset-2 ring-purple-500", "w-8 h-8 rounded-full bg-purple-500"] } }, "events": { "click": { "action": "setNewEventColor", "args": ["purple"] } } }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "flex justify-end gap-2" },
+                        "children": [
+                          {
+                            "type": "button",
+                            "props": { "className": "px-4 py-2 text-gray-600 hover:text-gray-800" },
+                            "events": { "click": { "action": "closeEventModal" } },
+                            "children": [{ "text": "Cancel" }]
+                          },
+                          {
+                            "type": "button",
+                            "props": {
+                              "className": { "op": "if", "args": [{ "op": "isNotEmpty", "args": [{ "ref": "newEventTitle" }] }, "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600", "px-4 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed"] },
+                              "disabled": { "op": "isEmpty", "args": [{ "ref": "newEventTitle" }] }
+                            },
+                            "events": { "click": { "action": "addEvent" } },
+                            "children": [{ "text": "Add Event" }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Starts in January 2024",
+      "steps": [
+        { "assert": { "ref": "currentYear", "eq": 2024 } },
+        { "assert": { "ref": "currentMonth", "eq": 0 } },
+        { "assert": { "ref": "currentMonthName", "eq": "January" } }
+      ]
+    },
+    {
+      "id": "test-next-month",
+      "name": "Can navigate to next month",
+      "steps": [
+        { "dispatch": "nextMonth" },
+        { "assert": { "ref": "currentMonth", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-prev-month",
+      "name": "Can navigate to previous month",
+      "steps": [
+        { "dispatch": "nextMonth" },
+        { "dispatch": "prevMonth" },
+        { "assert": { "ref": "currentMonth", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-select-date",
+      "name": "Can select a date",
+      "steps": [
+        { "dispatch": "selectDate", "args": [15] },
+        { "assert": { "ref": "selectedDate", "eq": "2024-01-15" } },
+        { "assert": { "ref": "hasSelectedDate", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-events-for-date",
+      "name": "Shows events for selected date",
+      "steps": [
+        { "dispatch": "selectDate", "args": [15] },
+        { "assert": { "ref": "selectedEventCount", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-add-event",
+      "name": "Can add new event",
+      "steps": [
+        { "dispatch": "selectDate", "args": [10] },
+        { "dispatch": "setNewEventTitle", "args": ["New Meeting"] },
+        { "dispatch": "addEvent" },
+        { "assert": { "ref": "totalEventCount", "eq": 5 } }
+      ]
+    },
+    {
+      "id": "test-delete-event",
+      "name": "Can delete event",
+      "steps": [
+        { "dispatch": "deleteEvent", "args": [1] },
+        { "assert": { "ref": "totalEventCount", "eq": 3 } }
+      ]
+    }
+  ]
+}

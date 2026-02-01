@@ -1,0 +1,483 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "auth-protected-route",
+  "target": "dom",
+
+  "state": {
+    "isAuthenticated": { "type": "boolean", "initial": false },
+    "user": { "type": "object", "initial": null, "nullable": true },
+    "currentPath": { "type": "string", "initial": "/" },
+    "redirectAfterLogin": { "type": "string", "initial": null, "nullable": true },
+    "isCheckingAuth": { "type": "boolean", "initial": true },
+    "loginEmail": { "type": "string", "initial": "" },
+    "loginPassword": { "type": "string", "initial": "" },
+    "loginError": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "isPublicRoute": {
+      "deps": ["currentPath"],
+      "fn": {
+        "op": "or",
+        "args": [
+          { "op": "eq", "args": [{ "ref": "currentPath" }, "/"] },
+          { "op": "eq", "args": [{ "ref": "currentPath" }, "/login"] },
+          { "op": "eq", "args": [{ "ref": "currentPath" }, "/about"] }
+        ]
+      }
+    },
+    "isProtectedRoute": {
+      "deps": ["isPublicRoute"],
+      "fn": { "op": "not", "args": [{ "ref": "isPublicRoute" }] }
+    },
+    "shouldShowLogin": {
+      "deps": ["isProtectedRoute", "isAuthenticated", "isCheckingAuth"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "ref": "isProtectedRoute" },
+          { "op": "not", "args": [{ "ref": "isAuthenticated" }] },
+          { "op": "not", "args": [{ "ref": "isCheckingAuth" }] }
+        ]
+      }
+    },
+    "canAccessRoute": {
+      "deps": ["isPublicRoute", "isAuthenticated"],
+      "fn": {
+        "op": "or",
+        "args": [
+          { "ref": "isPublicRoute" },
+          { "ref": "isAuthenticated" }
+        ]
+      }
+    },
+    "isLoginPage": {
+      "deps": ["currentPath"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentPath" }, "/login"] }
+    },
+    "isDashboard": {
+      "deps": ["currentPath"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentPath" }, "/dashboard"] }
+    },
+    "isProfile": {
+      "deps": ["currentPath"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentPath" }, "/profile"] }
+    },
+    "isSettings": {
+      "deps": ["currentPath"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentPath" }, "/settings"] }
+    },
+    "isHome": {
+      "deps": ["currentPath"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentPath" }, "/"] }
+    },
+    "isAbout": {
+      "deps": ["currentPath"],
+      "fn": { "op": "eq", "args": [{ "ref": "currentPath" }, "/about"] }
+    }
+  },
+
+  "actions": {
+    "navigate": {
+      "params": ["path"],
+      "mutations": [
+        { "target": "currentPath", "op": "set", "value": { "param": "path" } }
+      ]
+    },
+    "setLoginEmail": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "loginEmail", "op": "set", "value": { "param": "value" } },
+        { "target": "loginError", "op": "set", "value": "" }
+      ]
+    },
+    "setLoginPassword": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "loginPassword", "op": "set", "value": { "param": "value" } },
+        { "target": "loginError", "op": "set", "value": "" }
+      ]
+    },
+    "login": {
+      "mutations": [
+        { "target": "isAuthenticated", "op": "set", "value": true },
+        { "target": "user", "op": "set", "value": { "email": { "ref": "loginEmail" }, "name": "User" } },
+        {
+          "target": "currentPath",
+          "op": "set",
+          "value": { "op": "if", "args": [{ "ref": "redirectAfterLogin" }, { "ref": "redirectAfterLogin" }, "/dashboard"] }
+        },
+        { "target": "redirectAfterLogin", "op": "set", "value": null },
+        { "target": "loginEmail", "op": "set", "value": "" },
+        { "target": "loginPassword", "op": "set", "value": "" }
+      ]
+    },
+    "logout": {
+      "mutations": [
+        { "target": "isAuthenticated", "op": "set", "value": false },
+        { "target": "user", "op": "set", "value": null },
+        { "target": "currentPath", "op": "set", "value": "/" }
+      ]
+    },
+    "setRedirect": {
+      "params": ["path"],
+      "mutations": [
+        { "target": "redirectAfterLogin", "op": "set", "value": { "param": "path" } }
+      ]
+    },
+    "finishAuthCheck": {
+      "mutations": [
+        { "target": "isCheckingAuth", "op": "set", "value": false }
+      ]
+    },
+    "setLoginError": {
+      "params": ["error"],
+      "mutations": [
+        { "target": "loginError", "op": "set", "value": { "param": "error" } }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "check-auth-on-mount",
+      "trigger": { "type": "mount" },
+      "do": { "action": "finishAuthCheck" }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen bg-gray-100" },
+    "children": [
+      {
+        "type": "nav",
+        "props": { "className": "bg-white shadow" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "max-w-6xl mx-auto px-4 py-3 flex justify-between items-center" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex gap-4" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": { "op": "if", "args": [{ "ref": "isHome" }, "font-bold text-blue-600", "text-gray-600 hover:text-gray-900"] }
+                    },
+                    "events": { "click": { "action": "navigate", "args": ["/"] } },
+                    "children": [{ "text": "Home" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": { "op": "if", "args": [{ "ref": "isAbout" }, "font-bold text-blue-600", "text-gray-600 hover:text-gray-900"] }
+                    },
+                    "events": { "click": { "action": "navigate", "args": ["/about"] } },
+                    "children": [{ "text": "About" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": { "op": "if", "args": [{ "ref": "isDashboard" }, "font-bold text-blue-600", "text-gray-600 hover:text-gray-900"] }
+                    },
+                    "events": { "click": { "action": "navigate", "args": ["/dashboard"] } },
+                    "children": [{ "text": "Dashboard 🔒" }]
+                  },
+                  {
+                    "type": "button",
+                    "props": {
+                      "className": { "op": "if", "args": [{ "ref": "isProfile" }, "font-bold text-blue-600", "text-gray-600 hover:text-gray-900"] }
+                    },
+                    "events": { "click": { "action": "navigate", "args": ["/profile"] } },
+                    "children": [{ "text": "Profile 🔒" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "children": [
+                  {
+                    "if": { "ref": "isAuthenticated" },
+                    "then": {
+                      "type": "div",
+                      "props": { "className": "flex items-center gap-3" },
+                      "children": [
+                        { "type": "span", "props": { "className": "text-gray-600" }, "children": [{ "bind": "user.email" }] },
+                        {
+                          "type": "button",
+                          "props": { "className": "text-red-500 hover:text-red-700" },
+                          "events": { "click": { "action": "logout" } },
+                          "children": [{ "text": "Logout" }]
+                        }
+                      ]
+                    },
+                    "else": {
+                      "type": "button",
+                      "props": { "className": "text-blue-500 hover:text-blue-700" },
+                      "events": { "click": { "action": "navigate", "args": ["/login"] } },
+                      "children": [{ "text": "Login" }]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "main",
+        "props": { "className": "max-w-6xl mx-auto p-6" },
+        "children": [
+          {
+            "if": { "ref": "isCheckingAuth" },
+            "then": {
+              "type": "div",
+              "props": { "className": "flex items-center justify-center h-64" },
+              "children": [
+                { "type": "span", "props": { "className": "animate-spin text-2xl mr-2" }, "children": [{ "text": "⟳" }] },
+                { "text": "Checking authentication..." }
+              ]
+            }
+          },
+          {
+            "if": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "isCheckingAuth" }] }, { "ref": "shouldShowLogin" }] },
+            "then": {
+              "type": "div",
+              "props": { "className": "max-w-md mx-auto bg-white rounded-lg shadow-md p-6" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4" },
+                  "children": [
+                    { "type": "p", "props": { "className": "font-bold" }, "children": [{ "text": "🔒 Protected Route" }] },
+                    { "type": "p", "children": [{ "text": "Please login to access " }, { "bind": "currentPath" }] }
+                  ]
+                },
+                { "type": "h2", "props": { "className": "text-xl font-bold mb-4" }, "children": [{ "text": "Login Required" }] },
+                {
+                  "if": { "op": "isNotEmpty", "args": [{ "ref": "loginError" }] },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" },
+                    "children": [{ "bind": "loginError" }]
+                  }
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "email",
+                        "placeholder": "Email",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "value": { "ref": "loginEmail" }
+                      },
+                      "events": { "input": { "action": "setLoginEmail", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "mb-4" },
+                  "children": [
+                    {
+                      "type": "input",
+                      "props": {
+                        "type": "password",
+                        "placeholder": "Password",
+                        "className": "w-full px-3 py-2 border rounded",
+                        "value": { "ref": "loginPassword" }
+                      },
+                      "events": { "input": { "action": "setLoginPassword", "args": [{ "op": "eventValue" }] } }
+                    }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "props": { "className": "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600" },
+                  "events": { "click": { "action": "login" } },
+                  "children": [{ "text": "Login" }]
+                }
+              ]
+            }
+          },
+          {
+            "if": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "isCheckingAuth" }] }, { "ref": "canAccessRoute" }] },
+            "then": {
+              "type": "div",
+              "children": [
+                {
+                  "if": { "ref": "isHome" },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+                    "children": [
+                      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Welcome Home" }] },
+                      { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "text": "This is a public page. Anyone can view it." }] }
+                    ]
+                  }
+                },
+                {
+                  "if": { "ref": "isAbout" },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+                    "children": [
+                      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "About Us" }] },
+                      { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "text": "This is also a public page." }] }
+                    ]
+                  }
+                },
+                {
+                  "if": { "ref": "isLoginPage" },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "max-w-md mx-auto bg-white rounded-lg shadow-md p-6" },
+                    "children": [
+                      { "type": "h2", "props": { "className": "text-xl font-bold mb-4" }, "children": [{ "text": "Login" }] },
+                      {
+                        "type": "div",
+                        "props": { "className": "mb-4" },
+                        "children": [
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "email",
+                              "placeholder": "Email",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "value": { "ref": "loginEmail" }
+                            },
+                            "events": { "input": { "action": "setLoginEmail", "args": [{ "op": "eventValue" }] } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "props": { "className": "mb-4" },
+                        "children": [
+                          {
+                            "type": "input",
+                            "props": {
+                              "type": "password",
+                              "placeholder": "Password",
+                              "className": "w-full px-3 py-2 border rounded",
+                              "value": { "ref": "loginPassword" }
+                            },
+                            "events": { "input": { "action": "setLoginPassword", "args": [{ "op": "eventValue" }] } }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "button",
+                        "props": { "className": "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600" },
+                        "events": { "click": { "action": "login" } },
+                        "children": [{ "text": "Login" }]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "if": { "ref": "isDashboard" },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+                    "children": [
+                      { "type": "div", "props": { "className": "flex items-center gap-2 mb-4" }, "children": [{ "type": "span", "props": { "className": "text-green-500" }, "children": [{ "text": "✓" }] }, { "type": "span", "props": { "className": "text-sm text-green-600 bg-green-100 px-2 py-1 rounded" }, "children": [{ "text": "Protected" }] }] },
+                      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Dashboard" }] },
+                      { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "text": "Welcome, " }, { "bind": "user.email" }, { "text": "! This is your protected dashboard." }] }
+                    ]
+                  }
+                },
+                {
+                  "if": { "ref": "isProfile" },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+                    "children": [
+                      { "type": "div", "props": { "className": "flex items-center gap-2 mb-4" }, "children": [{ "type": "span", "props": { "className": "text-green-500" }, "children": [{ "text": "✓" }] }, { "type": "span", "props": { "className": "text-sm text-green-600 bg-green-100 px-2 py-1 rounded" }, "children": [{ "text": "Protected" }] }] },
+                      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Your Profile" }] },
+                      { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "text": "Email: " }, { "bind": "user.email" }] }
+                    ]
+                  }
+                },
+                {
+                  "if": { "ref": "isSettings" },
+                  "then": {
+                    "type": "div",
+                    "props": { "className": "bg-white rounded-lg shadow-md p-6" },
+                    "children": [
+                      { "type": "div", "props": { "className": "flex items-center gap-2 mb-4" }, "children": [{ "type": "span", "props": { "className": "text-green-500" }, "children": [{ "text": "✓" }] }, { "type": "span", "props": { "className": "text-sm text-green-600 bg-green-100 px-2 py-1 rounded" }, "children": [{ "text": "Protected" }] }] },
+                      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Settings" }] },
+                      { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "text": "Configure your account settings here." }] }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-public-route",
+      "name": "Starts on public route",
+      "steps": [
+        { "assert": { "ref": "currentPath", "eq": "/" } },
+        { "assert": { "ref": "isPublicRoute", "eq": true } },
+        { "assert": { "ref": "canAccessRoute", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-protected-route-blocked",
+      "name": "Protected route blocked when not authenticated",
+      "steps": [
+        { "dispatch": "finishAuthCheck" },
+        { "dispatch": "navigate", "args": ["/dashboard"] },
+        { "assert": { "ref": "isProtectedRoute", "eq": true } },
+        { "assert": { "ref": "shouldShowLogin", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-login-grants-access",
+      "name": "Login grants access to protected routes",
+      "steps": [
+        { "dispatch": "finishAuthCheck" },
+        { "dispatch": "navigate", "args": ["/dashboard"] },
+        { "dispatch": "setLoginEmail", "args": ["test@example.com"] },
+        { "dispatch": "login" },
+        { "assert": { "ref": "isAuthenticated", "eq": true } },
+        { "assert": { "ref": "canAccessRoute", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-logout-revokes-access",
+      "name": "Logout revokes access",
+      "steps": [
+        { "dispatch": "finishAuthCheck" },
+        { "dispatch": "setLoginEmail", "args": ["test@example.com"] },
+        { "dispatch": "login" },
+        { "assert": { "ref": "isAuthenticated", "eq": true } },
+        { "dispatch": "logout" },
+        { "assert": { "ref": "isAuthenticated", "eq": false } },
+        { "assert": { "ref": "currentPath", "eq": "/" } }
+      ]
+    },
+    {
+      "id": "test-public-routes",
+      "name": "Public routes always accessible",
+      "steps": [
+        { "dispatch": "navigate", "args": ["/about"] },
+        { "assert": { "ref": "isPublicRoute", "eq": true } },
+        { "assert": { "ref": "canAccessRoute", "eq": true } }
+      ]
+    }
+  ]
+}

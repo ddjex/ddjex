@@ -1,0 +1,214 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "data-pagination",
+  "target": "dom",
+
+  "state": {
+    "items": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "name": "Item 1" }, { "id": 2, "name": "Item 2" }, { "id": 3, "name": "Item 3" },
+        { "id": 4, "name": "Item 4" }, { "id": 5, "name": "Item 5" }, { "id": 6, "name": "Item 6" },
+        { "id": 7, "name": "Item 7" }, { "id": 8, "name": "Item 8" }, { "id": 9, "name": "Item 9" },
+        { "id": 10, "name": "Item 10" }, { "id": 11, "name": "Item 11" }, { "id": 12, "name": "Item 12" },
+        { "id": 13, "name": "Item 13" }, { "id": 14, "name": "Item 14" }, { "id": 15, "name": "Item 15" }
+      ]
+    },
+    "currentPage": { "type": "number", "initial": 1, "constraints": { "min": 1 } },
+    "pageSize": { "type": "number", "initial": 5, "constraints": { "min": 1, "max": 50 } }
+  },
+
+  "computed": {
+    "totalItems": {
+      "deps": ["items"],
+      "fn": { "op": "length", "args": [{ "ref": "items" }] }
+    },
+    "totalPages": {
+      "deps": ["totalItems", "pageSize"],
+      "fn": { "op": "ceil", "args": [{ "op": "divide", "args": [{ "ref": "totalItems" }, { "ref": "pageSize" }] }] }
+    },
+    "startIndex": {
+      "deps": ["currentPage", "pageSize"],
+      "fn": { "op": "multiply", "args": [{ "op": "subtract", "args": [{ "ref": "currentPage" }, 1] }, { "ref": "pageSize" }] }
+    },
+    "endIndex": {
+      "deps": ["startIndex", "pageSize"],
+      "fn": { "op": "add", "args": [{ "ref": "startIndex" }, { "ref": "pageSize" }] }
+    },
+    "pagedItems": {
+      "deps": ["items", "startIndex", "endIndex"],
+      "fn": { "op": "slice", "args": [{ "ref": "items" }, { "ref": "startIndex" }, { "ref": "endIndex" }] }
+    },
+    "canGoPrev": {
+      "deps": ["currentPage"],
+      "fn": { "op": "gt", "args": [{ "ref": "currentPage" }, 1] }
+    },
+    "canGoNext": {
+      "deps": ["currentPage", "totalPages"],
+      "fn": { "op": "lt", "args": [{ "ref": "currentPage" }, { "ref": "totalPages" }] }
+    }
+  },
+
+  "actions": {
+    "goToPage": {
+      "params": ["page"],
+      "mutations": [{ "target": "currentPage", "op": "set", "value": { "param": "page" } }]
+    },
+    "nextPage": {
+      "mutations": [{ "target": "currentPage", "op": "add", "value": 1 }]
+    },
+    "prevPage": {
+      "mutations": [{ "target": "currentPage", "op": "subtract", "value": 1 }]
+    },
+    "setPageSize": {
+      "params": ["size"],
+      "mutations": [
+        { "target": "pageSize", "op": "set", "value": { "param": "size" } },
+        { "target": "currentPage", "op": "set", "value": 1 }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "p-8 max-w-2xl mx-auto" },
+    "children": [
+      { "type": "h1", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Pagination Example" }] },
+      {
+        "type": "div",
+        "props": { "className": "mb-4 flex items-center gap-4" },
+        "children": [
+          { "type": "span", "children": [{ "text": "Items per page:" }] },
+          {
+            "type": "select",
+            "props": { "className": "border rounded px-2 py-1", "value": { "ref": "pageSize" } },
+            "events": { "change": { "action": "setPageSize", "args": [{ "op": "toNumber", "args": [{ "op": "eventValue" }] }] } },
+            "children": [
+              { "type": "option", "props": { "value": 5 }, "children": [{ "text": "5" }] },
+              { "type": "option", "props": { "value": 10 }, "children": [{ "text": "10" }] },
+              { "type": "option", "props": { "value": 15 }, "children": [{ "text": "15" }] }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow overflow-hidden mb-4" },
+        "children": [
+          {
+            "type": "ul",
+            "props": { "className": "divide-y" },
+            "each": { "items": "pagedItems", "as": "item", "key": { "op": "get", "args": [{ "ref": "item" }, "id"] } },
+            "children": [
+              {
+                "type": "li",
+                "props": { "className": "px-4 py-3 flex items-center justify-between hover:bg-gray-50" },
+                "children": [
+                  { "type": "span", "props": { "className": "font-medium" }, "children": [{ "bind": "item.name" }] },
+                  { "type": "span", "props": { "className": "text-gray-500 text-sm" }, "children": [{ "text": "ID: " }, { "bind": "item.id" }] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "flex items-center justify-between" },
+        "children": [
+          {
+            "type": "span",
+            "props": { "className": "text-gray-600 text-sm" },
+            "children": [
+              { "text": "Showing " },
+              { "bind": "startIndex" },
+              { "text": "-" },
+              { "op": "min", "args": [{ "ref": "endIndex" }, { "ref": "totalItems" }] },
+              { "text": " of " },
+              { "bind": "totalItems" }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex items-center gap-2" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "canGoPrev" },
+                      "px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600",
+                      "px-3 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"
+                    ]
+                  },
+                  "disabled": { "op": "not", "args": [{ "ref": "canGoPrev" }] }
+                },
+                "events": { "click": { "action": "prevPage" } },
+                "children": [{ "text": "Previous" }]
+              },
+              {
+                "type": "span",
+                "props": { "className": "px-3" },
+                "children": [{ "bind": "currentPage" }, { "text": " / " }, { "bind": "totalPages" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "ref": "canGoNext" },
+                      "px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600",
+                      "px-3 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"
+                    ]
+                  },
+                  "disabled": { "op": "not", "args": [{ "ref": "canGoNext" }] }
+                },
+                "events": { "click": { "action": "nextPage" } },
+                "children": [{ "text": "Next" }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Starts on page 1 with 5 items",
+      "steps": [
+        { "assert": { "ref": "currentPage", "eq": 1 } },
+        { "assert": { "ref": "pageSize", "eq": 5 } },
+        { "assert": { "ref": "totalPages", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-navigation",
+      "name": "Can navigate between pages",
+      "steps": [
+        { "assert": { "ref": "canGoPrev", "eq": false } },
+        { "assert": { "ref": "canGoNext", "eq": true } },
+        { "dispatch": "nextPage" },
+        { "assert": { "ref": "currentPage", "eq": 2 } },
+        { "assert": { "ref": "canGoPrev", "eq": true } },
+        { "dispatch": "prevPage" },
+        { "assert": { "ref": "currentPage", "eq": 1 } }
+      ]
+    },
+    {
+      "id": "test-page-size",
+      "name": "Changing page size resets to page 1",
+      "steps": [
+        { "dispatch": "nextPage" },
+        { "assert": { "ref": "currentPage", "eq": 2 } },
+        { "dispatch": "setPageSize", "args": [10] },
+        { "assert": { "ref": "currentPage", "eq": 1 } },
+        { "assert": { "ref": "totalPages", "eq": 2 } }
+      ]
+    }
+  ]
+}

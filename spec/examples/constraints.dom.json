@@ -1,0 +1,258 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "constraints-demo",
+  "target": "dom",
+
+  "state": {
+    "balance": {
+      "type": "number",
+      "initial": 100,
+      "constraints": {
+        "min": 0,
+        "max": 1000000,
+        "message": "Balance must be between 0 and 1,000,000"
+      }
+    },
+    "email": {
+      "type": "string",
+      "initial": "",
+      "constraints": {
+        "pattern": "^[^@]+@[^@]+\\.[^@]+$",
+        "message": "Invalid email format"
+      }
+    },
+    "username": {
+      "type": "string",
+      "initial": "",
+      "constraints": {
+        "minLength": 3,
+        "maxLength": 20,
+        "pattern": "^[a-zA-Z0-9_]+$",
+        "message": "Username must be 3-20 alphanumeric characters"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "initial": [],
+      "constraints": {
+        "maxLength": 5,
+        "unique": true,
+        "message": "Maximum 5 unique tags allowed"
+      }
+    },
+    "status": {
+      "type": "string",
+      "initial": "pending",
+      "constraints": {
+        "enum": ["pending", "active", "completed", "cancelled"]
+      }
+    },
+    "error": {
+      "type": "string",
+      "initial": "",
+      "nullable": true
+    },
+    "newTag": {
+      "type": "string",
+      "initial": ""
+    }
+  },
+
+  "computed": {
+    "tagCount": {
+      "deps": ["tags"],
+      "fn": { "op": "length", "args": [{ "ref": "tags" }] }
+    }
+  },
+
+  "actions": {
+    "deposit": {
+      "params": ["amount"],
+      "mutations": [
+        { "target": "balance", "op": "add", "value": { "param": "amount" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "withdraw": {
+      "params": ["amount"],
+      "mutations": [
+        { "target": "balance", "op": "subtract", "value": { "param": "amount" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setEmail": {
+      "params": ["email"],
+      "mutations": [
+        { "target": "email", "op": "set", "value": { "param": "email" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setUsername": {
+      "params": ["username"],
+      "mutations": [
+        { "target": "username", "op": "set", "value": { "param": "username" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "addTag": {
+      "mutations": [
+        { "target": "tags", "op": "push", "value": { "ref": "newTag" } },
+        { "target": "newTag", "op": "set", "value": "" },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "removeTag": {
+      "params": ["index"],
+      "mutations": [
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setStatus": {
+      "params": ["status"],
+      "mutations": [
+        { "target": "status", "op": "set", "value": { "param": "status" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setNewTag": {
+      "params": ["tag"],
+      "mutations": [
+        { "target": "newTag", "op": "set", "value": { "param": "tag" } }
+      ]
+    },
+    "setError": {
+      "params": ["msg"],
+      "mutations": [
+        { "target": "error", "op": "set", "value": { "param": "msg" } }
+      ]
+    }
+  },
+
+  "invariants": [
+    {
+      "id": "balance_positive",
+      "check": { "op": "gte", "args": [{ "ref": "balance" }, 0] },
+      "message": "Balance cannot be negative (invariant check)"
+    },
+    {
+      "id": "max_tags",
+      "check": { "op": "lte", "args": [{ "ref": "tagCount" }, 5] },
+      "message": "Cannot have more than 5 tags (invariant check)"
+    }
+  ],
+
+  "tests": [
+    {
+      "id": "test-balance-constraints",
+      "name": "Balance respects min/max constraints",
+      "steps": [
+        { "assert": { "ref": "balance", "eq": 100 } },
+        { "dispatch": "deposit", "args": [50] },
+        { "assert": { "ref": "balance", "eq": 150 } },
+        { "dispatch": "withdraw", "args": [100] },
+        { "assert": { "ref": "balance", "eq": 50 } }
+      ]
+    },
+    {
+      "id": "test-enum-constraint",
+      "name": "Status only accepts valid values",
+      "steps": [
+        { "assert": { "ref": "status", "eq": "pending" } },
+        { "dispatch": "setStatus", "args": ["active"] },
+        { "assert": { "ref": "status", "eq": "active" } },
+        { "dispatch": "setStatus", "args": ["completed"] },
+        { "assert": { "ref": "status", "eq": "completed" } }
+      ]
+    },
+    {
+      "id": "test-tags-unique",
+      "name": "Tags must be unique",
+      "steps": [
+        { "setState": { "newTag": "js" } },
+        { "dispatch": "addTag" },
+        { "assert": { "ref": "tags", "length": 1 } },
+        { "setState": { "newTag": "ts" } },
+        { "dispatch": "addTag" },
+        { "assert": { "ref": "tags", "length": 2 } }
+      ]
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "constraints-demo" },
+    "children": [
+      { "type": "h1", "children": [{ "text": "Constraints Demo" }] },
+
+      {
+        "if": { "op": "neq", "args": [{ "ref": "error" }, ""] },
+        "then": {
+          "type": "div",
+          "props": { "className": "error" },
+          "children": [{ "bind": "error" }]
+        }
+      },
+
+      {
+        "type": "section",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Balance (min: 0, max: 1M)" }] },
+          { "type": "p", "children": [{ "text": "Current: $" }, { "bind": "balance" }] },
+          {
+            "type": "button",
+            "events": { "click": { "action": "deposit", "args": [100] } },
+            "children": [{ "text": "Deposit $100" }]
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "withdraw", "args": [50] } },
+            "children": [{ "text": "Withdraw $50" }]
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Status (enum)" }] },
+          { "type": "p", "children": [{ "text": "Current: " }, { "bind": "status" }] },
+          {
+            "type": "select",
+            "events": { "change": { "action": "setStatus", "args": ["$event.target.value"] } },
+            "children": [
+              { "type": "option", "props": { "value": "pending" }, "children": [{ "text": "Pending" }] },
+              { "type": "option", "props": { "value": "active" }, "children": [{ "text": "Active" }] },
+              { "type": "option", "props": { "value": "completed" }, "children": [{ "text": "Completed" }] },
+              { "type": "option", "props": { "value": "cancelled" }, "children": [{ "text": "Cancelled" }] }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "section",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Tags (max 5, unique)" }] },
+          { "type": "p", "children": [{ "text": "Count: " }, { "bind": "tagCount" }, { "text": " / 5" }] },
+          {
+            "type": "ul",
+            "each": { "items": "tags", "as": "tag", "index": "i" },
+            "children": [
+              { "type": "li", "children": [{ "bind": "tag" }] }
+            ]
+          },
+          {
+            "type": "input",
+            "props": { "type": "text", "placeholder": "New tag..." },
+            "events": { "input": { "action": "setNewTag", "args": ["$event.target.value"] } }
+          },
+          {
+            "type": "button",
+            "events": { "click": { "action": "addTag" } },
+            "children": [{ "text": "Add Tag" }]
+          }
+        ]
+      }
+    ]
+  }
+}

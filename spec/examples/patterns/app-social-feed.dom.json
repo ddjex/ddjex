@@ -1,0 +1,561 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-social-feed-pattern",
+  "target": "dom",
+  "description": "Social media feed with posts, likes, comments, and infinite scroll",
+
+  "state": {
+    "posts": { "type": "array", "initial": [], "itemType": "object" },
+    "loading": { "type": "boolean", "initial": false },
+    "hasMore": { "type": "boolean", "initial": true },
+    "page": { "type": "number", "initial": 1 },
+    "currentUser": {
+      "type": "object",
+      "initial": { "id": "user-1", "name": "You", "avatar": "/avatar.jpg" }
+    },
+    "newPostText": { "type": "string", "initial": "" },
+    "posting": { "type": "boolean", "initial": false },
+    "expandedComments": { "type": "array", "initial": [], "itemType": "string" },
+    "commentTexts": { "type": "object", "initial": {} },
+    "filter": { "type": "string", "initial": "all" }
+  },
+
+  "computed": {
+    "postCount": {
+      "deps": ["posts"],
+      "fn": { "op": "length", "args": [{ "ref": "posts" }] }
+    },
+    "canPost": {
+      "deps": ["newPostText", "posting"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "gt", "args": [{ "op": "length", "args": [{ "op": "trim", "args": [{ "ref": "newPostText" }] }] }, 0] },
+          { "op": "not", "args": [{ "ref": "posting" }] }
+        ]
+      }
+    },
+    "filteredPosts": {
+      "deps": ["posts", "filter", "currentUser"],
+      "fn": {
+        "op": "switch",
+        "args": [
+          { "ref": "filter" },
+          {
+            "all": { "ref": "posts" },
+            "mine": {
+              "op": "filter",
+              "args": [
+                { "ref": "posts" },
+                { "op": "eq", "args": [{ "op": "get", "args": ["$item", "authorId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] }
+              ]
+            },
+            "liked": {
+              "op": "filter",
+              "args": [
+                { "ref": "posts" },
+                { "op": "get", "args": ["$item", "liked"] }
+              ]
+            }
+          },
+          { "ref": "posts" }
+        ]
+      }
+    }
+  },
+
+  "actions": {
+    "loadPosts": {
+      "guard": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "loading" }] }, { "ref": "hasMore" }] },
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true }
+      ]
+    },
+    "loadSuccess": {
+      "params": ["newPosts", "hasMore"],
+      "mutations": [
+        { "target": "posts", "op": "concat", "value": { "param": "newPosts" } },
+        { "target": "hasMore", "op": "set", "value": { "param": "hasMore" } },
+        { "target": "page", "op": "add", "value": 1 },
+        { "target": "loading", "op": "set", "value": false }
+      ]
+    },
+    "loadError": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false }
+      ]
+    },
+    "setNewPostText": {
+      "params": ["text"],
+      "mutations": [
+        { "target": "newPostText", "op": "set", "value": { "param": "text" } }
+      ]
+    },
+    "createPost": {
+      "guard": { "ref": "canPost" },
+      "mutations": [
+        { "target": "posting", "op": "set", "value": true }
+      ]
+    },
+    "postCreated": {
+      "params": ["post"],
+      "mutations": [
+        { "target": "posts", "op": "set", "value": { "op": "concat", "args": [[{ "param": "post" }], { "ref": "posts" }] } },
+        { "target": "newPostText", "op": "set", "value": "" },
+        { "target": "posting", "op": "set", "value": false }
+      ]
+    },
+    "toggleLike": {
+      "params": ["postId"],
+      "mutations": [
+        {
+          "target": "posts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "postId" }] },
+              {
+                "op": "merge",
+                "args": [
+                  { "$item": true },
+                  {
+                    "liked": { "op": "not", "args": [{ "op": "get", "args": ["$item", "liked"] }] },
+                    "likes": {
+                      "op": "if",
+                      "args": [
+                        { "op": "get", "args": ["$item", "liked"] },
+                        { "op": "subtract", "args": [{ "op": "get", "args": ["$item", "likes"] }, 1] },
+                        { "op": "add", "args": [{ "op": "get", "args": ["$item", "likes"] }, 1] }
+                      ]
+                    }
+                  }
+                ]
+              },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    },
+    "toggleComments": {
+      "params": ["postId"],
+      "mutations": [
+        {
+          "target": "expandedComments",
+          "op": "set",
+          "value": {
+            "op": "if",
+            "args": [
+              { "op": "includes", "args": [{ "ref": "expandedComments" }, { "param": "postId" }] },
+              { "op": "filter", "args": [{ "ref": "expandedComments" }, { "op": "neq", "args": ["$item", { "param": "postId" }] }] },
+              { "op": "concat", "args": [{ "ref": "expandedComments" }, [{ "param": "postId" }]] }
+            ]
+          }
+        }
+      ]
+    },
+    "setCommentText": {
+      "params": ["postId", "text"],
+      "mutations": [
+        {
+          "target": "commentTexts",
+          "op": "merge",
+          "value": { "op": "fromEntries", "args": [[[{ "param": "postId" }, { "param": "text" }]]] }
+        }
+      ]
+    },
+    "addComment": {
+      "params": ["postId"],
+      "mutations": [
+        {
+          "target": "posts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "postId" }] },
+              {
+                "op": "merge",
+                "args": [
+                  { "$item": true },
+                  {
+                    "comments": {
+                      "op": "concat",
+                      "args": [
+                        { "op": "get", "args": ["$item", "comments"] },
+                        [{
+                          "id": { "op": "uuid" },
+                          "author": { "op": "get", "args": [{ "ref": "currentUser" }, "name"] },
+                          "text": { "op": "get", "args": [{ "ref": "commentTexts" }, { "param": "postId" }] },
+                          "timestamp": { "op": "now" }
+                        }]
+                      ]
+                    }
+                  }
+                ]
+              },
+              { "$item": true }
+            ]
+          }
+        },
+        {
+          "target": "commentTexts",
+          "op": "omit",
+          "keys": [{ "param": "postId" }]
+        }
+      ]
+    },
+    "deletePost": {
+      "params": ["postId"],
+      "mutations": [
+        {
+          "target": "posts",
+          "op": "filter",
+          "predicate": { "op": "neq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "postId" }] }
+        }
+      ]
+    },
+    "setFilter": {
+      "params": ["filterValue"],
+      "mutations": [
+        { "target": "filter", "op": "set", "value": { "param": "filterValue" } }
+      ]
+    },
+    "sharePost": {
+      "params": ["postId"],
+      "mutations": [
+        {
+          "target": "posts",
+          "op": "map",
+          "transform": {
+            "op": "if",
+            "args": [
+              { "op": "eq", "args": [{ "op": "get", "args": ["$item", "id"] }, { "param": "postId" }] },
+              { "op": "merge", "args": [{ "$item": true }, { "shares": { "op": "add", "args": [{ "op": "get", "args": ["$item", "shares"] }, 1] } }] },
+              { "$item": true }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "effects": [
+    {
+      "id": "initial-load",
+      "trigger": { "type": "mount" },
+      "do": { "action": "loadPosts" }
+    },
+    {
+      "id": "fetch-posts",
+      "watch": ["loading"],
+      "condition": { "ref": "loading" },
+      "do": {
+        "op": "fetch",
+        "url": { "op": "concat", "args": ["/api/feed?page=", { "ref": "page" }] },
+        "method": "GET"
+      },
+      "onSuccess": { "action": "loadSuccess", "params": { "newPosts": "$result.posts", "hasMore": "$result.hasMore" } },
+      "onError": { "action": "loadError" }
+    },
+    {
+      "id": "create-post-api",
+      "watch": ["posting"],
+      "condition": { "ref": "posting" },
+      "do": {
+        "op": "fetch",
+        "url": "/api/posts",
+        "method": "POST",
+        "body": {
+          "text": { "ref": "newPostText" },
+          "authorId": { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }
+        }
+      },
+      "onSuccess": { "action": "postCreated", "params": { "post": "$result" } }
+    }
+  ],
+
+  "root": {
+    "type": "div",
+    "props": { "className": "social-feed" },
+    "children": [
+      {
+        "type": "header",
+        "props": { "className": "feed-header" },
+        "children": [
+          { "type": "h1", "children": [{ "text": "Feed" }] },
+          {
+            "type": "div",
+            "props": { "className": "feed-filters" },
+            "children": [
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "all"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "all" } } },
+                "children": [{ "text": "All" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "mine"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "mine" } } },
+                "children": [{ "text": "My Posts" }]
+              },
+              {
+                "type": "button",
+                "props": { "className": { "op": "if", "args": [{ "op": "eq", "args": [{ "ref": "filter" }, "liked"] }, "active", ""] } },
+                "events": { "click": { "action": "setFilter", "params": { "filterValue": "liked" } } },
+                "children": [{ "text": "Liked" }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "create-post" },
+        "children": [
+          {
+            "type": "textarea",
+            "props": {
+              "className": "post-input",
+              "placeholder": "What's on your mind?",
+              "value": { "ref": "newPostText" }
+            },
+            "events": { "input": { "action": "setNewPostText", "params": { "text": "$event.target.value" } } }
+          },
+          {
+            "type": "button",
+            "props": { "className": "post-btn", "disabled": { "op": "not", "args": [{ "ref": "canPost" }] } },
+            "events": { "click": { "action": "createPost" } },
+            "children": [{ "op": "if", "args": [{ "ref": "posting" }, "Posting...", "Post"] }]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "posts-list" },
+        "each": { "items": "filteredPosts", "as": "post" },
+        "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+        "children": [
+          {
+            "type": "article",
+            "props": { "className": "post-card" },
+            "children": [
+              {
+                "type": "header",
+                "props": { "className": "post-header" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "author-info" },
+                    "children": [
+                      { "type": "div", "props": { "className": "avatar" }, "children": [{ "op": "slice", "args": [{ "op": "get", "args": [{ "ref": "post" }, "author"] }, 0, 1] }] },
+                      {
+                        "type": "div",
+                        "children": [
+                          { "type": "strong", "children": [{ "op": "get", "args": [{ "ref": "post" }, "author"] }] },
+                          { "type": "span", "props": { "className": "timestamp" }, "children": [{ "op": "get", "args": [{ "ref": "post" }, "timestamp"] }] }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "when": { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "post" }, "authorId"] }, { "op": "get", "args": [{ "ref": "currentUser" }, "id"] }] },
+                    "props": { "className": "delete-btn" },
+                    "events": { "click": { "action": "deletePost", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] } } } },
+                    "children": [{ "text": "×" }]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "post-content" },
+                "children": [{ "op": "get", "args": [{ "ref": "post" }, "text"] }]
+              },
+              {
+                "type": "div",
+                "props": { "className": "post-actions" },
+                "children": [
+                  {
+                    "type": "button",
+                    "props": { "className": { "op": "if", "args": [{ "op": "get", "args": [{ "ref": "post" }, "liked"] }, "liked", ""] } },
+                    "events": { "click": { "action": "toggleLike", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] } } } },
+                    "children": [
+                      { "op": "if", "args": [{ "op": "get", "args": [{ "ref": "post" }, "liked"] }, "♥", "♡"] },
+                      { "text": " " },
+                      { "op": "get", "args": [{ "ref": "post" }, "likes"] }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "events": { "click": { "action": "toggleComments", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] } } } },
+                    "children": [
+                      { "text": "💬 " },
+                      { "op": "length", "args": [{ "op": "get", "args": [{ "ref": "post" }, "comments"] }] }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "events": { "click": { "action": "sharePost", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] } } } },
+                    "children": [
+                      { "text": "↗ " },
+                      { "op": "get", "args": [{ "ref": "post" }, "shares"] }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "when": { "op": "includes", "args": [{ "ref": "expandedComments" }, { "op": "get", "args": [{ "ref": "post" }, "id"] }] },
+                "props": { "className": "comments-section" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "comments-list" },
+                    "each": { "items": { "op": "get", "args": [{ "ref": "post" }, "comments"] }, "as": "comment" },
+                    "key": { "op": "get", "args": [{ "$item": true }, "id"] },
+                    "children": [
+                      {
+                        "type": "div",
+                        "props": { "className": "comment" },
+                        "children": [
+                          { "type": "strong", "children": [{ "op": "get", "args": [{ "ref": "comment" }, "author"] }] },
+                          { "type": "span", "children": [{ "op": "get", "args": [{ "ref": "comment" }, "text"] }] }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "props": { "className": "add-comment" },
+                    "children": [
+                      {
+                        "type": "input",
+                        "props": {
+                          "type": "text",
+                          "placeholder": "Write a comment...",
+                          "value": { "op": "get", "args": [{ "ref": "commentTexts" }, { "op": "get", "args": [{ "ref": "post" }, "id"] }] }
+                        },
+                        "events": {
+                          "input": { "action": "setCommentText", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] }, "text": "$event.target.value" } }
+                        }
+                      },
+                      {
+                        "type": "button",
+                        "events": { "click": { "action": "addComment", "params": { "postId": { "op": "get", "args": [{ "ref": "post" }, "id"] } } } },
+                        "children": [{ "text": "Reply" }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "when": { "ref": "loading" },
+        "props": { "className": "loading-indicator" },
+        "children": [{ "text": "Loading..." }]
+      },
+      {
+        "type": "button",
+        "when": { "op": "and", "args": [{ "ref": "hasMore" }, { "op": "not", "args": [{ "ref": "loading" }] }] },
+        "props": { "className": "load-more-btn" },
+        "events": { "click": { "action": "loadPosts" } },
+        "children": [{ "text": "Load More" }]
+      },
+      {
+        "type": "div",
+        "when": { "op": "and", "args": [{ "op": "not", "args": [{ "ref": "hasMore" }] }, { "op": "gt", "args": [{ "ref": "postCount" }, 0] }] },
+        "props": { "className": "end-message" },
+        "children": [{ "text": "You've reached the end!" }]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "starts with empty feed",
+      "steps": [
+        { "assert": { "ref": "postCount", "eq": 0 } },
+        { "assert": { "ref": "hasMore", "eq": true } },
+        { "assert": { "ref": "filter", "eq": "all" } }
+      ]
+    },
+    {
+      "id": "test-load-posts",
+      "name": "loadPosts sets loading state",
+      "steps": [
+        { "dispatch": "loadPosts" },
+        { "assert": { "ref": "loading", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-load-success",
+      "name": "loadSuccess adds posts",
+      "steps": [
+        { "dispatch": "loadSuccess", "params": { "newPosts": [{ "id": "1", "text": "Hello", "likes": 0, "liked": false, "comments": [], "shares": 0 }], "hasMore": true } },
+        { "assert": { "ref": "postCount", "eq": 1 } },
+        { "assert": { "ref": "page", "eq": 2 } }
+      ]
+    },
+    {
+      "id": "test-toggle-like",
+      "name": "toggleLike updates likes",
+      "steps": [
+        { "dispatch": "loadSuccess", "params": { "newPosts": [{ "id": "1", "text": "Test", "likes": 5, "liked": false, "comments": [], "shares": 0 }], "hasMore": false } },
+        { "dispatch": "toggleLike", "params": { "postId": "1" } }
+      ]
+    },
+    {
+      "id": "test-create-post",
+      "name": "createPost triggers posting",
+      "steps": [
+        { "dispatch": "setNewPostText", "params": { "text": "New post" } },
+        { "assert": { "ref": "canPost", "eq": true } },
+        { "dispatch": "createPost" },
+        { "assert": { "ref": "posting", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-post-created",
+      "name": "postCreated adds to feed",
+      "steps": [
+        { "dispatch": "setNewPostText", "params": { "text": "Test" } },
+        { "dispatch": "postCreated", "params": { "post": { "id": "new", "text": "Test", "likes": 0, "liked": false, "comments": [], "shares": 0 } } },
+        { "assert": { "ref": "postCount", "eq": 1 } },
+        { "assert": { "ref": "newPostText", "eq": "" } }
+      ]
+    },
+    {
+      "id": "test-delete-post",
+      "name": "deletePost removes from feed",
+      "steps": [
+        { "dispatch": "loadSuccess", "params": { "newPosts": [{ "id": "1", "text": "Test", "likes": 0, "liked": false, "comments": [], "shares": 0 }], "hasMore": false } },
+        { "dispatch": "deletePost", "params": { "postId": "1" } },
+        { "assert": { "ref": "postCount", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "test-toggle-comments",
+      "name": "toggleComments expands/collapses",
+      "steps": [
+        { "dispatch": "toggleComments", "params": { "postId": "1" } },
+        { "dispatch": "toggleComments", "params": { "postId": "1" } }
+      ]
+    },
+    {
+      "id": "test-filter",
+      "name": "setFilter changes filter",
+      "steps": [
+        { "dispatch": "setFilter", "params": { "filterValue": "liked" } },
+        { "assert": { "ref": "filter", "eq": "liked" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "context_demo",
+  "target": "dom",
+
+  "contexts": {
+    "theme": {
+      "type": "object",
+      "initial": { "mode": "light", "primary": "#0066cc" }
+    },
+    "user": {
+      "type": "object",
+      "initial": null,
+      "nullable": true
+    }
+  },
+
+  "state": {
+    "darkMode": { "type": "boolean", "initial": false }
+  },
+
+  "actions": {
+    "toggleTheme": {
+      "mutations": [
+        { "target": "darkMode", "op": "toggle" }
+      ]
+    },
+    "login": {
+      "mutations": []
+    },
+    "logout": {
+      "mutations": []
+    }
+  },
+
+  "components": {
+    "ThemeDisplay": {
+      "render": {
+        "type": "div",
+        "props": { "className": "theme-info" },
+        "children": [
+          { "type": "p", "children": [
+            { "text": "Current theme mode: " },
+            { "bind": "theme.mode" }
+          ]},
+          { "type": "p", "children": [
+            { "text": "Primary color: " },
+            { "bind": "theme.primary" }
+          ]}
+        ]
+      }
+    },
+    "UserGreeting": {
+      "render": {
+        "if": { "op": "neq", "args": [{ "context": "user" }, null] },
+        "then": {
+          "type": "div",
+          "children": [
+            { "text": "Welcome, " },
+            { "bind": "user.name" },
+            { "text": "!" }
+          ]
+        },
+        "else": {
+          "type": "div",
+          "children": [{ "text": "Please log in" }]
+        }
+      }
+    },
+    "NestedComponent": {
+      "render": {
+        "type": "div",
+        "props": { "className": "nested" },
+        "children": [
+          { "type": "h3", "children": [{ "text": "Nested Component" }] },
+          { "type": "p", "children": [
+            { "text": "This component accesses theme from context: " },
+            { "bind": "theme.mode" }
+          ]}
+        ]
+      }
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "context-demo" },
+    "children": [
+      {
+        "type": "h1",
+        "children": [{ "text": "Context Demo" }]
+      },
+      {
+        "type": "p",
+        "children": [{ "text": "Context allows sharing data without prop drilling." }]
+      },
+      {
+        "type": "section",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Global Context" }] },
+          { "component": "ThemeDisplay" },
+          { "component": "UserGreeting" }
+        ]
+      },
+      {
+        "type": "section",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Context Provider Override" }] },
+          { "type": "p", "children": [{ "text": "The section below overrides the theme context:" }] },
+          {
+            "provide": {
+              "context": "theme",
+              "value": { "mode": "dark", "primary": "#ff6600" },
+              "children": [
+                {
+                  "type": "div",
+                  "props": {
+                    "className": "dark-section",
+                    "style": { "backgroundColor": "#333", "color": "#fff", "padding": "16px" }
+                  },
+                  "children": [
+                    { "component": "ThemeDisplay" },
+                    { "component": "NestedComponent" }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "children": [
+          { "type": "h2", "children": [{ "text": "Back to Global Context" }] },
+          { "component": "ThemeDisplay" }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "actions" },
+        "children": [
+          {
+            "type": "button",
+            "events": { "click": { "action": "toggleTheme" } },
+            "children": [{ "text": "Toggle Theme (state)" }]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "ui-skeleton",
+  "target": "dom",
+
+  "state": {
+    "loading": { "type": "boolean", "initial": true },
+    "data": {
+      "type": "object",
+      "initial": null,
+      "nullable": true
+    }
+  },
+
+  "actions": {
+    "loadData": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": false },
+        {
+          "target": "data",
+          "op": "set",
+          "value": {
+            "user": { "name": "John Doe", "email": "john@example.com", "avatar": "👤" },
+            "posts": [
+              { "id": 1, "title": "First Post", "content": "This is the first post content..." },
+              { "id": 2, "title": "Second Post", "content": "This is the second post content..." },
+              { "id": 3, "title": "Third Post", "content": "This is the third post content..." }
+            ]
+          }
+        }
+      ]
+    },
+    "reset": {
+      "mutations": [
+        { "target": "loading", "op": "set", "value": true },
+        { "target": "data", "op": "set", "value": null }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "flex justify-between items-center mb-6" },
+        "children": [
+          { "type": "h1", "props": { "className": "text-2xl font-bold" }, "children": [{ "text": "Skeleton Loading Demo" }] },
+          {
+            "type": "button",
+            "props": {
+              "className": {
+                "op": "if",
+                "args": [
+                  { "ref": "loading" },
+                  "px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                  "px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                ]
+              }
+            },
+            "events": {
+              "click": {
+                "op": "if",
+                "args": [{ "ref": "loading" }, { "action": "loadData" }, { "action": "reset" }]
+              }
+            },
+            "children": [
+              { "op": "if", "args": [{ "ref": "loading" }, "Load Data", "Reset"] }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md p-6 mb-6" },
+        "children": [
+          {
+            "if": { "ref": "loading" },
+            "then": {
+              "type": "div",
+              "props": { "className": "flex items-center gap-4" },
+              "children": [
+                { "type": "div", "props": { "className": "w-16 h-16 bg-gray-200 rounded-full animate-pulse" } },
+                {
+                  "type": "div",
+                  "props": { "className": "flex-1 space-y-2" },
+                  "children": [
+                    { "type": "div", "props": { "className": "h-4 bg-gray-200 rounded w-1/3 animate-pulse" } },
+                    { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded w-1/2 animate-pulse" } }
+                  ]
+                }
+              ]
+            },
+            "else": {
+              "type": "div",
+              "props": { "className": "flex items-center gap-4" },
+              "children": [
+                { "type": "div", "props": { "className": "w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-3xl" }, "children": [{ "bind": "data.user.avatar" }] },
+                {
+                  "type": "div",
+                  "children": [
+                    { "type": "h2", "props": { "className": "text-xl font-semibold" }, "children": [{ "bind": "data.user.name" }] },
+                    { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "bind": "data.user.email" }] }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "space-y-4" },
+        "children": [
+          { "type": "h2", "props": { "className": "text-lg font-semibold mb-2" }, "children": [{ "text": "Posts" }] },
+          {
+            "if": { "ref": "loading" },
+            "then": {
+              "fragment": [
+                {
+                  "type": "div",
+                  "props": { "className": "bg-white rounded-lg shadow-md p-4" },
+                  "children": [
+                    { "type": "div", "props": { "className": "h-5 bg-gray-200 rounded w-2/3 mb-3 animate-pulse" } },
+                    { "type": "div", "props": { "className": "space-y-2" }, "children": [
+                      { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded animate-pulse" } },
+                      { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded w-5/6 animate-pulse" } }
+                    ]}
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "bg-white rounded-lg shadow-md p-4" },
+                  "children": [
+                    { "type": "div", "props": { "className": "h-5 bg-gray-200 rounded w-1/2 mb-3 animate-pulse" } },
+                    { "type": "div", "props": { "className": "space-y-2" }, "children": [
+                      { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded animate-pulse" } },
+                      { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded w-4/5 animate-pulse" } }
+                    ]}
+                  ]
+                },
+                {
+                  "type": "div",
+                  "props": { "className": "bg-white rounded-lg shadow-md p-4" },
+                  "children": [
+                    { "type": "div", "props": { "className": "h-5 bg-gray-200 rounded w-3/4 mb-3 animate-pulse" } },
+                    { "type": "div", "props": { "className": "space-y-2" }, "children": [
+                      { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded animate-pulse" } },
+                      { "type": "div", "props": { "className": "h-3 bg-gray-200 rounded w-2/3 animate-pulse" } }
+                    ]}
+                  ]
+                }
+              ]
+            },
+            "else": {
+              "type": "div",
+              "props": { "className": "space-y-4" },
+              "each": { "items": "data.posts", "as": "post", "key": { "op": "get", "args": [{ "ref": "post" }, "id"] } },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow" },
+                  "children": [
+                    { "type": "h3", "props": { "className": "text-lg font-semibold mb-2" }, "children": [{ "bind": "post.title" }] },
+                    { "type": "p", "props": { "className": "text-gray-600" }, "children": [{ "bind": "post.content" }] }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-loading",
+      "name": "Starts in loading state",
+      "steps": [
+        { "assert": { "ref": "loading", "eq": true } },
+        { "assert": { "ref": "data", "eq": null } }
+      ]
+    },
+    {
+      "id": "test-load-data",
+      "name": "Can load data",
+      "steps": [
+        { "dispatch": "loadData" },
+        { "assert": { "ref": "loading", "eq": false } },
+        { "assert": { "value": { "op": "get", "args": [{ "ref": "data" }, "user"] }, "truthy": true } }
+      ]
+    },
+    {
+      "id": "test-reset",
+      "name": "Can reset to loading",
+      "steps": [
+        { "dispatch": "loadData" },
+        { "dispatch": "reset" },
+        { "assert": { "ref": "loading", "eq": true } },
+        { "assert": { "ref": "data", "eq": null } }
+      ]
+    }
+  ]
+}

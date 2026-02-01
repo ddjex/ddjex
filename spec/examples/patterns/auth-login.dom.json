@@ -1,0 +1,196 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "auth-login",
+  "target": "dom",
+
+  "state": {
+    "email": { "type": "string", "initial": "" },
+    "password": { "type": "string", "initial": "" },
+    "loading": { "type": "boolean", "initial": false },
+    "error": { "type": "string", "initial": "" },
+    "user": { "type": "object", "initial": null, "nullable": true }
+  },
+
+  "computed": {
+    "isValid": {
+      "deps": ["email", "password"],
+      "fn": {
+        "op": "and",
+        "args": [
+          { "op": "isEmail", "args": [{ "ref": "email" }] },
+          { "op": "hasMinLength", "args": [{ "ref": "password" }, 6] }
+        ]
+      }
+    },
+    "isLoggedIn": {
+      "deps": ["user"],
+      "fn": { "op": "isDefined", "args": [{ "ref": "user" }] }
+    }
+  },
+
+  "actions": {
+    "setEmail": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "email", "op": "set", "value": { "param": "value" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setPassword": {
+      "params": ["value"],
+      "mutations": [
+        { "target": "password", "op": "set", "value": { "param": "value" } },
+        { "target": "error", "op": "set", "value": "" }
+      ]
+    },
+    "setLoading": {
+      "params": ["value"],
+      "mutations": [{ "target": "loading", "op": "set", "value": { "param": "value" } }]
+    },
+    "setError": {
+      "params": ["value"],
+      "mutations": [{ "target": "error", "op": "set", "value": { "param": "value" } }]
+    },
+    "setUser": {
+      "params": ["value"],
+      "mutations": [{ "target": "user", "op": "set", "value": { "param": "value" } }]
+    },
+    "logout": {
+      "mutations": [
+        { "target": "user", "op": "set", "value": null },
+        { "target": "email", "op": "set", "value": "" },
+        { "target": "password", "op": "set", "value": "" }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "min-h-screen flex items-center justify-center bg-gray-100" },
+    "children": [
+      {
+        "if": { "ref": "isLoggedIn" },
+        "then": {
+          "type": "div",
+          "props": { "className": "bg-white p-8 rounded-lg shadow-md text-center" },
+          "children": [
+            { "type": "h2", "props": { "className": "text-2xl font-bold mb-4" }, "children": [{ "text": "Welcome!" }] },
+            { "type": "p", "props": { "className": "mb-4" }, "children": [{ "text": "Logged in as: " }, { "bind": "user.email" }] },
+            {
+              "type": "button",
+              "props": { "className": "bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600" },
+              "events": { "click": { "action": "logout" } },
+              "children": [{ "text": "Logout" }]
+            }
+          ]
+        },
+        "else": {
+          "type": "div",
+          "props": { "className": "bg-white p-8 rounded-lg shadow-md w-full max-w-md" },
+          "children": [
+            { "type": "h2", "props": { "className": "text-2xl font-bold mb-6 text-center" }, "children": [{ "text": "Login" }] },
+            {
+              "if": { "op": "isNotEmpty", "args": [{ "ref": "error" }] },
+              "then": {
+                "type": "div",
+                "props": { "className": "bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" },
+                "children": [{ "bind": "error" }]
+              }
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-4" },
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Email" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "email",
+                    "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "you@example.com",
+                    "value": { "ref": "email" }
+                  },
+                  "events": { "input": { "action": "setEmail", "args": [{ "op": "eventValue" }] } }
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "props": { "className": "mb-6" },
+              "children": [
+                { "type": "label", "props": { "className": "block text-gray-700 mb-2" }, "children": [{ "text": "Password" }] },
+                {
+                  "type": "input",
+                  "props": {
+                    "type": "password",
+                    "className": "w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "At least 6 characters",
+                    "value": { "ref": "password" }
+                  },
+                  "events": { "input": { "action": "setPassword", "args": [{ "op": "eventValue" }] } }
+                }
+              ]
+            },
+            {
+              "type": "button",
+              "props": {
+                "className": {
+                  "op": "if",
+                  "args": [
+                    { "op": "and", "args": [{ "ref": "isValid" }, { "op": "not", "args": [{ "ref": "loading" }] }] },
+                    "w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600",
+                    "w-full bg-gray-300 text-gray-500 py-2 rounded cursor-not-allowed"
+                  ]
+                },
+                "disabled": { "op": "or", "args": [{ "op": "not", "args": [{ "ref": "isValid" }] }, { "ref": "loading" }] }
+              },
+              "events": { "click": { "action": "setUser", "args": [{ "email": { "ref": "email" } }] } },
+              "children": [
+                {
+                  "if": { "ref": "loading" },
+                  "then": { "type": "span", "children": [{ "text": "Logging in..." }] },
+                  "else": { "type": "span", "children": [{ "text": "Login" }] }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Initial state is logged out",
+      "steps": [
+        { "assert": { "ref": "email", "eq": "" } },
+        { "assert": { "ref": "password", "eq": "" } },
+        { "assert": { "ref": "isLoggedIn", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-validation",
+      "name": "Form validates email and password",
+      "steps": [
+        { "assert": { "ref": "isValid", "eq": false } },
+        { "dispatch": "setEmail", "args": ["invalid"] },
+        { "assert": { "ref": "isValid", "eq": false } },
+        { "dispatch": "setEmail", "args": ["test@example.com"] },
+        { "assert": { "ref": "isValid", "eq": false } },
+        { "dispatch": "setPassword", "args": ["123456"] },
+        { "assert": { "ref": "isValid", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-login-logout",
+      "name": "Can login and logout",
+      "steps": [
+        { "dispatch": "setUser", "args": [{ "email": "test@example.com" }] },
+        { "assert": { "ref": "isLoggedIn", "eq": true } },
+        { "dispatch": "logout" },
+        { "assert": { "ref": "isLoggedIn", "eq": false } }
+      ]
+    }
+  ]
+}

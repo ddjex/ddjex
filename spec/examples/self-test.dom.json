@@ -1,0 +1,204 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "counter_with_tests",
+  "target": "dom",
+
+  "state": {
+    "count": { "type": "number", "initial": 0 },
+    "items": { "type": "array", "initial": [] },
+    "name": { "type": "string", "initial": "" }
+  },
+
+  "computed": {
+    "doubled": {
+      "deps": ["count"],
+      "fn": { "op": "multiply", "args": [{ "ref": "count" }, 2] }
+    },
+    "itemCount": {
+      "deps": ["items"],
+      "fn": { "op": "length", "args": [{ "ref": "items" }] }
+    },
+    "hasItems": {
+      "deps": ["items"],
+      "fn": { "op": "gt", "args": [{ "op": "length", "args": [{ "ref": "items" }] }, 0] }
+    }
+  },
+
+  "actions": {
+    "increment": {
+      "mutations": [{ "target": "count", "op": "add", "value": 1 }]
+    },
+    "decrement": {
+      "mutations": [{ "target": "count", "op": "subtract", "value": 1 }]
+    },
+    "incrementBy": {
+      "params": ["amount"],
+      "mutations": [{ "target": "count", "op": "add", "value": { "param": "amount" } }]
+    },
+    "reset": {
+      "mutations": [{ "target": "count", "op": "set", "value": 0 }]
+    },
+    "addItem": {
+      "params": ["item"],
+      "mutations": [{ "target": "items", "op": "push", "value": { "param": "item" } }]
+    },
+    "clearItems": {
+      "mutations": [{ "target": "items", "op": "set", "value": [] }]
+    },
+    "setName": {
+      "params": ["value"],
+      "mutations": [{ "target": "name", "op": "set", "value": { "param": "value" } }]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "children": [
+      { "text": "Counter with Self-Tests" },
+      {
+        "type": "div",
+        "children": [
+          { "text": "Count: " },
+          { "bind": "count" },
+          { "text": " (doubled: " },
+          { "bind": "doubled" },
+          { "text": ")" }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "initial_state",
+      "name": "Initial state is correct",
+      "steps": [
+        { "assert": { "ref": "count", "eq": 0 } },
+        { "assert": { "ref": "doubled", "eq": 0 } },
+        { "assert": { "ref": "items", "length": 0 } },
+        { "assert": { "ref": "items", "type": "array" } },
+        { "assert": { "ref": "name", "eq": "" } }
+      ]
+    },
+    {
+      "id": "increment_works",
+      "name": "Increment increases count by 1",
+      "steps": [
+        { "assert": { "ref": "count", "eq": 0 } },
+        { "dispatch": "increment" },
+        { "assert": { "ref": "count", "eq": 1 } },
+        { "assert": { "ref": "doubled", "eq": 2 } },
+        { "dispatch": "increment" },
+        { "assert": { "ref": "count", "eq": 2 } },
+        { "assert": { "ref": "doubled", "eq": 4 } }
+      ]
+    },
+    {
+      "id": "decrement_works",
+      "name": "Decrement decreases count by 1",
+      "setup": { "count": 5 },
+      "steps": [
+        { "assert": { "ref": "count", "eq": 5 } },
+        { "dispatch": "decrement" },
+        { "assert": { "ref": "count", "eq": 4 } },
+        { "assert": { "ref": "doubled", "eq": 8 } }
+      ]
+    },
+    {
+      "id": "increment_by_works",
+      "name": "IncrementBy adds custom amount",
+      "steps": [
+        { "assert": { "ref": "count", "eq": 0 } },
+        { "dispatch": "incrementBy", "args": [5] },
+        { "assert": { "ref": "count", "eq": 5 } },
+        { "dispatch": "incrementBy", "args": [3] },
+        { "assert": { "ref": "count", "eq": 8 } }
+      ]
+    },
+    {
+      "id": "reset_works",
+      "name": "Reset sets count to zero",
+      "steps": [
+        { "dispatch": "increment" },
+        { "dispatch": "increment" },
+        { "dispatch": "increment" },
+        { "assert": { "ref": "count", "eq": 3 } },
+        { "dispatch": "reset" },
+        { "assert": { "ref": "count", "eq": 0 } },
+        { "assert": { "ref": "doubled", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "array_operations",
+      "name": "Array push and clear work",
+      "steps": [
+        { "assert": { "ref": "items", "type": "array" } },
+        { "assert": { "ref": "itemCount", "eq": 0 } },
+        { "assert": { "ref": "hasItems", "eq": false } },
+        { "dispatch": "addItem", "args": ["apple"] },
+        { "assert": { "ref": "itemCount", "eq": 1 } },
+        { "assert": { "ref": "items", "contains": "apple" } },
+        { "assert": { "ref": "hasItems", "eq": true } },
+        { "dispatch": "addItem", "args": ["banana"] },
+        { "assert": { "ref": "itemCount", "eq": 2 } },
+        { "dispatch": "clearItems" },
+        { "assert": { "ref": "items", "length": 0 } },
+        { "assert": { "ref": "hasItems", "eq": false } }
+      ]
+    },
+    {
+      "id": "computed_reactive",
+      "name": "Computed values react to state changes",
+      "steps": [
+        { "setState": { "count": 10 } },
+        { "assert": { "ref": "doubled", "eq": 20 } },
+        { "setState": { "count": 7 } },
+        { "assert": { "ref": "doubled", "eq": 14 } },
+        { "setState": { "count": 0 } },
+        { "assert": { "ref": "doubled", "eq": 0 } }
+      ]
+    },
+    {
+      "id": "type_assertions",
+      "name": "Type assertions work correctly",
+      "steps": [
+        { "assert": { "ref": "count", "type": "number" } },
+        { "assert": { "ref": "items", "type": "array" } },
+        { "assert": { "ref": "name", "type": "string" } },
+        { "assert": { "ref": "doubled", "type": "number" } },
+        { "assert": { "ref": "hasItems", "type": "boolean" } }
+      ]
+    },
+    {
+      "id": "comparison_operators",
+      "name": "Comparison assertions work",
+      "setup": { "count": 5 },
+      "steps": [
+        { "assert": { "ref": "count", "gt": 4 } },
+        { "assert": { "ref": "count", "gte": 5 } },
+        { "assert": { "ref": "count", "lt": 6 } },
+        { "assert": { "ref": "count", "lte": 5 } },
+        { "assert": { "ref": "count", "neq": 0 } },
+        { "assert": { "ref": "count", "neq": 10 } }
+      ]
+    },
+    {
+      "id": "string_assertions",
+      "name": "String assertions work",
+      "steps": [
+        { "dispatch": "setName", "args": ["hello@world.com"] },
+        { "assert": { "ref": "name", "matches": "^[a-z]+@[a-z]+\\.[a-z]+$" } },
+        { "assert": { "ref": "name", "contains": "@" } },
+        { "assert": { "ref": "name", "length": 15 } }
+      ]
+    },
+    {
+      "id": "skip_example",
+      "name": "This test is skipped",
+      "skip": true,
+      "steps": [
+        { "assert": { "ref": "count", "eq": -999 }, "message": "This should not run" }
+      ]
+    }
+  ]
+}

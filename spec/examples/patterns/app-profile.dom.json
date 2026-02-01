@@ -1,0 +1,564 @@
+{
+  "$ddjex": "0.4.0",
+  "id": "app-profile",
+  "target": "dom",
+
+  "state": {
+    "user": {
+      "type": "object",
+      "initial": {
+        "id": 1,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "avatar": "👩",
+        "bio": "Full-stack developer passionate about building great user experiences.",
+        "location": "San Francisco, CA",
+        "website": "https://janesmith.dev",
+        "joinDate": "January 2023",
+        "verified": true
+      }
+    },
+    "stats": {
+      "type": "object",
+      "initial": {
+        "posts": 142,
+        "followers": 2543,
+        "following": 186
+      }
+    },
+    "isEditing": { "type": "boolean", "initial": false },
+    "editName": { "type": "string", "initial": "" },
+    "editBio": { "type": "string", "initial": "" },
+    "editLocation": { "type": "string", "initial": "" },
+    "editWebsite": { "type": "string", "initial": "" },
+    "activeTab": { "type": "string", "initial": "posts" },
+    "posts": {
+      "type": "array",
+      "initial": [
+        { "id": 1, "content": "Just shipped a new feature! 🚀", "likes": 42, "comments": 8, "date": "2 hours ago" },
+        { "id": 2, "content": "Learning ddjex has been an amazing journey. Highly recommend!", "likes": 128, "comments": 23, "date": "1 day ago" },
+        { "id": 3, "content": "Coffee and code ☕💻", "likes": 89, "comments": 12, "date": "3 days ago" }
+      ]
+    },
+    "isFollowing": { "type": "boolean", "initial": false }
+  },
+
+  "computed": {
+    "formattedFollowers": {
+      "deps": ["stats"],
+      "fn": {
+        "op": "if",
+        "args": [
+          { "op": "gte", "args": [{ "op": "get", "args": [{ "ref": "stats" }, "followers"] }, 1000] },
+          { "op": "concat", "args": [{ "op": "round", "args": [{ "op": "divide", "args": [{ "op": "get", "args": [{ "ref": "stats" }, "followers"] }, 1000] }, 1] }, "K"] },
+          { "op": "get", "args": [{ "ref": "stats" }, "followers"] }
+        ]
+      }
+    },
+    "postCount": {
+      "deps": ["posts"],
+      "fn": { "op": "length", "args": [{ "ref": "posts" }] }
+    },
+    "totalLikes": {
+      "deps": ["posts"],
+      "fn": {
+        "op": "reduce",
+        "args": [
+          { "ref": "posts" },
+          { "op": "add", "args": [{ "ref": "$acc" }, { "op": "get", "args": [{ "ref": "$item" }, "likes"] }] },
+          0
+        ]
+      }
+    },
+    "bioLength": {
+      "deps": ["editBio"],
+      "fn": { "op": "length", "args": [{ "ref": "editBio" }] }
+    },
+    "bioRemaining": {
+      "deps": ["bioLength"],
+      "fn": { "op": "subtract", "args": [160, { "ref": "bioLength" }] }
+    }
+  },
+
+  "actions": {
+    "startEdit": {
+      "mutations": [
+        { "target": "isEditing", "op": "set", "value": true },
+        { "target": "editName", "op": "set", "value": { "op": "get", "args": [{ "ref": "user" }, "name"] } },
+        { "target": "editBio", "op": "set", "value": { "op": "get", "args": [{ "ref": "user" }, "bio"] } },
+        { "target": "editLocation", "op": "set", "value": { "op": "get", "args": [{ "ref": "user" }, "location"] } },
+        { "target": "editWebsite", "op": "set", "value": { "op": "get", "args": [{ "ref": "user" }, "website"] } }
+      ]
+    },
+    "cancelEdit": {
+      "mutations": [
+        { "target": "isEditing", "op": "set", "value": false }
+      ]
+    },
+    "saveProfile": {
+      "mutations": [
+        {
+          "target": "user",
+          "op": "set",
+          "value": {
+            "op": "merge",
+            "args": [
+              { "ref": "user" },
+              {
+                "name": { "ref": "editName" },
+                "bio": { "ref": "editBio" },
+                "location": { "ref": "editLocation" },
+                "website": { "ref": "editWebsite" }
+              }
+            ]
+          }
+        },
+        { "target": "isEditing", "op": "set", "value": false }
+      ]
+    },
+    "setEditName": {
+      "params": ["value"],
+      "mutations": [{ "target": "editName", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEditBio": {
+      "params": ["value"],
+      "mutations": [{ "target": "editBio", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEditLocation": {
+      "params": ["value"],
+      "mutations": [{ "target": "editLocation", "op": "set", "value": { "param": "value" } }]
+    },
+    "setEditWebsite": {
+      "params": ["value"],
+      "mutations": [{ "target": "editWebsite", "op": "set", "value": { "param": "value" } }]
+    },
+    "setActiveTab": {
+      "params": ["tab"],
+      "mutations": [{ "target": "activeTab", "op": "set", "value": { "param": "tab" } }]
+    },
+    "toggleFollow": {
+      "mutations": [
+        { "target": "isFollowing", "op": "set", "value": { "op": "not", "args": [{ "ref": "isFollowing" }] } },
+        {
+          "target": "stats",
+          "op": "set",
+          "value": {
+            "op": "merge",
+            "args": [
+              { "ref": "stats" },
+              {
+                "followers": {
+                  "op": "if",
+                  "args": [
+                    { "ref": "isFollowing" },
+                    { "op": "subtract", "args": [{ "op": "get", "args": [{ "ref": "stats" }, "followers"] }, 1] },
+                    { "op": "add", "args": [{ "op": "get", "args": [{ "ref": "stats" }, "followers"] }, 1] }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "likePost": {
+      "params": ["id"],
+      "mutations": [
+        {
+          "target": "posts",
+          "op": "set",
+          "value": {
+            "op": "map",
+            "args": [
+              { "ref": "posts" },
+              {
+                "op": "if",
+                "args": [
+                  { "op": "eq", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "id"] }, { "param": "id" }] },
+                  { "op": "merge", "args": [{ "ref": "$item" }, { "likes": { "op": "add", "args": [{ "op": "get", "args": [{ "ref": "$item" }, "likes"] }, 1] } }] },
+                  { "ref": "$item" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  "root": {
+    "type": "div",
+    "props": { "className": "max-w-2xl mx-auto p-6" },
+    "children": [
+      {
+        "type": "div",
+        "props": { "className": "bg-white rounded-lg shadow-md overflow-hidden" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "h-32 bg-gradient-to-r from-blue-500 to-purple-500" }
+          },
+          {
+            "type": "div",
+            "props": { "className": "px-6 pb-6" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex justify-between items-end -mt-12 mb-4" },
+                "children": [
+                  {
+                    "type": "div",
+                    "props": { "className": "w-24 h-24 bg-white rounded-full flex items-center justify-center text-5xl border-4 border-white shadow" },
+                    "children": [{ "bind": "user.avatar" }]
+                  },
+                  {
+                    "if": { "ref": "isEditing" },
+                    "then": {
+                      "type": "div",
+                      "props": { "className": "flex gap-2" },
+                      "children": [
+                        {
+                          "type": "button",
+                          "props": { "className": "px-4 py-2 text-gray-600 hover:text-gray-800" },
+                          "events": { "click": { "action": "cancelEdit" } },
+                          "children": [{ "text": "Cancel" }]
+                        },
+                        {
+                          "type": "button",
+                          "props": { "className": "px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600" },
+                          "events": { "click": { "action": "saveProfile" } },
+                          "children": [{ "text": "Save" }]
+                        }
+                      ]
+                    },
+                    "else": {
+                      "type": "button",
+                      "props": { "className": "px-4 py-2 border rounded-full hover:bg-gray-50" },
+                      "events": { "click": { "action": "startEdit" } },
+                      "children": [{ "text": "Edit Profile" }]
+                    }
+                  }
+                ]
+              },
+              {
+                "if": { "ref": "isEditing" },
+                "then": {
+                  "type": "div",
+                  "props": { "className": "space-y-4" },
+                  "children": [
+                    {
+                      "type": "div",
+                      "children": [
+                        { "type": "label", "props": { "className": "block text-sm text-gray-500 mb-1" }, "children": [{ "text": "Name" }] },
+                        {
+                          "type": "input",
+                          "props": {
+                            "type": "text",
+                            "className": "w-full px-3 py-2 border rounded",
+                            "value": { "ref": "editName" }
+                          },
+                          "events": { "input": { "action": "setEditName", "args": [{ "op": "eventValue" }] } }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "children": [
+                        {
+                          "type": "div",
+                          "props": { "className": "flex justify-between mb-1" },
+                          "children": [
+                            { "type": "label", "props": { "className": "block text-sm text-gray-500" }, "children": [{ "text": "Bio" }] },
+                            {
+                              "type": "span",
+                              "props": {
+                                "className": { "op": "if", "args": [{ "op": "lt", "args": [{ "ref": "bioRemaining" }, 0] }, "text-sm text-red-500", "text-sm text-gray-400"] }
+                              },
+                              "children": [{ "bind": "bioRemaining" }]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "textarea",
+                          "props": {
+                            "className": "w-full px-3 py-2 border rounded resize-none",
+                            "rows": 3,
+                            "value": { "ref": "editBio" }
+                          },
+                          "events": { "input": { "action": "setEditBio", "args": [{ "op": "eventValue" }] } }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "children": [
+                        { "type": "label", "props": { "className": "block text-sm text-gray-500 mb-1" }, "children": [{ "text": "Location" }] },
+                        {
+                          "type": "input",
+                          "props": {
+                            "type": "text",
+                            "className": "w-full px-3 py-2 border rounded",
+                            "value": { "ref": "editLocation" }
+                          },
+                          "events": { "input": { "action": "setEditLocation", "args": [{ "op": "eventValue" }] } }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "children": [
+                        { "type": "label", "props": { "className": "block text-sm text-gray-500 mb-1" }, "children": [{ "text": "Website" }] },
+                        {
+                          "type": "input",
+                          "props": {
+                            "type": "url",
+                            "className": "w-full px-3 py-2 border rounded",
+                            "value": { "ref": "editWebsite" }
+                          },
+                          "events": { "input": { "action": "setEditWebsite", "args": [{ "op": "eventValue" }] } }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "else": {
+                  "type": "div",
+                  "children": [
+                    {
+                      "type": "div",
+                      "props": { "className": "flex items-center gap-2 mb-1" },
+                      "children": [
+                        { "type": "h1", "props": { "className": "text-xl font-bold" }, "children": [{ "bind": "user.name" }] },
+                        {
+                          "if": { "op": "get", "args": [{ "ref": "user" }, "verified"] },
+                          "then": {
+                            "type": "span",
+                            "props": { "className": "text-blue-500", "title": "Verified" },
+                            "children": [{ "text": "✓" }]
+                          }
+                        }
+                      ]
+                    },
+                    { "type": "p", "props": { "className": "text-gray-500 mb-3" }, "children": [{ "bind": "user.email" }] },
+                    { "type": "p", "props": { "className": "mb-3" }, "children": [{ "bind": "user.bio" }] },
+                    {
+                      "type": "div",
+                      "props": { "className": "flex flex-wrap gap-4 text-sm text-gray-500" },
+                      "children": [
+                        { "type": "span", "children": [{ "text": "📍 " }, { "bind": "user.location" }] },
+                        { "type": "a", "props": { "href": { "ref": "user.website" }, "className": "text-blue-500 hover:underline" }, "children": [{ "text": "🔗 Website" }] },
+                        { "type": "span", "children": [{ "text": "📅 Joined " }, { "bind": "user.joinDate" }] }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "props": { "className": "flex border-t" },
+            "children": [
+              {
+                "type": "div",
+                "props": { "className": "flex-1 py-4 text-center border-r" },
+                "children": [
+                  { "type": "p", "props": { "className": "font-bold" }, "children": [{ "bind": "stats.posts" }] },
+                  { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Posts" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "flex-1 py-4 text-center border-r" },
+                "children": [
+                  { "type": "p", "props": { "className": "font-bold" }, "children": [{ "bind": "formattedFollowers" }] },
+                  { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Followers" }] }
+                ]
+              },
+              {
+                "type": "div",
+                "props": { "className": "flex-1 py-4 text-center" },
+                "children": [
+                  { "type": "p", "props": { "className": "font-bold" }, "children": [{ "bind": "stats.following" }] },
+                  { "type": "p", "props": { "className": "text-sm text-gray-500" }, "children": [{ "text": "Following" }] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "div",
+        "props": { "className": "mt-6" },
+        "children": [
+          {
+            "type": "div",
+            "props": { "className": "flex border-b mb-4" },
+            "children": [
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activeTab" }, "posts"] },
+                      "flex-1 py-3 font-medium text-blue-500 border-b-2 border-blue-500",
+                      "flex-1 py-3 text-gray-500 hover:text-gray-700"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActiveTab", "args": ["posts"] } },
+                "children": [{ "text": "Posts" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activeTab" }, "likes"] },
+                      "flex-1 py-3 font-medium text-blue-500 border-b-2 border-blue-500",
+                      "flex-1 py-3 text-gray-500 hover:text-gray-700"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActiveTab", "args": ["likes"] } },
+                "children": [{ "text": "Likes" }]
+              },
+              {
+                "type": "button",
+                "props": {
+                  "className": {
+                    "op": "if",
+                    "args": [
+                      { "op": "eq", "args": [{ "ref": "activeTab" }, "media"] },
+                      "flex-1 py-3 font-medium text-blue-500 border-b-2 border-blue-500",
+                      "flex-1 py-3 text-gray-500 hover:text-gray-700"
+                    ]
+                  }
+                },
+                "events": { "click": { "action": "setActiveTab", "args": ["media"] } },
+                "children": [{ "text": "Media" }]
+              }
+            ]
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "activeTab" }, "posts"] },
+            "then": {
+              "type": "div",
+              "props": { "className": "space-y-4" },
+              "each": { "items": "posts", "as": "post", "key": { "op": "get", "args": [{ "ref": "post" }, "id"] } },
+              "children": [
+                {
+                  "type": "div",
+                  "props": { "className": "bg-white rounded-lg shadow p-4" },
+                  "children": [
+                    { "type": "p", "props": { "className": "mb-3" }, "children": [{ "bind": "post.content" }] },
+                    {
+                      "type": "div",
+                      "props": { "className": "flex items-center justify-between text-sm text-gray-500" },
+                      "children": [
+                        {
+                          "type": "div",
+                          "props": { "className": "flex gap-4" },
+                          "children": [
+                            {
+                              "type": "button",
+                              "props": { "className": "flex items-center gap-1 hover:text-red-500" },
+                              "events": { "click": { "action": "likePost", "args": [{ "op": "get", "args": [{ "ref": "post" }, "id"] }] } },
+                              "children": [{ "text": "❤️ " }, { "bind": "post.likes" }]
+                            },
+                            { "type": "span", "children": [{ "text": "💬 " }, { "bind": "post.comments" }] }
+                          ]
+                        },
+                        { "bind": "post.date" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "activeTab" }, "likes"] },
+            "then": {
+              "type": "div",
+              "props": { "className": "text-center py-8 text-gray-500" },
+              "children": [
+                { "type": "p", "props": { "className": "text-4xl mb-2" }, "children": [{ "text": "❤️" }] },
+                { "type": "p", "children": [{ "text": "Total likes: " }, { "bind": "totalLikes" }] }
+              ]
+            }
+          },
+          {
+            "if": { "op": "eq", "args": [{ "ref": "activeTab" }, "media"] },
+            "then": {
+              "type": "div",
+              "props": { "className": "text-center py-8 text-gray-500" },
+              "children": [
+                { "type": "p", "props": { "className": "text-4xl mb-2" }, "children": [{ "text": "📷" }] },
+                { "type": "p", "children": [{ "text": "No media yet" }] }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "tests": [
+    {
+      "id": "test-initial-state",
+      "name": "Has initial user data",
+      "steps": [
+        { "assert": { "ref": "isEditing", "eq": false } },
+        { "assert": { "ref": "postCount", "eq": 3 } }
+      ]
+    },
+    {
+      "id": "test-start-edit",
+      "name": "Can start editing",
+      "steps": [
+        { "dispatch": "startEdit" },
+        { "assert": { "ref": "isEditing", "eq": true } }
+      ]
+    },
+    {
+      "id": "test-cancel-edit",
+      "name": "Can cancel editing",
+      "steps": [
+        { "dispatch": "startEdit" },
+        { "dispatch": "cancelEdit" },
+        { "assert": { "ref": "isEditing", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-save-profile",
+      "name": "Can save profile changes",
+      "steps": [
+        { "dispatch": "startEdit" },
+        { "dispatch": "setEditName", "args": ["New Name"] },
+        { "dispatch": "saveProfile" },
+        { "assert": { "ref": "isEditing", "eq": false } }
+      ]
+    },
+    {
+      "id": "test-tab-navigation",
+      "name": "Can navigate tabs",
+      "steps": [
+        { "dispatch": "setActiveTab", "args": ["likes"] },
+        { "assert": { "ref": "activeTab", "eq": "likes" } },
+        { "dispatch": "setActiveTab", "args": ["media"] },
+        { "assert": { "ref": "activeTab", "eq": "media" } }
+      ]
+    },
+    {
+      "id": "test-like-post",
+      "name": "Can like a post",
+      "steps": [
+        { "dispatch": "likePost", "args": [1] },
+        { "assert": { "ref": "totalLikes", "eq": 260 } }
+      ]
+    }
+  ]
+}
